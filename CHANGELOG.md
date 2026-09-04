@@ -15,6 +15,7 @@ Format follows Keep a Changelog and Semantic Versioning.
 - **Copy button on the response body toolbar** (#54) — one-click copy of the raw response body, in both the Request Editor preview and the Response Detail modal. Flashes a checkmark for ~1.5 s, is hidden when there is no body, and works for any content type.
 
 ### Changed
+- **Single GitHub release per version** — Standard and Learning Hub installers now publish to one `vX.Y.Z` tag (`RedfireForge_*` vs `RedfireForge-LearningHub-*`). Do not push `-lh` tags. Learning Hub updater reads `latest-demo.json` so it does not overwrite Standard `latest.json`.
 - **Learning Hub prerequisite gate (Phase 1)** — web Docker gate no longer claims the desktop app “includes everything.” Download goes to the GitHub releases list (Learning Hub builds are not `/releases/latest`). The command block includes a repo-clone hint, a Copy button, and an Install Docker Desktop link.
 - **Learning Hub Docker bundle (Phase 2)** — Learning Hub extracts `docker/` compose trees into app data on launch. On desktop the prerequisite command uses that OS path (no repo clone). Web still shows the clone preamble. `tauri:dev` falls back to the repo `docker/` folder.
 - **Learning Hub Start/Stop Stack (Phase 3)** — Desktop prerequisite gate can start and stop the lesson Docker stack (daemon / Compose checks, log stream, port-conflict and OOM errors, cert expiry warning). Web keeps the manual compose command.

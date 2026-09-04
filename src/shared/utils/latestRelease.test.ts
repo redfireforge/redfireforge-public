@@ -100,6 +100,17 @@ describe('getDownloadUrl', () => {
   it('returns null when no matching asset', () => {
     expect(getDownloadUrl([], 'macos-arm')).toBeNull();
   });
+
+  it('ignores Learning Hub installers on a shared vX.Y.Z release', () => {
+    const mixed: ReleaseAsset[] = [
+      { name: 'RedfireForge-LearningHub-1.2.3-linux-amd64.AppImage', browser_download_url: 'https://lh.AppImage', size: 1 },
+      { name: 'RedfireForge_1.2.3_amd64.AppImage', browser_download_url: 'https://std.AppImage', size: 1 },
+      { name: 'RedfireForge-LearningHub-1.2.3-linux-amd64.deb', browser_download_url: 'https://lh.deb', size: 1 },
+      { name: 'RedfireForge_1.2.3_amd64.deb', browser_download_url: 'https://std.deb', size: 1 },
+    ];
+    expect(getDownloadUrl(mixed, 'linux-appimage')).toBe('https://std.AppImage');
+    expect(getDownloadUrl(mixed, 'linux-deb')).toBe('https://std.deb');
+  });
 });
 
 describe('detectOSTarget', () => {

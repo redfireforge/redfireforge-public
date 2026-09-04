@@ -9,6 +9,7 @@ export const ALL_TEST_GLOBS = [
   'src-server/**/*.test.{ts,tsx}',
   'cli/**/*.test.ts',
   'vite/**/*.test.ts',
+  'scripts/**/*.test.ts',
 ] as const;
 
 /** Demo-only test files — run in the `demo` Vitest project. */
@@ -61,6 +62,7 @@ export const PRODUCT_COVERAGE_EXCLUDE = [
   'dist',
   'src-tauri',
   'e2e',
+  'scripts/**',
 ] as const;
 
 export function matchesGlob(path: string, pattern: string): boolean {
