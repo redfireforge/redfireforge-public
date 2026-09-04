@@ -20,7 +20,7 @@ on:
           - demo
           - both
       tag_name:
-        description: 'Override tag for release (e.g. v0.8.2-lh). Empty = artifact-only build.'
+        description: 'Override tag for release (e.g. v0.8.4). Empty = artifact-only build. Do not use -lh.'
         required: false
         default: ''
       checkout_ref:
@@ -47,15 +47,17 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       include: ${{ steps.select.outputs.include }}
+      publish_tag: ${{ steps.select.outputs.publish_tag }}
     steps:
       - id: select
         env:
           EVENT: ${{ github.event_name }}
           REF_NAME: ${{ github.ref_name }}
           VARIANT: ${{ inputs.variant }}
+          TAG_NAME: ${{ inputs.tag_name }}
         run: |
           python3 - <<'PY'
-          import json, os
+          import json, os, re
           rows = [
             {"platform": "macos-latest", "target": "aarch64-apple-darwin", "label": "macOS-ARM64", "variant": "standard"},
             {"platform": "macos-latest", "target": "aarch64-apple-darwin", "label": "macOS-ARM64-Demo", "variant": "demo"},
@@ -69,27 +71,32 @@ jobs:
           event = os.environ["EVENT"]
           ref_name = os.environ["REF_NAME"]
           variant = os.environ.get("VARIANT") or ""
+          tag_override = (os.environ.get("TAG_NAME") or "").strip()
           if event == "workflow_dispatch":
               selected = rows if variant == "both" else [r for r in rows if r["variant"] == variant]
+              raw = tag_override
           elif event == "push":
-              # vX.Y.Z-lh / vX.Y.Z-demo → Learning Hub only (do not rebuild Standard)
-              # vX.Y.Z → both variants; LH assets publish to vX.Y.Z-lh
+              # Legacy vX.Y.Z-lh / vX.Y.Z-demo pushes rebuild Learning Hub only.
+              # Both editions always publish to vX.Y.Z (never create a -lh tag).
               if ref_name.endswith("-lh") or ref_name.endswith("-demo"):
                   selected = [r for r in rows if r["variant"] == "demo"]
               else:
                   selected = rows
+              raw = ref_name
           else:
               selected = []
+              raw = ""
+          publish = re.sub(r"-(lh|demo)$", "", raw) if raw else ""
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
               fh.write("include=" + json.dumps(selected, separators=(",", ":")) + "\n")
+              fh.write(f"publish_tag={publish}\n")
           PY
 
   # ⚠️  RELEASE CHECKLIST REMINDER
   # After this workflow completes on a tag push, go to:
   #   https://github.com/redfireforge/redfireforge-public/releases
-  # and click "Publish release" on BOTH drafts:
-  #   - "RedfireForge vX.Y.Z"             (Standard)
-  #   - "RedfireForge Learning Hub vX.Y.Z" (tag: vX.Y.Z-lh)
+  # and click "Publish release" on the single draft:
+  #   - "RedfireForge vX.Y.Z"  (Standard + Learning Hub assets on one tag)
   # The releases/latest API only returns published, non-prerelease releases —
   # unpublished drafts return null and break the in-app update notifier, download
   build:
@@ -135,9 +142,10 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/') || inputs.tag_name != ''
         shell: bash
         run: |
-          VERSION="${{ inputs.tag_name || github.ref_name }}"
+          VERSION="${{ needs.prepare.outputs.publish_tag || inputs.tag_name || github.ref_name }}"
           VERSION="${VERSION#v}"
           VERSION="${VERSION%-lh}"
+          VERSION="${VERSION%-demo}"
           NOTES=$(sed -n "/^## \[${VERSION}\]/,/^## \[/p" CHANGELOG.md | tail -n +2 | sed '$d')
           if [ -z "$NOTES" ]; then
             NOTES="See [CHANGELOG.md](https://github.com/redfireforge/redfireforge-public/blob/master/CHANGELOG.md) for details."
@@ -257,19 +265,23 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: ${{ inputs.tag_name || (startsWith(github.ref, 'refs/tags/') && github.ref_name || '') }}
-          releaseName: 'RedfireForge ${{ inputs.tag_name || github.ref_name }}'
+          tagName: ${{ needs.prepare.outputs.publish_tag }}
+          releaseName: 'RedfireForge ${{ needs.prepare.outputs.publish_tag }}'
           releaseBody: |
             ${{ steps.notes.outputs.notes }}
 
             ---
-            **macOS:** Gatekeeper will block the app on first launch. Run once in Terminal after installing: `xattr -cr /Applications/RedfireForge.app`
+            This release includes **Standard** (`RedfireForge_*`) and **Learning Hub** (`RedfireForge-LearningHub-*`) installers.
+
+            **macOS:** Gatekeeper will block the app on first launch. Run once in Terminal after installing:
+            - Standard: `xattr -cr /Applications/RedfireForge.app`
+            - Learning Hub: `xattr -cr "/Applications/RedfireForge Learning Hub.app"`
             **Windows:** If SmartScreen appears, click **More info** → **Run anyway**.
             **Linux:** `sudo dpkg -i *.deb` or `chmod +x *.AppImage && ./*.AppImage`
 
             SHA256 checksums are in `SHA256SUMS.txt` above.
           releaseDraft: true
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          prerelease: ${{ contains(needs.prepare.outputs.publish_tag, '-') }}
           updaterJsonPreferNsis: true
           args: --target ${{ matrix.target }}
 
@@ -283,25 +295,28 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          # Use a separate -lh tag so the Learning Hub release doesn't collide with the
-          # Standard release (GitHub allows only one release per tag).
-          # v0.8.2 → v0.8.2-lh; a push of v0.8.2-lh keeps that tag (no -lh-lh).
-          tagName: ${{ inputs.tag_name || (startsWith(github.ref, 'refs/tags/') && (endsWith(github.ref_name, '-lh') && github.ref_name || format('{0}-lh', github.ref_name)) || '') }}
-          releaseName: 'RedfireForge Learning Hub ${{ inputs.tag_name || github.ref_name }}'
+          # Same vX.Y.Z tag as Standard. Filenames already differ (RedfireForge-LearningHub-*).
+          # Do not upload latest.json here — that would overwrite Standard's updater file.
+          # latest-demo.json is written after all matrix legs finish.
+          tagName: ${{ needs.prepare.outputs.publish_tag }}
+          releaseName: 'RedfireForge ${{ needs.prepare.outputs.publish_tag }}'
           releaseBody: |
             ${{ steps.notes.outputs.notes }}
 
             ---
-            Learning Hub build with interactive tutorials.
+            This release includes **Standard** (`RedfireForge_*`) and **Learning Hub** (`RedfireForge-LearningHub-*`) installers.
 
-            **macOS:** Gatekeeper will block the app on first launch. Run once in Terminal after installing: `xattr -cr "/Applications/RedfireForge Learning Hub.app"`
+            **macOS:** Gatekeeper will block the app on first launch. Run once in Terminal after installing:
+            - Standard: `xattr -cr /Applications/RedfireForge.app`
+            - Learning Hub: `xattr -cr "/Applications/RedfireForge Learning Hub.app"`
             **Windows:** If SmartScreen appears, click **More info** → **Run anyway**.
             **Linux:** `sudo dpkg -i *.deb` or `chmod +x *.AppImage && ./*.AppImage`
 
             SHA256 checksums are in `SHA256SUMS.txt` above.
           releaseDraft: true
-          prerelease: false
+          prerelease: ${{ contains(needs.prepare.outputs.publish_tag, '-') }}
           updaterJsonPreferNsis: true
+          uploadUpdaterJson: false
           releaseAssetNamePattern: 'RedfireForge-LearningHub-[version]-[platform]-[arch][ext]'
           args: --target ${{ matrix.target }} --config src-tauri/tauri.conf.demo.json
 
@@ -309,12 +324,43 @@ jobs:
         if: startsWith(matrix.platform, 'macos') && always()
         run: security delete-keychain build.keychain 2>/dev/null || true
 
+  lh-updater-json:
+    name: Publish latest-demo.json
+    needs: [prepare, build]
+    if: needs.prepare.outputs.publish_tag != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - name: Download release assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p release-assets
+          gh release download "${{ needs.prepare.outputs.publish_tag }}" --dir release-assets --skip-existing || true
+      - name: Write latest-demo.json
+        run: |
+          node scripts/write-latest-demo-json.mjs \
+            --dir release-assets \
+            --tag "${{ needs.prepare.outputs.publish_tag }}" \
+            --out latest-demo.json
+      - name: Upload latest-demo.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -f latest-demo.json ]; then
+            gh release upload "${{ needs.prepare.outputs.publish_tag }}" latest-demo.json --clobber
+          else
+            echo "No latest-demo.json to upload."
+          fi
+
   sbom:
     name: Generate SBOM
-    needs: build
+    needs: [prepare, build]
     # Only for an actual tag push — a manual workflow_dispatch test run has no
     # tag to attach the asset to.
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && needs.prepare.outputs.publish_tag != ''
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -338,12 +384,17 @@ jobs:
         # tauri-action creates the (draft) release per matrix leg above; attach
         # the SBOM as an extra asset via the tag name rather than the
         # deprecated actions/upload-release-asset@v1 + upload_url pattern.
-        run: gh release upload "${{ github.ref_name }}" sbom.spdx.json --clobber
+        run: gh release upload "${{ needs.prepare.outputs.publish_tag }}" sbom.spdx.json --clobber
 
   checksums:
     name: Generate SHA256 checksums
-    needs: build
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    needs: [prepare, build, lh-updater-json]
+    if: >-
+      always()
+      && needs.build.result == 'success'
+      && github.event_name == 'push'
+      && startsWith(github.ref, 'refs/tags/')
+      && needs.prepare.outputs.publish_tag != ''
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -355,7 +406,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p release-assets
-          gh release download "${{ github.ref_name }}" --dir release-assets --skip-existing || true
+          gh release download "${{ needs.prepare.outputs.publish_tag }}" --dir release-assets --skip-existing || true
 
       - name: Compute SHA256SUMS
         run: |
@@ -373,4 +424,4 @@ jobs:
       - name: Upload SHA256SUMS to the release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "${{ github.ref_name }}" release-assets/SHA256SUMS.txt --clobber
+        run: gh release upload "${{ needs.prepare.outputs.publish_tag }}" release-assets/SHA256SUMS.txt --clobber
