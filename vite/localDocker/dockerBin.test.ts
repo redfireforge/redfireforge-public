@@ -20,12 +20,39 @@ describe('dockerBin', () => {
 
   it('falls back to well-known Unix paths', () => {
     expect(unixDockerCandidates()).toContain('/opt/homebrew/bin/docker');
+    expect(unixDockerCandidates()).toContain('/usr/local/bin/docker');
+    expect(unixDockerCandidates()).toContain(
+      '/Applications/Docker.app/Contents/Resources/bin/docker',
+    );
     const exists = (p: string) => p === '/opt/homebrew/bin/docker';
     expect(resolveDockerBin({
       platform: 'darwin',
       pathEnv: '/no/such/bin',
       exists,
     })).toBe('/opt/homebrew/bin/docker');
+  });
+
+  it('prefers Docker Desktop over Homebrew when both exist', () => {
+    const exists = (p: string) =>
+      p === '/usr/local/bin/docker' || p === '/opt/homebrew/bin/docker';
+    expect(resolveDockerBin({
+      platform: 'darwin',
+      pathEnv: '/usr/bin:/bin:/usr/sbin:/sbin',
+      exists,
+    })).toBe('/usr/local/bin/docker');
+  });
+
+  it('resolves Docker.app under the user home folder', () => {
+    const home = '/Users/me';
+    expect(unixDockerCandidates(home)).toContain(
+      '/Users/me/.docker/bin/docker',
+    );
+    expect(resolveDockerBin({
+      platform: 'darwin',
+      pathEnv: '/usr/bin:/bin',
+      env: { HOME: home },
+      exists: (p) => p === '/Users/me/.docker/bin/docker',
+    })).toBe('/Users/me/.docker/bin/docker');
   });
 
   it('includes Windows Program Files candidates', () => {

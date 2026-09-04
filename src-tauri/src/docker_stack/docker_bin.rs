@@ -1,6 +1,6 @@
-//! Resolve the `docker` CLI. On Windows, PATH is often stale until re-login
-//! after a Docker Desktop install — fall back to well-known install paths.
-//! Hide the extra console window when spawning the CLI on Windows.
+//! Resolve the `docker` CLI. Finder/Dock (macOS) and a stale Windows PATH
+//! after install do not include Docker Desktop's bin dir — fall back to
+//! well-known locations. Hide the extra console window when spawning on Windows.
 
 use std::ffi::OsStr;
 use std::path::PathBuf;
@@ -83,9 +83,42 @@ pub fn windows_desktop_exe_candidates(
     out
 }
 
-#[cfg_attr(not(windows), allow(dead_code))]
 pub fn first_existing_file(paths: &[PathBuf]) -> Option<PathBuf> {
     paths.iter().find(|p| p.is_file()).cloned()
+}
+
+/// Docker Desktop / Homebrew / engine locations used when GUI PATH is empty.
+pub fn unix_docker_cli_candidates(home: Option<&str>) -> Vec<PathBuf> {
+    let mut out = vec![
+        PathBuf::from("/usr/local/bin/docker"),
+        PathBuf::from("/Applications/Docker.app/Contents/Resources/bin/docker"),
+    ];
+    if let Some(h) = home.filter(|s| !s.is_empty()) {
+        out.push(PathBuf::from(format!("{h}/.docker/bin/docker")));
+        out.push(PathBuf::from(format!(
+            "{h}/Applications/Docker.app/Contents/Resources/bin/docker"
+        )));
+    }
+    out.push(PathBuf::from("/opt/homebrew/bin/docker"));
+    out.push(PathBuf::from("/usr/bin/docker"));
+    out.push(PathBuf::from("/snap/bin/docker"));
+    out
+}
+
+/// First `docker` on a Unix PATH (`:` separated).
+pub fn unix_path_docker(path_env: Option<&str>) -> Option<PathBuf> {
+    let path_env = path_env.filter(|s| !s.is_empty())?;
+    for dir in path_env.split(':') {
+        let dir = dir.trim().trim_matches('"');
+        if dir.is_empty() {
+            continue;
+        }
+        let exe = PathBuf::from(dir).join("docker");
+        if exe.is_file() {
+            return Some(exe);
+        }
+    }
+    None
 }
 
 /// First `docker.exe` on PATH (PATH first, then well-known install dirs).
@@ -121,6 +154,16 @@ pub fn docker_bin() -> PathBuf {
             pf86.as_deref(),
             local.as_deref(),
         )) {
+            return p;
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        if let Some(p) = unix_path_docker(std::env::var("PATH").ok().as_deref()) {
+            return p;
+        }
+        let home = std::env::var("HOME").ok();
+        if let Some(p) = first_existing_file(&unix_docker_cli_candidates(home.as_deref())) {
             return p;
         }
     }
@@ -209,8 +252,45 @@ mod tests {
     }
 
     #[test]
-    fn docker_bin_is_docker_on_non_windows() {
-        #[cfg(not(windows))]
-        assert_eq!(docker_bin(), PathBuf::from("docker"));
+    fn unix_cli_candidates_prefer_docker_desktop_then_homebrew() {
+        let paths = unix_docker_cli_candidates(Some("/Users/me"));
+        let as_str: Vec<String> = paths.iter().map(|p| p.to_string_lossy().into_owned()).collect();
+        assert_eq!(as_str[0], "/usr/local/bin/docker");
+        assert!(as_str.iter().any(|p| p.ends_with(
+            "/Applications/Docker.app/Contents/Resources/bin/docker"
+        )));
+        assert!(as_str.iter().any(|p| p == "/Users/me/.docker/bin/docker"));
+        assert!(as_str.iter().any(|p| p
+            == "/Users/me/Applications/Docker.app/Contents/Resources/bin/docker"));
+        assert!(as_str.iter().any(|p| p == "/opt/homebrew/bin/docker"));
+        assert!(as_str.iter().any(|p| p == "/snap/bin/docker"));
+        let no_home = unix_docker_cli_candidates(None);
+        assert!(no_home.iter().all(|p| !p.to_string_lossy().contains("/.docker/")));
+    }
+
+    #[test]
+    fn unix_path_docker_finds_first_path_entry() {
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("time")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("rff-unix-docker-path-{stamp}"));
+        let bin = root.join("bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        let exe = bin.join("docker");
+        std::fs::write(&exe, b"").unwrap();
+        let path_env = format!("{}:/no/such/docker", bin.display());
+        assert_eq!(unix_path_docker(Some(&path_env)), Some(exe));
+        assert!(unix_path_docker(Some("/no/such/docker:/also/missing")).is_none());
+        assert!(unix_path_docker(Some("")).is_none());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn docker_bin_resolves_existing_or_bare_name() {
+        let bin = docker_bin();
+        if bin != PathBuf::from("docker") {
+            assert!(bin.is_file(), "resolved docker must exist: {}", bin.display());
+        }
     }
 }

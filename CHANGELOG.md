@@ -31,6 +31,7 @@ Format follows Keep a Changelog and Semantic Versioning.
 - **Exit-code documentation corrected** — `cli/README.md` and `docs/guides/cli-ci-cd.md` previously listed exit `2` as "invalid file" and omitted `3` and `4` entirely. `2` is a baseline regression, `3` is regression plus test failures, `4` is an SLA violation, and an execution error exits `1`.
 
 ### Fixed
+- **Learning Hub macOS Docker detection** — Finder/Dock launches only have `/usr/bin:/bin:/usr/sbin:/sbin` on PATH, so `docker` was reported as not installed even when Docker Desktop was running. The desktop app now also looks in `/usr/local/bin`, `Docker.app`, `~/.docker/bin`, and Homebrew.
 - **Product coverage `openExternalUrl`** — Branch tests cover a non-string URL and a missing `window` so the waitlist helper stays above the 90% gate.
 - **Demo hub pauseAutoPlay unit flake** — Coverage session test no longer requires `stepPhase === 'pre'` after 100ms of auto-play start. A step without `preAction` can already be in `reading`; the assertion is that a double-toggle did not force `done`.
 - **Nightly E2E Kafka live consume** — Message Studio waits for the header **Connected** badge before Send/Consume. Consume waits for Earliest/topic to commit (so consume-once is not sent as Latest), waits for **Consuming…** to finish, then retries with a fresh group and a reseeded publish when the result table is empty. Live Kafka specs take a companion lock so `--workers=2` cannot swap the singleton broker connection mid-consume. Gallery Quick Tests wait for the same badge and retry once.
