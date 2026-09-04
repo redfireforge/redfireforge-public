@@ -1,8 +1,19 @@
 import { existsSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 
-export function unixDockerCandidates(): string[] {
-  return ['/opt/homebrew/bin/docker', '/usr/local/bin/docker', '/usr/bin/docker'];
+/** Docker Desktop first, then Homebrew / engine — GUI PATH often omits these. */
+export function unixDockerCandidates(home?: string): string[] {
+  const out = [
+    '/usr/local/bin/docker',
+    '/Applications/Docker.app/Contents/Resources/bin/docker',
+  ];
+  const h = home?.trim();
+  if (h) {
+    out.push(join(h, '.docker', 'bin', 'docker'));
+    out.push(join(h, 'Applications', 'Docker.app', 'Contents', 'Resources', 'bin', 'docker'));
+  }
+  out.push('/opt/homebrew/bin/docker', '/usr/bin/docker', '/snap/bin/docker');
+  return out;
 }
 
 export function windowsDockerCliCandidates(env: {
@@ -95,6 +106,6 @@ export function resolveDockerBin(opts?: {
         programFilesX86: env['ProgramFiles(x86)'],
         localAppData: env.LOCALAPPDATA,
       })
-    : unixDockerCandidates();
+    : unixDockerCandidates(env.HOME);
   return firstExistingFile([...fromPath, ...wellKnown], exists);
 }
