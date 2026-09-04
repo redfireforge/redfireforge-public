@@ -31,6 +31,9 @@ pub fn windows_docker_cli_candidates(
     }
     if let Some(la) = local_app_data.filter(|s| !s.is_empty()) {
         out.push(PathBuf::from(format!(
+            r"{la}\Programs\DockerDesktop\resources\bin\docker.exe"
+        )));
+        out.push(PathBuf::from(format!(
             r"{la}\Programs\Docker\Docker\resources\bin\docker.exe"
         )));
         out.push(PathBuf::from(format!(
@@ -64,6 +67,9 @@ pub fn windows_desktop_exe_candidates(
         )));
     }
     if let Some(la) = local_app_data.filter(|s| !s.is_empty()) {
+        out.push(PathBuf::from(format!(
+            r"{la}\Programs\DockerDesktop\Docker Desktop.exe"
+        )));
         out.push(PathBuf::from(format!(
             r"{la}\Programs\Docker\Docker\Docker Desktop.exe"
         )));
@@ -159,6 +165,8 @@ mod tests {
         assert!(as_str.iter().any(|p| p.contains("(x86)") && p.contains("docker.exe")));
         assert!(as_str.iter().any(|p| p.contains(r"AppData\Local") && p.contains("docker.exe")
             || p.contains("AppData\\Local") && p.contains("docker.exe")));
+        assert!(as_str.iter().any(|p| p.contains(r"Programs\DockerDesktop\resources\bin\docker.exe")
+            || p.contains("Programs\\DockerDesktop\\resources\\bin\\docker.exe")));
         assert!(as_str.iter().any(|p| p.contains(r"C:\Program Files") || p.contains("C:\\Program Files")));
     }
 
@@ -173,6 +181,8 @@ mod tests {
         assert!(as_str.iter().any(|p| p.contains("Docker Desktop.exe") && p.contains("Program Files")));
         assert!(as_str.iter().any(|p| p.contains("(x86)")));
         assert!(as_str.iter().any(|p| p.contains("Docker Desktop.exe") && (p.contains(r"AppData\Local") || p.contains("AppData\\Local"))));
+        assert!(as_str.iter().any(|p| p.contains(r"Programs\DockerDesktop\Docker Desktop.exe")
+            || p.contains("Programs\\DockerDesktop\\Docker Desktop.exe")));
     }
 
     #[test]

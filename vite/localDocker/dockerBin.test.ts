@@ -9,7 +9,7 @@ import {
 } from './dockerBin.ts';
 
 describe('dockerBin', () => {
-  it('prefers the first PATH hit', () => {
+  it.skipIf(process.platform === 'win32')('prefers the first PATH hit', () => {
     const exists = (p: string) => p.endsWith('/opt/bin/docker');
     expect(resolveDockerBin({
       platform: 'darwin',
@@ -37,6 +37,7 @@ describe('dockerBin', () => {
     });
     expect(paths.some((p) => p.includes('resources') && p.includes('docker.exe'))).toBe(true);
     expect(paths.some((p) => p.includes('version-bin'))).toBe(true);
+    expect(paths.some((p) => p.includes('DockerDesktop') && p.endsWith('docker.exe'))).toBe(true);
   });
 
   it('returns null when nothing exists', () => {
@@ -56,6 +57,7 @@ describe('dockerBin', () => {
     });
     expect(paths.some((p) => p.endsWith('Docker Desktop.exe'))).toBe(true);
     expect(paths.some((p) => p.includes('Program Files (x86)'))).toBe(true);
+    expect(paths.some((p) => p.includes('DockerDesktop') && p.endsWith('Docker Desktop.exe'))).toBe(true);
   });
 
   it('resolves docker.exe from PATH on Windows', () => {
@@ -77,7 +79,7 @@ describe('dockerBin', () => {
     expect(bin === null || typeof bin === 'string').toBe(true);
   });
 
-  it('reads Windows Path when PATH is unset', () => {
+  it.skipIf(process.platform === 'win32')('reads Windows Path when PATH is unset', () => {
     expect(resolveDockerBin({
       platform: 'darwin',
       env: { Path: '/from-path-env' },

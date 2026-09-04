@@ -7,6 +7,7 @@ use super::docker_bin::{
 };
 use super::extract::ensure_complete_stack_dir;
 use super::manifest::load_manifest;
+#[cfg(not(windows))]
 use tokio::process::Command;
 
 #[derive(serde::Serialize, Debug, PartialEq, Eq)]

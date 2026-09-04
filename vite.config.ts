@@ -502,6 +502,9 @@ export default defineConfig({
         '**/e2e/screenshots/**',
         '**/playwright-report/**',
         '**/test-results/**',
+        // Windows: watching cargo output DLLs under src-tauri/target races
+        // MSVC (`EBUSY` on `tauri_plugin_mcp_bridge-*.dll`) and kills Vite.
+        '**/src-tauri/target/**',
       ],
     },
     proxy: {

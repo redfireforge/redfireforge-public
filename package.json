@@ -10,9 +10,9 @@
   },
   "scripts": {
     "dev": "vite",
-    "dev:demo": "VITE_ENABLE_DEMO_HUB=true vite",
+    "dev:demo": "cross-env VITE_ENABLE_DEMO_HUB=true vite",
     "dev:grpc": "bash scripts/dev-grpc.sh",
-    "dev:prod-slim": "VITE_ENABLE_DEMO_HUB=false vite",
+    "dev:prod-slim": "cross-env VITE_ENABLE_DEMO_HUB=false vite",
     "build": "npm run build:prod",
     "build:prod": "tsc -b && cross-env VITE_ENABLE_DEMO_HUB=false vite build --mode production",
     "build:demo": "tsc -b && cross-env VITE_ENABLE_DEMO_HUB=true vite build --mode production.demo",

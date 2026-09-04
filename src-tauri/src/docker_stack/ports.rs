@@ -337,6 +337,7 @@ fn strip_bom(s: &str) -> &str {
     s.trim_start_matches('\u{feff}')
 }
 
+#[cfg(any(unix, test))]
 pub(crate) fn parse_lsof_listen_pid(output: &str, port: u16) -> Option<u32> {
     for line in output.lines() {
         let line = strip_bom(line).trim();
@@ -362,6 +363,7 @@ pub(crate) fn parse_lsof_listen_pid(output: &str, port: u16) -> Option<u32> {
     None
 }
 
+#[cfg(any(unix, test))]
 pub(crate) fn parse_ps_comm(output: &str) -> Option<String> {
     let line = output
         .lines()

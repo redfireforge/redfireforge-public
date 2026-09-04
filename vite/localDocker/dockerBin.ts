@@ -20,6 +20,7 @@ export function windowsDockerCliCandidates(env: {
   if (pd) out.push(join(pd, 'DockerDesktop', 'version-bin', 'docker.exe'));
   if (pf86) out.push(join(pf86, 'Docker', 'Docker', 'resources', 'bin', 'docker.exe'));
   if (local) {
+    out.push(join(local, 'Programs', 'DockerDesktop', 'resources', 'bin', 'docker.exe'));
     out.push(join(local, 'Programs', 'Docker', 'Docker', 'resources', 'bin', 'docker.exe'));
     out.push(join(local, 'Docker', 'Docker', 'resources', 'bin', 'docker.exe'));
   }
@@ -41,6 +42,7 @@ export function windowsDesktopExeCandidates(env: {
   if (pf) out.push(join(pf, 'Docker', 'Docker', 'Docker Desktop.exe'));
   if (pf86) out.push(join(pf86, 'Docker', 'Docker', 'Docker Desktop.exe'));
   if (local) {
+    out.push(join(local, 'Programs', 'DockerDesktop', 'Docker Desktop.exe'));
     out.push(join(local, 'Programs', 'Docker', 'Docker', 'Docker Desktop.exe'));
     out.push(join(local, 'Docker', 'Docker', 'Docker Desktop.exe'));
   }
