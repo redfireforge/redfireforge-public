@@ -1,3 +1,5 @@
+name: rff-kafka-secure
+
 services:
   redpanda-secure:
     image: docker.redpanda.com/redpandadata/redpanda:v24.1.18

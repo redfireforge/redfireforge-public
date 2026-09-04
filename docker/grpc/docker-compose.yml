@@ -9,6 +9,7 @@
 #   9090 (Spring gRPC), 8081 (Spring HTTP/actuator),
 #   50061 (Go mock servicer gRPC), 50062 (Go mock servicer health/rules),
 #   50560 (OAuth2 mock token endpoint)
+name: rff-grpc-family
 services:
   grpc-test-server:
     build: .

@@ -14,6 +14,8 @@ import { CircuitBreaker } from '../src/engine/core/circuitBreaker';
 import { computeMetrics } from '../src/engine/core/metrics';
 import {
   buildJsonReport,
+  buildCiJsonReport,
+  buildWorkflowCiJsonReport,
   buildJunitXml,
   buildMarkdownReport,
   printConsoleSummary,
@@ -24,6 +26,7 @@ import {
   printComparisonSummary,
   buildComparisonMarkdown,
 } from './reporters';
+import { resolveOutputTarget, stdoutFormatOf } from './outputTarget';
 import type { RequestResult, ErrorPolicy } from '../src/shared/types';
 import { toErrorMessage } from '../src/shared/utils/helpers';
 import {
@@ -77,7 +80,7 @@ program
   .option('--max-error-rate <pct>', 'Stop at error rate % (threshold mode)', parseFloat)
   .option('--fail-on-error', 'Exit code 1 if any request fails (HTTP or validation)')
   .option('--fail-threshold <pct>', 'Exit code 1 if error rate exceeds this %', parseFloat)
-  .option('-o, --output <path>', 'Write JSON report to file')
+  .option('-o, --output <path|json|junit>', 'Write JSON report to file, or print `json`/`junit` to stdout for CI')
   .option('--junit <path>', 'Write JUnit XML report to file')
   .option('--markdown <path>', 'Write Markdown report to file')
   .option('--data-rows-summary <path>', 'Write data row summary JSON (CI/CD format)')
@@ -96,6 +99,11 @@ program
   .option('-q, --quiet', 'Suppress progress output')
   .action(async (filePath: string, opts) => {
     try {
+      const outputTarget = resolveOutputTarget(opts.output as string | undefined);
+      const stdoutFormat = stdoutFormatOf(outputTarget);
+      // A stdout report owns the stream, so nothing else may be written to it.
+      const quiet = Boolean(opts.quiet) || stdoutFormat !== null;
+
       const absPath = resolve(filePath);
       const file = loadTestFile(absPath);
 
@@ -104,7 +112,7 @@ program
       if (opts.data) {
         const dataPath = resolve(opts.data);
         externalDataSource = loadDataFile(dataPath);
-        if (!opts.quiet) {
+        if (!quiet) {
           console.log(`  Data:    ${basename(dataPath)} (${externalDataSource.rows.length} rows)`);
         }
       }
@@ -117,7 +125,7 @@ program
         }
       }
 
-      if (!opts.quiet) {
+      if (!quiet) {
         console.log(`\n  Loading: ${basename(absPath)}`);
         console.log(`  Tests:   ${file.tests.length}`);
         if (file.name) console.log(`  Suite:   ${file.name}`);
@@ -140,7 +148,7 @@ program
             ? filterTags.some(t => scTags.includes(t))
             : filterTags.every(t => scTags.includes(t));
         });
-        if (!opts.quiet) {
+        if (!quiet) {
           console.log(`  Scenario tags: ${filterTags.join(', ')} (mode: ${tagMode}, ${scenarios.length}/${before} scenarios matched)`);
         }
         if (scenarios.length === 0) {
@@ -156,7 +164,7 @@ program
         const before = scenarios.length;
         const result = filterScenariosByRowTags(scenarios, filterTags, tagMode);
         scenarios = result.scenarios;
-        if (!opts.quiet) {
+        if (!quiet) {
           console.log(`  Tags:    ${filterTags.join(', ')} (mode: ${tagMode}, ${result.matchingRowCount} matching rows, ${scenarios.length}/${before} scenarios retained)`);
           if (result.droppedScenarioNames.length > 0) {
             console.log(`  Dropped: ${result.droppedScenarioNames.join(', ')} (no rows matched the tag filter)`);
@@ -181,7 +189,7 @@ program
         maxErrorRate: opts.maxErrorRate,
       });
 
-      if (!opts.quiet) {
+      if (!quiet) {
         console.log(`  Mode:    ${config.executionMode} (C:${config.concurrency} I:${config.iterations})`);
         const paramTests = scenarios.filter(s => s.dataSource && s.dataSource.rows.length > 0);
         if (paramTests.length > 0) {
@@ -193,13 +201,13 @@ program
 
       const abortController = new AbortController();
       process.on('SIGINT', () => {
-        if (!opts.quiet) console.log('\n  Aborting...');
+        if (!quiet) console.log('\n  Aborting...');
         abortController.abort();
       });
 
       let lastPrinted = 0;
       const onProgress = (completed: number, total: number, _results: RequestResult[], meta?: ProgressMeta) => {
-        if (opts.quiet) return;
+        if (quiet) return;
         const now = Date.now();
         if (now - lastPrinted < 500 && completed < total) return;
         lastPrinted = now;
@@ -218,11 +226,13 @@ program
       const elapsed = performance.now() - t0;
       const summary = computeMetrics(results, elapsed);
 
-      if (!opts.quiet) {
+      if (!quiet) {
         process.stdout.write('\r' + ' '.repeat(60) + '\r');
       }
 
-      printConsoleSummary(summary, config, results);
+      if (!stdoutFormat) {
+        printConsoleSummary(summary, config, results);
+      }
 
       const suiteName = file.name || basename(absPath, '.yaml').replace(/\.yml$|\.json$/, '');
       const meta = { name: file.name, env: opts.env || file.env, file: basename(absPath) };
@@ -236,28 +246,32 @@ program
         config.slaTargets = slaTargets;
       }
 
-      if (opts.output) {
+      if (stdoutFormat === 'json') {
+        process.stdout.write(JSON.stringify(buildCiJsonReport(results, elapsed), null, 2) + '\n');
+      } else if (stdoutFormat === 'junit') {
+        process.stdout.write(buildJunitXml(results, summary, suiteName) + '\n');
+      } else if (outputTarget?.kind === 'file') {
         const report = buildJsonReport(results, summary, config, meta);
-        writeFileSync(resolve(opts.output), JSON.stringify(report, null, 2));
-        console.log(`  JSON report: ${opts.output}`);
+        writeFileSync(resolve(outputTarget.path), JSON.stringify(report, null, 2));
+        console.log(`  JSON report: ${outputTarget.path}`);
       }
 
       if (opts.junit) {
         const xml = buildJunitXml(results, summary, suiteName);
         writeFileSync(resolve(opts.junit), xml);
-        console.log(`  JUnit XML:   ${opts.junit}`);
+        if (!quiet) console.log(`  JUnit XML:   ${opts.junit}`);
       }
 
       if (opts.markdown) {
         const md = buildMarkdownReport(summary, config, meta, results);
         writeFileSync(resolve(opts.markdown), md);
-        console.log(`  Markdown:    ${opts.markdown}`);
+        if (!quiet) console.log(`  Markdown:    ${opts.markdown}`);
       }
 
       if (opts.dataRowsSummary) {
         const rowSummary = buildDataRowSummary(results);
         writeFileSync(resolve(opts.dataRowsSummary), JSON.stringify(rowSummary, null, 2));
-        console.log(`  Data Rows:   ${opts.dataRowsSummary}`);
+        if (!quiet) console.log(`  Data Rows:   ${opts.dataRowsSummary}`);
       }
 
       // SLA evaluation (SLA-E3)
@@ -268,7 +282,10 @@ program
         // Always surface the report when it's about to cause a non-zero exit —
         // not gated on `-q`, since without it a quiet CI log shows only exit code 4
         // with no indication of which SLA target actually failed (NOTE-3).
-        printSlaReport(checks, (opts.quiet as boolean) && !hasSlaFail);
+        // Normally the report is forced on when it causes a non-zero exit, so a
+        // quiet CI log is not just a bare exit code 4. A stdout report overrides
+        // that: it writes to the same stream and must stay machine-parseable.
+        printSlaReport(checks, stdoutFormat !== null || (quiet && !hasSlaFail));
       }
 
       // ── Baseline comparison ────────────────────────────────────────────────
@@ -282,13 +299,13 @@ program
         let baselineEntry: CliBaseline | null = null;
         if (sentinel === LATEST_BASELINE_SENTINEL) {
           baselineEntry = findLatestBaseline(absPath, baselinesDir);
-          if (!baselineEntry && !opts.quiet) {
+          if (!baselineEntry && !quiet) {
             console.warn(`  ⚠  No baselines found for ${basename(absPath)} — skipping regression check`);
           }
         } else {
           // Look up by runId in the baseline store
           baselineEntry = findBaselineById(sentinel, baselinesDir);
-          if (!baselineEntry && !opts.quiet) {
+          if (!baselineEntry && !quiet) {
             console.warn(`  ⚠  Baseline not found: "${sentinel}" — skipping regression check`);
           }
         }
@@ -319,14 +336,14 @@ program
           const comparison = compareRuns(baselineRun, currentRun, DEFAULT_THRESHOLDS);
 
           printComparisonSummary(comparison, {
-            quiet: opts.quiet as boolean,
+            quiet,
             baselineLabel: baselineEntry.label,
           });
 
           if (opts.comparisonReport) {
             const md = buildComparisonMarkdown(comparison, baselineEntry.label);
             writeFileSync(resolve(opts.comparisonReport as string), md);
-            if (!opts.quiet) {
+            if (!quiet) {
               console.log(`  Comparison:  ${opts.comparisonReport}`);
             }
           }
@@ -353,7 +370,7 @@ program
           summary,
         };
         addCliBaseline(entry, baselinesDir);
-        if (!opts.quiet) {
+        if (!quiet) {
           console.log(`  Baseline saved${entry.label ? ` (${entry.label})` : ''}: ${entry.runId}`);
         }
       }
@@ -368,7 +385,8 @@ program
       if (testFail) {
         // Always surface why the run is about to exit non-zero — not gated on `-q`,
         // since without this line a quiet CI log shows only a bare exit code.
-        if (overThreshold) {
+        // A stdout report is the exception: it must stay machine-parseable.
+        if (overThreshold && !stdoutFormat) {
           console.log(`  Error rate ${summary.errorRate}% exceeds threshold ${opts.failThreshold}%`);
         }
         process.exit(1);
@@ -398,12 +416,17 @@ program
   .option('--trace-output <path>', 'Write the full execution trace (per-node/per-iteration) as JSON to file')
   .option('--fail-on-error', 'Exit code 1 if any request fails')
   .option('--fail-threshold <pct>', 'Exit code 1 if error rate exceeds this %', (v) => parseFloat(v))
-  .option('-o, --output <path>', 'Write JSON report to file')
+  .option('-o, --output <path|json|junit>', 'Write JSON report to file, or print `json`/`junit` to stdout for CI')
   .option('--junit <path>', 'Write JUnit XML report to file')
   .option('--markdown <path>', 'Write Markdown report to file')
   .option('-q, --quiet', 'Suppress progress output')
   .action(async (filePath: string, opts) => {
     try {
+      const outputTarget = resolveOutputTarget(opts.output as string | undefined);
+      const stdoutFormat = stdoutFormatOf(outputTarget);
+      // A stdout report owns the stream, so nothing else may be written to it.
+      const quiet = Boolean(opts.quiet) || stdoutFormat !== null;
+
       const absPath = resolve(filePath);
       if (!existsSync(absPath)) {
         throw new Error(`Workflow file not found: ${absPath}`);
@@ -411,7 +434,7 @@ program
 
       const workflow = loadWorkflowFile(absPath);
 
-      if (!opts.quiet) {
+      if (!quiet) {
         console.log(`\n  Loading: ${basename(absPath)}`);
         console.log(`  Workflow: ${workflow.name}`);
         const httpNodes = workflow.nodes.filter(n => n.type === 'http');
@@ -432,7 +455,7 @@ program
         }
       }
 
-      if (!opts.quiet && Object.keys(variables).length > 0) {
+      if (!quiet && Object.keys(variables).length > 0) {
         console.log(`  Variables: ${Object.keys(variables).length}`);
         for (const [k, v] of Object.entries(variables)) {
           const display = v.length > 40 ? v.slice(0, 37) + '...' : v;
@@ -443,14 +466,14 @@ program
       const iterations = opts.iterations ?? 10;
       const concurrency = opts.concurrency ?? 1;
 
-      if (!opts.quiet) {
+      if (!quiet) {
         console.log(`  Mode:    workflow (I:${iterations} C:${concurrency})`);
         console.log('');
       }
 
       const abortController = new AbortController();
       process.on('SIGINT', () => {
-        if (!opts.quiet) console.log('\n  Aborting...');
+        if (!quiet) console.log('\n  Aborting...');
         abortController.abort();
       });
 
@@ -462,7 +485,7 @@ program
 
       let lastPrinted = 0;
       const onProgress = (completed: number, total: number, _results: RequestResult[], _meta?: ProgressMeta) => {
-        if (opts.quiet) return;
+        if (quiet) return;
         const now = Date.now();
         if (now - lastPrinted < 500 && completed < total) return;
         lastPrinted = now;
@@ -471,7 +494,7 @@ program
       };
 
       const baseUrl = opts.baseUrl?.trim();
-      if (!opts.quiet && baseUrl) {
+      if (!quiet && baseUrl) {
         console.log(`  Base URL: ${baseUrl}`);
       }
 
@@ -500,15 +523,21 @@ program
       const elapsed = performance.now() - t0;
       const summary = computeMetrics(results, elapsed);
 
-      if (!opts.quiet) {
+      if (!quiet) {
         process.stdout.write('\r' + ' '.repeat(60) + '\r');
       }
 
-      printWorkflowConsoleSummary(summary, workflow, iterations, concurrency, results);
+      if (!stdoutFormat) {
+        printWorkflowConsoleSummary(summary, workflow, iterations, concurrency, results);
+      }
 
       const meta = { name: workflow.name, file: basename(absPath) };
 
-      if (opts.output) {
+      if (stdoutFormat === 'json') {
+        process.stdout.write(JSON.stringify(buildWorkflowCiJsonReport(results, iterations, elapsed), null, 2) + '\n');
+      } else if (stdoutFormat === 'junit') {
+        process.stdout.write(buildWorkflowJunitXml(results, summary, workflow.name, iterations) + '\n');
+      } else if (outputTarget?.kind === 'file') {
         const report = buildJsonReport(results, summary, {
           concurrency,
           iterations,
@@ -523,25 +552,25 @@ program
           maxErrors: opts.maxErrors ?? 10,
           maxErrorRate: opts.maxErrorRate ?? 50,
         }, meta);
-        writeFileSync(resolve(opts.output), JSON.stringify(report, null, 2));
-        console.log(`  JSON report: ${opts.output}`);
+        writeFileSync(resolve(outputTarget.path), JSON.stringify(report, null, 2));
+        console.log(`  JSON report: ${outputTarget.path}`);
       }
 
       if (opts.junit) {
         const xml = buildWorkflowJunitXml(results, summary, workflow.name, iterations);
         writeFileSync(resolve(opts.junit), xml);
-        console.log(`  JUnit XML:   ${opts.junit}`);
+        if (!quiet) console.log(`  JUnit XML:   ${opts.junit}`);
       }
 
       if (opts.markdown) {
         const md = buildWorkflowMarkdownReport(summary, workflow, iterations, concurrency, results);
         writeFileSync(resolve(opts.markdown), md);
-        console.log(`  Markdown:    ${opts.markdown}`);
+        if (!quiet) console.log(`  Markdown:    ${opts.markdown}`);
       }
 
       if (opts.traceOutput) {
         writeFileSync(resolve(opts.traceOutput), JSON.stringify(trace, null, 2));
-        console.log(`  Trace:       ${opts.traceOutput}`);
+        if (!quiet) console.log(`  Trace:       ${opts.traceOutput}`);
       }
 
       // Exit code logic
@@ -552,7 +581,10 @@ program
       if (opts.failThreshold != null && summary.errorRate > opts.failThreshold) {
         // Always surface why the run is about to exit non-zero — not gated on `-q`,
         // since without this line a quiet CI log shows only a bare exit code.
-        console.log(`  Error rate ${summary.errorRate}% exceeds threshold ${opts.failThreshold}%`);
+        // A stdout report is the exception: it must stay machine-parseable.
+        if (!stdoutFormat) {
+          console.log(`  Error rate ${summary.errorRate}% exceeds threshold ${opts.failThreshold}%`);
+        }
         process.exit(1);
       }
 

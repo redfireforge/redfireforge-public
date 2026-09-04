@@ -203,7 +203,6 @@ export const grpcMetadataAuthSteps: GrpcDemoLesson['steps'] = [
         // Fast-path: avoid replaying full target/reflect/method setup when composer is already ready.
         if (!sendBtn || !messageField) {
           await ensureEchoReadyFast(ctx);
-          messageField = document.querySelector<HTMLInputElement>(GRPC.PROTO_FIELD_INPUT_MESSAGE);
         }
 
         // Ensure a message is filled so Send is enabled.

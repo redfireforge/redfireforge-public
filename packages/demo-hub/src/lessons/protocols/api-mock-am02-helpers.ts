@@ -312,6 +312,8 @@ export async function duplicateAm02Tab(ctx: DemoActionContext, name: string): Pr
   if (!document.querySelector(API_MOCK.TAB_CTX_DUPLICATE)) return false;
   await ctx.click(API_MOCK.TAB_CTX_DUPLICATE);
   await ctx.delay(AM_DEMO_TIMING.panelReady);
+  // Port allocation is async — wait for the clone tab, not just the click.
+  await ctx.waitFor(API_MOCK.tabTitled(AM02_COPY_NAME), 15_000);
   return Boolean(am02TabId(AM02_COPY_NAME));
 }
 
@@ -446,6 +448,10 @@ export async function runAm02Duplicate(ctx: DemoActionContext): Promise<void> {
     openTabContextMenu(tab);
     await revealBeat(ctx, API_MOCK.TAB_CTX_MENU, { timeout: 4_000, hold: AM_DEMO_TIMING.panelReady });
     await clickBeat(ctx, API_MOCK.TAB_CTX_DUPLICATE, { hold: AM_DEMO_TIMING.panelReady });
+    if (!am02TabId(AM02_COPY_NAME)) {
+      await duplicateAm02Tab(ctx, AM02_CORPUS_NAME);
+    }
+    await ctx.waitFor(API_MOCK.tabTitled(AM02_COPY_NAME), 15_000);
   }
 
   const copyTab = am02TabSelector(AM02_COPY_NAME);

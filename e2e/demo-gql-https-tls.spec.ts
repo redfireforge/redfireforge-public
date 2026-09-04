@@ -4,9 +4,8 @@
  * ONLY this lesson — run via:
  *   npm run test:e2e:demo:gql5
  *
- * Full lesson needs TLS + mTLS + plain GraphQL Docker stacks:
- *   cd docker/graphql/tls && ./generate-cert.sh && ./generate-client-cert.sh \\
- *     && docker compose up -d && docker compose -f docker-compose.mtls.yml up -d
+ * Full lesson needs TLS + mTLS + plain GraphQL Docker stacks (certs are pre-bundled):
+ *   cd docker/graphql/tls && docker compose up -d && docker compose -f docker-compose.mtls.yml up -d
  *   cd docker/graphql && docker compose up -d
  *
  * Last-step rule: step 18 disables Next — use walkFullGql5Lesson (GQL-1 style), not runNextStep on the final step.

@@ -8,6 +8,9 @@ Canonical command help also lives in [`cli/README.md`](../../../cli/README.md). 
 # Offline corpus (same engine as GUI Simulate)
 npx tsx cli/index.ts mock simulate ./api-mock-workspace.json -o results.json --junit junit.xml
 
+# Same run, piped straight into a CI gate (json|junit are format keywords, not paths)
+npx tsx cli/index.ts mock simulate ./api-mock-workspace.json --output json | jq '.failed'
+
 # Live journal asserts (companion + running mock)
 npx tsx cli/index.ts mock verify ./api-mock-workspace.json --expect-outcome matched --min-calls 1
 

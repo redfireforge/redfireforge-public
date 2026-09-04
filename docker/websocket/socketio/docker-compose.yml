@@ -1,6 +1,7 @@
 # Socket.IO v4 Echo Server for WebSocket Studio E2E tests
 # Usage: docker compose up -d
 # Endpoint: ws://localhost:3100/socket.io/?EIO=4&transport=websocket
+name: rff-ws-socketio
 services:
   ws-socketio-echo:
     build: .

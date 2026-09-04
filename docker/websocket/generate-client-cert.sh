@@ -23,8 +23,7 @@ if [[ ! -f "$CERT_DIR/ca.crt" ]] || [[ ! -f "$CERT_DIR/ca.key" ]]; then
 fi
 
 # Idempotent: skip if client cert already exists.
-# The client cert embedded in ws-tls-local.ts was signed by the EXISTING CA.
-# Regenerating would create a new cert that doesn't match the embedded content.
+# After FORCE=1, run `node scripts/sync-demo-tls-certs.js` so lesson PEMs match.
 # Re-run with FORCE=1 to regenerate (e.g. FORCE=1 ./generate-client-cert.sh).
 if [[ -f "$CERT_DIR/client.crt" ]] && [[ "${FORCE:-0}" != "1" ]]; then
   echo "Client cert already exists in $CERT_DIR — skipping generation."
@@ -32,7 +31,7 @@ if [[ -f "$CERT_DIR/client.crt" ]] && [[ "${FORCE:-0}" != "1" ]]; then
   exit 0
 fi
 
-DAYS="${DAYS:-825}"
+DAYS="${DAYS:-3650}"
 
 # Client key + CSR
 openssl req -nodes -newkey rsa:2048 \

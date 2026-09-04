@@ -7,6 +7,16 @@ export function isTauri(): boolean {
 }
 
 /**
+ * Playwright GQL-13 / API Mock E2E sets this so Chromium can exercise
+ * desktop-gated UI (Start listener, mock panel) while still using the
+ * web companion on :3001 — `isTauri()` stays false.
+ */
+export function isE2eDesktopShim(): boolean {
+  return typeof window !== 'undefined'
+    && (window as unknown as Record<string, unknown>).__RF_E2E_MOCK_DESKTOP__ === true;
+}
+
+/**
  * Returns true when running in a Node.js environment (CLI mode).
  */
 export function isNode(): boolean {

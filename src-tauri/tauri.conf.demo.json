@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "RedfireForge Learning Hub",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "identifier": "com.redfireforge.desktop.demo",
   "build": {
     "frontendDist": "../dist",
@@ -19,7 +19,8 @@
         "minWidth": 900,
         "minHeight": 600,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "devtools": true
       }
     ],
     "security": {
@@ -44,7 +45,60 @@
       "icons/icon.ico"
     ],
     "resources": [
-      "../cli/dist/redfireforge.mjs"
+      "../cli/dist/redfireforge.mjs",
+      "../docker/**/docker-compose*.yml",
+      "../docker/grpc/envoy/envoy.yaml",
+      "../docker/kafka/tls/.bootstrap.yaml",
+      "../docker/kafka/secure/.bootstrap.yaml",
+      "../docker/graphql/tls/nginx-*.conf",
+      "../docker/websocket/nginx-*.conf",
+      "../docker/*/stack.json",
+      "../docker/*/*/stack.json",
+      "../docker/grpc/stack-spring.json",
+      "../docker/graphql/package.json",
+      "../docker/graphql/package-lock.json",
+      "../docker/graphql/README.md",
+      "../docker/graphql/tls/README.md",
+      "../docker/graphql/tls/certs/README.md",
+      "../docker/graphql/server.js",
+      "../docker/graphql/Dockerfile",
+      "../docker/websocket/socketio/package.json",
+      "../docker/websocket/socketio/server.js",
+      "../docker/websocket/socketio/Dockerfile",
+      "../docker/websocket/graphql/package.json",
+      "../docker/websocket/graphql/server.js",
+      "../docker/websocket/graphql/Dockerfile",
+      "../docker/websocket/certs/README.md",
+      "../docker/api-mock/server.mjs",
+      "../docker/api-mock/Dockerfile",
+      "../docker/grpc/oauth-mock/server.mjs",
+      "../docker/grpc/go-mock-server/config/rules.json",
+      "../docker/grpc/README.md",
+      "../docker/grpc/certs/README.md",
+      "../docker/grpc/.dockerignore",
+      "../docker/grpc/Dockerfile",
+      "../docker/grpc/Dockerfile.mock",
+      "../docker/grpc/go-server/*.go",
+      "../docker/grpc/go-server/go.mod",
+      "../docker/grpc/go-mock-server/*.go",
+      "../docker/grpc/go-mock-server/go.mod",
+      "../docker/grpc/proto/*.proto",
+      "../docker/grpc/spring-boot/pom.xml",
+      "../docker/grpc/spring-boot/Dockerfile",
+      "../docker/grpc/spring-boot/src/**/*.java",
+      "../docker/grpc/spring-boot/src/**/*.yml",
+      "../docker/grpc/spring-boot/src/**/*.proto",
+      "../docker/kafka/topics/topics.txt",
+      "../docker/kafka/env/*.example",
+      "../docker/kafka/e2e/README.md",
+      "../docker/kafka/tls/certs/README.md",
+      "../docker/**/certs/*.crt",
+      "../docker/**/certs/*.key",
+      "../docker/**/*.crt",
+      "../docker/**/*.key"
+    ],
+    "externalBin": [
+      "binaries/redfireforge-companion"
     ],
     "macOS": {
       "signingIdentity": null,
@@ -68,13 +122,18 @@
         "files": {
           "/usr/lib/redfireforge/postinstall.sh": "installer/linux/postinstall.sh",
           "/usr/lib/redfireforge/preremove.sh": "installer/linux/preremove.sh"
-        }
+        },
+        "preRemoveScript": "installer/linux/preremove-demo.sh"
+      },
+      "rpm": {
+        "preRemoveScript": "installer/linux/preremove-demo.sh"
       }
     },
     "windows": {
       "nsis": {
         "displayLanguageSelector": false,
-        "installMode": "currentUser"
+        "installMode": "currentUser",
+        "installerHooks": "installer/windows/docker-hooks.nsh"
       },
       "wix": {
         "template": "installer/windows/main.wxs"

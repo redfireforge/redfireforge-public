@@ -10,7 +10,7 @@ import {
   GRPC_SPRING_FIXTURE_ACTUATOR_HEALTH_URL,
   GRPC_STUDIO_LESSON_ALLOWED_TABS,
   GRPC_TRANSPORT_MODES_PREREQUISITE_ENDPOINTS,
-} from '../../../adapters';
+} from './rosterFixtures';
 import type { GrpcLessonRosterEntry } from './types';
 import { GRPC_LESSON_SCHEMA_VERSION } from './types';
 

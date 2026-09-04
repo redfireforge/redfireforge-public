@@ -348,10 +348,9 @@ export async function runGrpcEchoWorkflow(ctx: DemoActionContext): Promise<void>
     await ctx.delay(200);
   }
 
-  let started = selectAndRunRunnerWorkflow(WF14_NAME);
-  if (!started) {
+  if (!selectAndRunRunnerWorkflow(WF14_NAME)) {
     await ctx.delay(400);
-    started = selectAndRunRunnerWorkflow(WF14_NAME);
+    selectAndRunRunnerWorkflow(WF14_NAME);
   }
 
   // Progress bar while iterations run.

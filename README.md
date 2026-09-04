@@ -13,6 +13,14 @@
 
 ---
 
+## ☁️ RedfireForge Cloud — Coming Soon
+
+Hosted load testing, team workspaces, and CI integration — no infra to manage.
+
+[→ Join the waitlist](https://tally.so/r/1AaNzQ?source=readme)
+
+---
+
 ## Why RedfireForge?
 
 - 🎯 **One tool, six protocols** — HTTP, GraphQL, gRPC, WebSocket, SSE, and Kafka, all in one workbench instead of five different tools
@@ -77,14 +85,23 @@
 
 ### Download a pre-built installer
 
-Head to the **[Latest Release](https://github.com/redfireforge/redfireforge-public/releases/latest)** for `.dmg` (macOS), `.msi`/`.exe` (Windows), and `.deb`/`.AppImage` (Linux) — no build toolchain required.
+Head to **[redfireforge.com/download](https://redfireforge.com/download)** or the **[Latest Release](https://github.com/redfireforge/redfireforge-public/releases/latest)** for `.dmg` (macOS), `.msi`/`.exe` (Windows), and `.deb`/`.AppImage` (Linux) — no build toolchain required.
 
-**macOS — first-launch security prompt:**
-macOS Gatekeeper blocks unsigned apps by default. Use the right-click workaround:
-1. Right-click (or Control-click) `RedfireForge.app` → **Open**
-2. Click **Open** in the dialog
+**macOS — Homebrew (recommended, bypasses Gatekeeper):**
 
-Or: **System Settings → Privacy & Security → Open Anyway** after the first blocked attempt.
+```bash
+brew tap redfireforge/tap
+brew install --cask redfireforge
+```
+
+**macOS — direct download (first-launch security prompt):**
+If you installed the `.dmg` manually, Gatekeeper will block the app on first launch. Run once in Terminal:
+
+```bash
+xattr -cr /Applications/RedfireForge.app
+```
+
+Then open the app normally. This is a one-time step.
 
 **Windows — SmartScreen warning:**
 Windows may show "Windows protected your PC" on first run. This is expected for open-source apps without a paid certificate.

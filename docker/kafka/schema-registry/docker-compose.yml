@@ -1,3 +1,5 @@
+name: rff-kafka-schema-registry
+
 services:
   # ── Kafka broker (Redpanda) ────────────────────────────────────────────────
   # Uses port 19094 (external) to avoid collision with plaintext (19092) and

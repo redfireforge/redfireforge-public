@@ -73,8 +73,38 @@
         };
         window.addEventListener('error', swallow, true);
         window.addEventListener('unhandledrejection', swallow, true);
+
+        // Visible fallback when the UI never mounts (Windows WebView2 blank screen).
+        var lastFatal = '';
+        function recordFatal(text) {
+          if (!text) return;
+          lastFatal = String(text);
+        }
+        window.addEventListener('error', function (e) {
+          if (isBenign(e)) return;
+          recordFatal((e && e.message) || (e && e.error && e.error.message) || 'Script error');
+        }, true);
+        window.addEventListener('unhandledrejection', function (e) {
+          if (isBenign(e)) return;
+          var r = e && e.reason;
+          recordFatal((r && r.message) || r || 'Unhandled promise rejection');
+        });
+        window.addEventListener('load', function () {
+          window.setTimeout(function () {
+            var root = document.getElementById('root');
+            if (!root || root.childElementCount > 0) return;
+            var panel = document.getElementById('boot-error');
+            if (!panel) return;
+            panel.hidden = false;
+            panel.style.display = 'flex';
+            panel.textContent = lastFatal
+              ? ('Learning Hub failed to start: ' + lastFatal)
+              : 'Learning Hub failed to start: the UI did not mount. The JavaScript bundle may have failed to load.';
+          }, 4000);
+        });
       })();
     </script>
+    <div id="boot-error" hidden style="position:fixed;inset:0;z-index:99999;display:none;align-items:center;justify-content:center;padding:32px;background:#0f172a;color:#f1f5f9;font:16px/1.5 Segoe UI,sans-serif;white-space:pre-wrap;"></div>
     <!-- AM-13 HMR bust 2026-08-16: force full reload after poisoned api-mock-am13.ts -->
     <script type="module" src="/src/app/main.tsx"></script>
   </body>

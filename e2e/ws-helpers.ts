@@ -54,6 +54,14 @@ export async function switchWsRightTab(page: Page, tab: string): Promise<void> {
 }
 
 /**
+ * Tab aria-label is `"<host> — connected"` / `"<host> — disconnected"`.
+ * `aria-label*="connected"` also matches **disconnected** — always use this.
+ */
+export function wsConnectedTab(page: Page) {
+  return page.locator('[data-testid="conn-tab-bar"] [role="tab"][aria-label*="— connected"]');
+}
+
+/**
  * Connect to a WebSocket URL.
  * Retries once if the initial wait times out (mock server may have been
  * stopped by a parallel spec — restarts it and tries again).
@@ -67,7 +75,7 @@ export async function connectWsTo(
   const urlInput = page.locator('[aria-label="WebSocket URL"]');
   await urlInput.fill(url);
   await page.click('[data-testid="connect-btn"]');
-  const connected = page.locator('[data-testid="conn-tab-bar"] [aria-label*="connected"]');
+  const connected = wsConnectedTab(page);
   try {
     await connected.waitFor({ timeout: 8000 });
   } catch {
@@ -76,6 +84,11 @@ export async function connectWsTo(
       data: { port: mockPort },
     }).catch(() => {});
     await page.waitForTimeout(500);
+    const disconnectBtn = page.locator('[data-testid="disconnect-btn"]');
+    if (await disconnectBtn.isEnabled().catch(() => false)) {
+      await disconnectBtn.click();
+      await page.waitForTimeout(200);
+    }
     await page.click('[data-testid="connect-btn"]');
     await connected.waitFor({ timeout: 10000 });
   }
@@ -83,10 +96,25 @@ export async function connectWsTo(
 }
 
 /** Wait until the connect tab status bar shows a connected state. */
-export async function waitForWsConnected(page: Page, opts?: { timeout?: number }): Promise<void> {
-  await expect(page.locator('[data-testid="status-badge"]')).toContainText(/connected/i, {
-    timeout: opts?.timeout ?? 10_000,
-  });
+export async function waitForWsConnected(
+  page: Page,
+  opts?: { timeout?: number; url?: string; mockPort?: number },
+): Promise<void> {
+  const badge = page.locator('[data-testid="status-badge"]');
+  const port = opts?.mockPort ?? WS_DEFAULT_MOCK_PORT;
+  const url = opts?.url ?? `ws://localhost:${port}`;
+  try {
+    await expect(badge).toHaveText(/^Connected$/i, {
+      timeout: opts?.timeout ?? 10_000,
+    });
+  } catch {
+    // Parallel specs stop a shared mock port after connectWsTo succeeds.
+    await startWsMockViaApi(page, port);
+    await connectWsTo(page, url, port);
+    await expect(badge).toHaveText(/^Connected$/i, {
+      timeout: opts?.timeout ?? 10_000,
+    });
+  }
 }
 
 /** Disconnect from the current WebSocket connection. */
@@ -176,6 +204,32 @@ export async function ensureWsMockStopped(
 }
 
 /**
+ * Fail fast when a leftover HTTP process (e.g. `python -m http.server 9876`)
+ * owns the mock echo port. Browsers resolve `localhost` to IPv6 first, so an
+ * IPv6 HTTP server makes every `ws://localhost:9876` connect fail while the
+ * Node mock may still report `running` on 127.0.0.1.
+ */
+export async function assertWsPortIsNotPlainHttp(port = WS_DEFAULT_MOCK_PORT): Promise<void> {
+  for (const host of ['127.0.0.1', '[::1]']) {
+    try {
+      const res = await fetch(`http://${host}:${port}/`, {
+        signal: AbortSignal.timeout(400),
+      });
+      const server = res.headers.get('server') ?? '';
+      const contentType = res.headers.get('content-type') ?? '';
+      if (server.includes('SimpleHTTP') || contentType.includes('text/html')) {
+        throw new Error(
+          `Port ${port} on ${host} is a plain HTTP server, not the WebSocket mock. ` +
+          `Stop leftover processes (e.g. python -m http.server ${port}) and re-run.`,
+        );
+      }
+    } catch (err) {
+      if (err instanceof Error && err.message.includes('plain HTTP')) throw err;
+    }
+  }
+}
+
+/**
  * Shared `beforeAll` helper: ensures the WS mock echo server is running on the
  * given port. Call from `test.beforeAll` in any spec that needs the mock server.
  *
@@ -186,12 +240,19 @@ export async function ensureWsMockServer(
   browser: Browser,
   port = WS_DEFAULT_MOCK_PORT,
 ): Promise<void> {
+  await assertWsPortIsNotPlainHttp(port);
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
   const resp = await page.request.post('http://localhost:3001/api/ws/mock/start', {
     data: { port, rules: [], fallback: 'echo' },
   });
-  expect(resp.ok()).toBeTruthy();
+  if (!resp.ok()) {
+    const body = await resp.text().catch(() => '');
+    throw new Error(
+      `Failed to start WS mock on port ${port} (${resp.status()}): ${body}. ` +
+      `If the port is in use, stop the other process and re-run.`,
+    );
+  }
   await ctx.close();
 }
 

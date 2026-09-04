@@ -79,7 +79,9 @@ test.describe('Demo lesson AM-02 — Multi-Server Workspace', () => {
 
     // Step 6 duplicates the corpus tab through its context menu.
     await completeCurrentStepAction(page, AM_LESSON_STEP_TIMEOUT);
-    const copyTab = page.locator(tabTitled(COPY_NAME));
+    const copyTab = page.locator(API_MOCK.SERVER_TABS)
+      .locator('[role="tab"]')
+      .filter({ has: page.locator('.am-server-tab-name', { hasText: COPY_NAME }) });
     await expect(copyTab).toHaveCount(1, { timeout: AM_LESSON_STEP_TIMEOUT });
     // A clone is a draft: rules cloned, listener not.
     await expect(copyTab.locator('.am-status-dot.running')).toHaveCount(0);

@@ -57,6 +57,6 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-  // eslint-disable-next-line no-console
+   
   console.log(`[api-mock-echo] listening on http://${HOST}:${PORT}`);
 });

@@ -517,6 +517,7 @@ describe('AM-02 helpers', () => {
 
       expect(await duplicateAm02Tab(ctx, AM02_CORPUS_NAME)).toBe(false);
       expect(calls(ctx.click)).toEqual([API_MOCK.TAB_CTX_DUPLICATE]);
+      expect(calls(ctx.waitFor)).toContain(API_MOCK.tabTitled(AM02_COPY_NAME));
     });
 
     it('reports failure for an unknown tab or a menu without the item', async () => {
@@ -664,8 +665,9 @@ describe('AM-02 helpers', () => {
     mount(API_MOCK.TAB_CTX_MENU, API_MOCK.TAB_CTX_DUPLICATE, API_MOCK.ADDRESS);
 
     await runAm02Duplicate(ctx);
-    expect(calls(ctx.click)).toEqual([API_MOCK.TAB_CTX_DUPLICATE]);
+    expect(calls(ctx.click)).toEqual([API_MOCK.TAB_CTX_DUPLICATE, API_MOCK.TAB_CTX_DUPLICATE]);
     expect(calls(ctx.waitFor)).toContain(API_MOCK.TAB_CTX_MENU);
+    expect(calls(ctx.waitFor)).toContain(API_MOCK.tabTitled(AM02_COPY_NAME));
   });
 
   it('step 6 still holds on the active tab when no tab bar is mounted', async () => {

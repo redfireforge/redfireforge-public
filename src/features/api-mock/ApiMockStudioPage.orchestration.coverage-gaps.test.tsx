@@ -1320,13 +1320,39 @@ describe('ApiMockStudioPage orchestration coverage', () => {
     expect(screen.getAllByTestId(/mock-select-srv-/)).toHaveLength(8);
   });
 
-  it('shows the tab-limit warning when auto-port allocation fails', async () => {
+  it('falls back to a local auto-port when companion nextAutoPort fails', async () => {
     loadApiMockWorkspace.mockResolvedValueOnce({ servers: [makeServer('srv-1')], activeServerId: 'srv-1' });
     nextAutoPort.mockResolvedValueOnce({
       ok: false,
       error: { code: 'NO_PORT_AVAILABLE', message: 'No available port in 4600-4699', retry: false },
     });
     nextAutoPort.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'NO_PORT_AVAILABLE', message: 'No available port in 4600-4699', retry: false },
+    });
+
+    const { ApiMockStudioPage } = await import('./ApiMockStudioPage');
+    render(<ApiMockStudioPage />);
+    await waitFor(() => expect(screen.getByTestId('api-mock-studio')).toBeTruthy());
+
+    fireEvent.click(screen.getByTestId('mock-create-server'));
+    await waitFor(() => expect(screen.getByTestId('api-mock-live-region')).toHaveTextContent(/created on port/i));
+    fireEvent.click(screen.getByTestId('mock-duplicate-server'));
+    await waitFor(() => expect(screen.getByTestId('api-mock-live-region')).toHaveTextContent(/duplicated on port/i));
+    await waitFor(() => expect(screen.getAllByTestId(/mock-select-srv-/).length).toBeGreaterThanOrEqual(3));
+  });
+
+  it('shows the tab-limit warning when companion and local auto-ports are exhausted', async () => {
+    const servers = Array.from({ length: 100 }, (_, i) => ({
+      ...makeServer(`srv-${i}`),
+      port: 4600 + i,
+    }));
+    loadApiMockWorkspace.mockResolvedValueOnce({
+      servers,
+      activeServerId: 'srv-0',
+      openTabIds: ['srv-0'],
+    });
+    nextAutoPort.mockResolvedValue({
       ok: false,
       error: { code: 'NO_PORT_AVAILABLE', message: 'No available port in 4600-4699', retry: false },
     });

@@ -1,5 +1,8 @@
 #!/bin/sh
 
+# node-gyp/IDE inject npm_config_devdir; npm 11+ warns on that unknown key.
+unset npm_config_devdir
+
 # Type-check the entire project (catches missing props, bad imports, etc.)
 echo "Running TypeScript type check..."
 npx tsc -b --noEmit || {

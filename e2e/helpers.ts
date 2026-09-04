@@ -113,6 +113,8 @@ export async function seedAppData(page: Page) {
     localStorage.setItem('redfire-onboarding-dismissed', JSON.stringify([
       'palette-drag', 'command-palette', 'node-config', 'connect-nodes', 'quick-test',
     ]));
+    // Promo banner takes vertical chrome and shifts viewport-sensitive assertions
+    localStorage.setItem('cloud-waitlist-dismissed', 'true');
   });
 }
 
@@ -155,6 +157,7 @@ export async function seedAppDataWithTest(page: Page) {
     localStorage.setItem('redfire-onboarding-dismissed', JSON.stringify([
       'palette-drag', 'command-palette', 'node-config', 'connect-nodes', 'quick-test',
     ]));
+    localStorage.setItem('cloud-waitlist-dismissed', 'true');
   });
 }
 

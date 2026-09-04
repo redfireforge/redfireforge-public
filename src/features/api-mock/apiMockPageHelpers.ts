@@ -71,6 +71,19 @@ export function pickNextAutoPort(
   throw new Error(`No available port in ${range.min}-${range.max}`);
 }
 
+/** Same as {@link pickNextAutoPort}, or `null` when the range is exhausted. */
+export function tryPickNextAutoPort(
+  servers: Array<{ port: number }>,
+  range: { min: number; max: number } = AUTO_PORT_RANGE,
+  excludePorts: Iterable<number> = [],
+): number | null {
+  try {
+    return pickNextAutoPort(servers, range, excludePorts);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Like {@link pickNextAutoPort}, but skips ports that fail an OS/bind probe.
  * When `isAvailable` is omitted or throws, falls back to the first tab-free port.

@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, afterEach } from 'vitest';
-import { isTauri, isNode, supportsWorkers, isLocalhost } from './platform';
+import { isTauri, isE2eDesktopShim, isNode, supportsWorkers, isLocalhost } from './platform';
 
 describe('platform', () => {
   const originalLocation = window.location;
@@ -14,6 +14,14 @@ describe('platform', () => {
       configurable: true,
     });
     delete (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
+    delete (window as Window & { __RF_E2E_MOCK_DESKTOP__?: unknown }).__RF_E2E_MOCK_DESKTOP__;
+  });
+
+  it('detects the Playwright desktop shim without treating the runtime as Tauri', () => {
+    expect(isE2eDesktopShim()).toBe(false);
+    (window as Window & { __RF_E2E_MOCK_DESKTOP__?: unknown }).__RF_E2E_MOCK_DESKTOP__ = true;
+    expect(isE2eDesktopShim()).toBe(true);
+    expect(isTauri()).toBe(false);
   });
 
   it('detects Tauri when __TAURI_INTERNALS__ is present', () => {

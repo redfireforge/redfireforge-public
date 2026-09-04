@@ -2,12 +2,21 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ResponseBodySearchBar from './ResponseBodySearchBar';
 
 const noop = () => undefined;
+
+const COPIED_RESET_MS = 1500;
+
+/** Flush the copied-state reset inside act() so React does not warn. */
+async function advancePastReset() {
+  await act(async () => {
+    vi.advanceTimersByTime(COPIED_RESET_MS);
+  });
+}
 
 function toolbar(copyText?: string) {
   return (
@@ -50,7 +59,7 @@ describe('ResponseBodySearchBar copy button', () => {
     const body = '{"ok":true,"items":[1,2,3]}';
 
     render(toolbar(body));
-    await userEvent.click(screen.getByTestId('req-resp-copy'));
+    await userEvent.click(screen.getByTestId('response-copy-btn'));
 
     expect(writeText).toHaveBeenCalledWith(body);
   });
@@ -59,21 +68,30 @@ describe('ResponseBodySearchBar copy button', () => {
     ['JSON', '{"ok":true}'],
     ['plain text', 'just some text'],
     ['XML', '<root><item>1</item></root>'],
+    ['HTML', '<html><body><p>hi</p></body></html>'],
   ])('copies a %s body verbatim', async (_label, body) => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     stubClipboard(writeText);
 
     render(toolbar(body));
-    await userEvent.click(screen.getByTestId('req-resp-copy'));
+    await userEvent.click(screen.getByTestId('response-copy-btn'));
 
     expect(writeText).toHaveBeenCalledWith(body);
+  });
+
+  it('exposes the accessible name and tooltip the issue specifies', () => {
+    render(toolbar('{"ok":true}'));
+    const button = screen.getByTestId('response-copy-btn');
+
+    expect(button).toHaveAttribute('aria-label', 'Copy response body');
+    expect(button).toHaveAttribute('title', 'Copy response');
   });
 
   it('flashes Copied! and resets after the timeout', async () => {
     stubClipboard(vi.fn().mockResolvedValue(undefined));
 
     render(toolbar('{"ok":true}'));
-    const button = screen.getByTestId('req-resp-copy');
+    const button = screen.getByTestId('response-copy-btn');
     expect(button).toHaveTextContent('Copy');
 
     await userEvent.click(button);
@@ -81,20 +99,20 @@ describe('ResponseBodySearchBar copy button', () => {
     // The accessible name changes too, so the confirmation is not visual only.
     expect(button).toHaveAttribute('aria-label', 'Response body copied');
 
-    vi.advanceTimersByTime(1600);
-    await waitFor(() => expect(button).toHaveTextContent('Copy'));
+    await advancePastReset();
+    expect(button).toHaveTextContent('Copy');
     expect(button).toHaveAttribute('aria-label', 'Copy response body');
   });
 
   it('is absent when there is no response body', () => {
     render(toolbar(undefined));
-    expect(screen.queryByTestId('req-resp-copy')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('response-copy-btn')).not.toBeInTheDocument();
   });
 
   it('is absent when the response body is an empty string', () => {
     // Nothing to paste, so a button that appears to work is worse than none.
     render(toolbar(''));
-    expect(screen.queryByTestId('req-resp-copy')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('response-copy-btn')).not.toBeInTheDocument();
   });
 
   it('does not break the toolbar when the clipboard is unavailable', async () => {
@@ -103,7 +121,7 @@ describe('ResponseBodySearchBar copy button', () => {
     stubClipboard(vi.fn().mockRejectedValue(new Error('denied')));
 
     render(toolbar('{"ok":true}'));
-    const button = screen.getByTestId('req-resp-copy');
+    const button = screen.getByTestId('response-copy-btn');
     await userEvent.click(button);
 
     expect(button).toHaveTextContent('Copy');
@@ -118,12 +136,12 @@ describe('ResponseBodySearchBar copy button', () => {
   });
 
   it('resets the existing timer when copy is clicked twice quickly', async () => {
-    // Covers the resetTimer.current branch inside handleCopy that clears any
-    // already-running timeout before scheduling a new one.
+    // Covers the resetTimer branch that clears any already-running timeout
+    // before scheduling a new one.
     stubClipboard(vi.fn().mockResolvedValue(undefined));
 
     render(toolbar('{"ok":true}'));
-    const button = screen.getByTestId('req-resp-copy');
+    const button = screen.getByTestId('response-copy-btn');
 
     await userEvent.click(button);
     await waitFor(() => expect(button).toHaveTextContent('Copied!'));
@@ -133,22 +151,22 @@ describe('ResponseBodySearchBar copy button', () => {
     await waitFor(() => expect(button).toHaveTextContent('Copied!'));
 
     // Both clicks should have scheduled a reset; advance past the window.
-    vi.advanceTimersByTime(1600);
-    await waitFor(() => expect(button).toHaveTextContent('Copy'));
+    await advancePastReset();
+    expect(button).toHaveTextContent('Copy');
   });
 
   it('clears the pending reset timer when the component unmounts', async () => {
-    // Covers the resetTimer.current branch inside the useEffect cleanup.
+    // Covers the cleanup branch inside the shared clipboard hook.
     stubClipboard(vi.fn().mockResolvedValue(undefined));
 
     const { unmount } = render(toolbar('{"ok":true}'));
-    const button = screen.getByTestId('req-resp-copy');
+    const button = screen.getByTestId('response-copy-btn');
 
     await userEvent.click(button);
     await waitFor(() => expect(button).toHaveTextContent('Copied!'));
 
     // Unmount while the reset timer is still running; should not throw.
     unmount();
-    vi.advanceTimersByTime(1600); // would fire the stale timer if not cleared
+    await advancePastReset(); // would fire the stale timer if not cleared
   });
 });

@@ -3,6 +3,7 @@
 # WS Endpoint: ws://localhost:4100/graphql (subprotocol: graphql-transport-ws)
 # HTTP Publish: POST http://localhost:4100/publish { "text": "hello" }
 # Health: GET http://localhost:4100/health
+name: rff-ws-graphql
 services:
   ws-graphql-echo:
     build: .

@@ -10,6 +10,7 @@
 import { expect, type APIRequestContext, type Page } from '@playwright/test';
 import {
   clearDemoE2EStorage,
+  installApiMockDesktopShim,
   installPhase8DemoGuardBypass,
   installDemoFastMode,
   launchApiMockLesson,
@@ -103,6 +104,7 @@ export async function prepareApiMockLessonRun(page: Page, request: APIRequestCon
   await stopAllCompanionListeners(request);
   await installPhase8DemoGuardBypass(page);
   await installDemoFastMode(page);
+  await installApiMockDesktopShim(page);
   await page.goto('http://localhost:5173', { waitUntil: 'domcontentloaded' });
   await clearDemoE2EStorage(page);
 }

@@ -194,7 +194,7 @@ export async function setupLiveWebSocket(page: Page) {
 export async function setupLiveProxy(page: Page, request: APIRequestContext) {
   await page.route('**/__proxy', async (route) => {
     const bodyStr = route.request().postData() ?? '';
-    let payload: ProxyPayload | null = null;
+    let payload: ProxyPayload | null;
     try {
       payload = JSON.parse(bodyStr) as ProxyPayload;
     } catch {
@@ -565,7 +565,7 @@ export async function setupDualEndpointGraphqlProxy(page: Page, opts: DualEndpoi
 
   await page.route('**/__proxy', async (route) => {
     const bodyStr = route.request().postData() ?? '';
-    let targetUrl = '';
+    let targetUrl: string;
     try {
       const payload = JSON.parse(bodyStr) as { url?: string };
       targetUrl = payload.url ?? '';

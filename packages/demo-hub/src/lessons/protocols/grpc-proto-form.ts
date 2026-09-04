@@ -752,7 +752,7 @@ export const grpcProtoFormLesson: GrpcDemoLesson = {
 
         const jsonEl = document.querySelector<HTMLTextAreaElement>(GRPC.HYBRID_JSON_EDITOR);
         if (jsonEl) {
-          let parsed: Record<string, unknown> = {};
+          let parsed: Record<string, unknown>;
           try { parsed = JSON.parse(jsonEl.value) as Record<string, unknown>; } catch { parsed = {}; }
           parsed.message = DEMO_MESSAGE_EDITED;
           await ctx.fill(GRPC.HYBRID_JSON_EDITOR, JSON.stringify(parsed, null, 2));

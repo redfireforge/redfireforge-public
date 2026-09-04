@@ -20,6 +20,7 @@
 #   Subscription.orderStatus    — PENDING → PROCESSING → COMPLETE (~2s apart, ~6s total)
 #
 # Features: Apollo Tracing v1, APQ, CORS, graphql-ws subscriptions
+name: rff-graphql
 services:
   graphql-test-server:
     build: .

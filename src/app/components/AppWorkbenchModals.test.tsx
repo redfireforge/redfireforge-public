@@ -174,6 +174,20 @@ vi.mock('../../features/requests/components/BatchSendToHarnessModal', () => ({
   },
 }));
 
+vi.mock('../../features/api-mock/components/ExportToApiMockModal', () => ({
+  ExportToApiMockModal: ({ items, sourceKind, onClose }: {
+    items: { method: string; path: string }[];
+    sourceKind: string;
+    onClose: () => void;
+  }) => (
+    <div data-testid="mock-export-mock">
+      <span data-testid="mock-export-kind">{sourceKind}</span>
+      <span data-testid="mock-export-count">{items.length}</span>
+      <button type="button" data-testid="mock-export-close" onClick={onClose}>close-mock</button>
+    </div>
+  ),
+}));
+
 vi.mock('../../features/catalog/utils/catalogEndpointToRequest', () => ({
   catalogEndpointToRequest: vi.fn().mockReturnValue({
     id: 'temp',
@@ -639,6 +653,46 @@ describe('AppWorkbenchModals', () => {
     fireEvent.click(screen.getByTestId('mock-batch-close'));
     expect(setBt).toHaveBeenCalledWith(undefined);
   });
+
+  it('renders ExportToApiMockModal when exportToMockItems is set', () => {
+    const clearMock = vi.fn();
+    const items = [{ method: 'GET', path: '/users', label: 'List users' }];
+
+    render(
+      <AppWorkbenchModals
+        {...emptyShell({
+          exportToMockItems: items,
+          exportToMockSourceKind: 'catalog',
+          onClearExportToMock: clearMock,
+        })}
+      />,
+    );
+
+    expect(screen.getByTestId('mock-export-mock')).toBeInTheDocument();
+    expect(screen.getByTestId('mock-export-kind')).toHaveTextContent('catalog');
+    expect(screen.getByTestId('mock-export-count')).toHaveTextContent('1');
+  });
+
+  it('hides ExportToApiMockModal when exportToMockItems is null', () => {
+    render(<AppWorkbenchModals {...emptyShell({ exportToMockItems: null })} />);
+    expect(screen.queryByTestId('mock-export-mock')).toBeNull();
+  });
+
+  it('calls onClearExportToMock when ExportToApiMock modal closes', () => {
+    const clearMock = vi.fn();
+    render(
+      <AppWorkbenchModals
+        {...emptyShell({
+          exportToMockItems: [{ method: 'POST', path: '/items', label: 'Create item' }],
+          exportToMockSourceKind: 'requests',
+          onClearExportToMock: clearMock,
+        })}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('mock-export-close'));
+    expect(clearMock).toHaveBeenCalledTimes(1);
+  });
 });
 
 function sampleEndpoint(): CatalogEndpoint {
@@ -744,6 +798,9 @@ function emptyShell(overrides: Partial<Parameters<typeof AppWorkbenchModals>[0]>
     catalogConvert: undefined,
     setCatalogConvert: noop as Dispatch<SetStateAction<CatalogConvertTarget | undefined>>,
     handleSaveConvertedVersion: (async () => {}) as (entryId: string, args: SaveConvertedVersionArgs) => Promise<void>,
+    exportToMockItems: null,
+    exportToMockSourceKind: 'catalog' as const,
+    onClearExportToMock: noop,
     ...overrides,
   };
 }

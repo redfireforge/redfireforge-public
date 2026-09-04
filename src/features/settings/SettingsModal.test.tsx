@@ -24,6 +24,9 @@ vi.mock('../audit/utils/auditLog', () => ({
 vi.mock('./SettingsStorageTab', () => ({ default: () => <div data-testid="storage-tab" /> }));
 vi.mock('./SettingsExportImportTab', () => ({ default: () => <div data-testid="export-import-tab" /> }));
 vi.mock('../audit/components/AuditLogPanel', () => ({ default: () => <div data-testid="audit-log-panel" /> }));
+vi.mock('@redfireforge/demo-hub/components/DockerStacksSettings', () => ({
+  DockerStacksSettings: () => <div data-testid="docker-settings" />,
+}));
 
 // ── Mock useAuthVerify hook with mutable module-level state ──
 let mockAuthVerifying = false;
@@ -45,6 +48,10 @@ import {
   logAuthProfileRenamed,
   logAuthProfileUpdated,
 } from '../audit/utils/auditLog';
+import {
+  requestOpenDockerSettings,
+  resetDockerSettingsNav,
+} from '@redfireforge/demo-hub/utils/dockerSettingsNav';
 
 const mCreated = vi.mocked(logAuthProfileCreated);
 const mDeleted = vi.mocked(logAuthProfileDeleted);
@@ -83,6 +90,7 @@ beforeEach(() => {
   resetAllMocks();
   mockAuthVerifying = false;
   mockAuthVerifyResult = null;
+  resetDockerSettingsNav();
 });
 
 describe('SettingsPage — navigation', () => {
@@ -104,6 +112,27 @@ describe('SettingsPage — navigation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Audit Log' }));
     expect(screen.getByTestId('audit-log-panel')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Global Auth Profiles' }));
+    expect(screen.getByRole('heading', { name: 'Global Auth Profiles' })).toBeTruthy();
+  });
+
+  it('opens the Learning Hub Docker tab from nav and from the manage event', async () => {
+    const { OPEN_DOCKER_SETTINGS_EVENT } = await import('@redfireforge/demo-hub/utils/dockerSettingsNav');
+    render(<Harness />);
+    fireEvent.click(screen.getByTestId('settings-tab-docker'));
+    await waitFor(() => expect(screen.getByTestId('docker-settings')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: 'Storage' }));
+    expect(screen.queryByTestId('docker-settings')).toBeNull();
+    fireEvent(window, new CustomEvent(OPEN_DOCKER_SETTINGS_EVENT));
+    await waitFor(() => expect(screen.getByTestId('docker-settings')).toBeTruthy());
+  });
+
+  it('does not reopen Docker after the manage event was already handled', async () => {
+    const { unmount } = render(<Harness />);
+    requestOpenDockerSettings();
+    await waitFor(() => expect(screen.getByTestId('docker-settings')).toBeTruthy());
+    unmount();
+    render(<Harness />);
+    expect(screen.queryByTestId('docker-settings')).toBeNull();
     expect(screen.getByRole('heading', { name: 'Global Auth Profiles' })).toBeTruthy();
   });
 });
@@ -447,6 +476,98 @@ describe('SettingsPage — verify auth', () => {
     expect(toggle.title).toBe('Show');
     fireEvent.click(toggle);
     expect(toggle.title).toBe('Hide');
+  });
+
+  it('updates every auth field on one profile without changing the sibling', () => {
+    render(<Harness initialProfiles={[
+      {
+        id: 'p1',
+        name: 'alpha',
+        auth: {
+          type: 'basic',
+          username: 'a',
+          password: 'p',
+        },
+      },
+      {
+        id: 'p2',
+        name: 'beta',
+        auth: {
+          type: 'basic',
+          username: 'keep',
+          password: 'keep-p',
+        },
+      },
+    ]} />);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Configure' })[0]);
+    const inputs = document.querySelectorAll('.form-row.two-col input') as NodeListOf<HTMLInputElement>;
+    fireEvent.change(inputs[0], { target: { value: 'a2' } });
+    fireEvent.change(inputs[1], { target: { value: 'p2' } });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Collapse' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Configure' })[1]);
+    const other = document.querySelectorAll('.form-row.two-col input') as NodeListOf<HTMLInputElement>;
+    expect(other[0].value).toBe('keep');
+    expect(other[1].value).toBe('keep-p');
+  });
+
+  it('updates bearer, apikey, digest, and oauth2 fields without mutating the sibling', () => {
+    const cases: GlobalAuthProfile[][] = [
+      [
+        { id: 'p1', name: 'alpha', auth: { type: 'bearer', token: 't1', prefix: 'Bearer' } },
+        { id: 'p2', name: 'beta', auth: { type: 'bearer', token: 'keep', prefix: 'Tok' } },
+      ],
+      [
+        { id: 'p1', name: 'alpha', auth: { type: 'apikey', apiKeyName: 'A', apiKeyValue: '1', apiKeyIn: 'header' } },
+        { id: 'p2', name: 'beta', auth: { type: 'apikey', apiKeyName: 'Keep', apiKeyValue: 'K', apiKeyIn: 'query' } },
+      ],
+      [
+        { id: 'p1', name: 'alpha', auth: { type: 'digest', username: 'a', password: 'p' } },
+        { id: 'p2', name: 'beta', auth: { type: 'digest', username: 'keep', password: 'keep-p' } },
+      ],
+      [
+        { id: 'p1', name: 'alpha', auth: { type: 'oauth2', tokenUrl: 'https://a', clientId: 'a', clientSecret: 's' } },
+        { id: 'p2', name: 'beta', auth: { type: 'oauth2', tokenUrl: 'https://keep', clientId: 'keep', clientSecret: 'ks' } },
+      ],
+    ];
+    for (const initial of cases) {
+      const { unmount } = render(<Harness initialProfiles={initial} />);
+      fireEvent.click(screen.getAllByRole('button', { name: 'Configure' })[0]);
+      if (initial[0].auth.type === 'bearer') {
+        fireEvent.change(screen.getByPlaceholderText('eyJhbGciOi...'), { target: { value: 't2' } });
+        fireEvent.change(screen.getByPlaceholderText('Bearer'), { target: { value: 'X' } });
+      } else if (initial[0].auth.type === 'apikey') {
+        fireEvent.change(screen.getByPlaceholderText('X-API-Key'), { target: { value: 'B' } });
+        fireEvent.change(screen.getByPlaceholderText('your-api-key'), { target: { value: '2' } });
+        const radios = document.querySelectorAll('.radio-group input[type="radio"]');
+        fireEvent.click(radios[1]);
+        fireEvent.click(radios[0]);
+      } else if (initial[0].auth.type === 'digest') {
+        const inputs = document.querySelectorAll('.form-row.two-col input') as NodeListOf<HTMLInputElement>;
+        fireEvent.change(inputs[0], { target: { value: 'a2' } });
+        fireEvent.change(inputs[1], { target: { value: 'p2' } });
+      } else {
+        fireEvent.change(screen.getByPlaceholderText('https://auth.example.com/oauth/token'), { target: { value: 'https://b' } });
+        const inputs = document.querySelectorAll('.form-row.two-col input') as NodeListOf<HTMLInputElement>;
+        fireEvent.change(inputs[0], { target: { value: 'a2' } });
+        fireEvent.change(inputs[1], { target: { value: 's2' } });
+      }
+      fireEvent.click(screen.getAllByRole('button', { name: 'Collapse' })[0]);
+      fireEvent.click(screen.getAllByRole('button', { name: 'Configure' })[1]);
+      if (initial[1].auth.type === 'bearer') {
+        expect((screen.getByPlaceholderText('eyJhbGciOi...') as HTMLInputElement).value).toBe('keep');
+        expect((screen.getByPlaceholderText('Bearer') as HTMLInputElement).value).toBe('Tok');
+      } else if (initial[1].auth.type === 'apikey') {
+        expect((screen.getByPlaceholderText('X-API-Key') as HTMLInputElement).value).toBe('Keep');
+        const queryRadio = document.querySelectorAll('.radio-group input[type="radio"]')[1] as HTMLInputElement;
+        expect(queryRadio.checked).toBe(true);
+      } else if (initial[1].auth.type === 'digest') {
+        const other = document.querySelectorAll('.form-row.two-col input') as NodeListOf<HTMLInputElement>;
+        expect(other[0].value).toBe('keep');
+      } else {
+        expect((screen.getByPlaceholderText('https://auth.example.com/oauth/token') as HTMLInputElement).value).toBe('https://keep');
+      }
+      unmount();
+    }
   });
 
   it('updates auth fields on one profile without changing another profile', () => {

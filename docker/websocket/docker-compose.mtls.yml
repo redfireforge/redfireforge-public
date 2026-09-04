@@ -1,10 +1,9 @@
 # Mutual TLS (mTLS) WebSocket echo server for Phase 3 of the Local TLS Demo.
 #
-# Requires client certificates signed by the RedfireForge Dev Root CA:
-#   1. ./generate-cert.sh          # one-time: creates CA + server certs
-#   2. ./generate-client-cert.sh   # one-time: creates client.crt + client.key
-#   3. docker compose -f docker/websocket/docker-compose.mtls.yml up -d
-#   4. Connect WebSocket Studio to wss://localhost:8768
+# Requires client certificates signed by the RedfireForge Dev Root CA
+# (pre-bundled under certs/):
+#   1. docker compose -f docker/websocket/docker-compose.mtls.yml up -d
+#   2. Connect WebSocket Studio to wss://localhost:8768
 #      - Requires BOTH CA cert + client cert/key in the TLS panel
 #      - Connections without a valid client cert are rejected by nginx (SSL: 400)
 #
@@ -12,6 +11,7 @@
 #   ws-echo-mtls  (jmalloc/echo-server, plain ws on :8080) ← internal only
 #   ws-mtls-proxy (nginx with mTLS)                         ← wss://localhost:8768
 #   Health probe:  http://localhost:8769 (echo-server HTTP, host-mapped for gate)
+name: rff-ws-tls
 services:
   ws-echo-mtls:
     image: jmalloc/echo-server

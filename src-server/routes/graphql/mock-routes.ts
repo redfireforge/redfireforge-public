@@ -163,7 +163,7 @@ async function executeMock(
     };
     requestLog.push(parseEntry);
     if (requestLog.length > LOG_MAX) requestLog.shift();
-    throw new Error(`GraphQL parse error: ${toErrorMessage(err)}`);
+    throw new Error(`GraphQL parse error: ${toErrorMessage(err)}`, { cause: err });
   }
 
   const result = await execute({

@@ -1,0 +1,70 @@
+name: Bump Homebrew Cask
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  bump-cask:
+    name: Update homebrew-tap cask
+    runs-on: ubuntu-latest
+    # Only run for stable releases (no pre-releases, no Learning Hub variants)
+    if: |
+      !github.event.release.prerelease &&
+      !contains(github.event.release.name, 'Learning Hub')
+
+    steps:
+      - name: Extract version and checksums
+        id: meta
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          VERSION="${TAG#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+          # Download SHA256SUMS.txt from this release
+          gh release download "$TAG" \
+            --repo "${{ github.repository }}" \
+            --pattern "SHA256SUMS.txt" \
+            --dir /tmp/release
+
+          SHA_ARM=$(grep "_aarch64\.dmg" /tmp/release/SHA256SUMS.txt | awk '{print $1}' | tr '[:lower:]' '[:upper:]')
+          SHA_X64=$(grep "_x64\.dmg"     /tmp/release/SHA256SUMS.txt | awk '{print $1}' | tr '[:lower:]' '[:upper:]')
+
+          echo "sha_arm=$SHA_ARM"   >> "$GITHUB_OUTPUT"
+          echo "sha_x64=$SHA_X64"   >> "$GITHUB_OUTPUT"
+
+      - name: Checkout homebrew-tap
+        uses: actions/checkout@v4
+        with:
+          repository: redfireforge/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update cask formula
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          SHA_ARM: ${{ steps.meta.outputs.sha_arm }}
+          SHA_X64: ${{ steps.meta.outputs.sha_x64 }}
+        run: |
+          CASK="homebrew-tap/Casks/redfireforge.rb"
+
+          sed -i "s/version \"[^\"]*\"/version \"${VERSION}\"/" "$CASK"
+          sed -i "s|arm:   \"[^\"]*\"|arm:   \"${SHA_ARM}\"|"  "$CASK"
+          sed -i "s|intel: \"[^\"]*\"|intel: \"${SHA_X64}\"|"  "$CASK"
+
+          echo "--- Updated cask ---"
+          cat "$CASK"
+
+      - name: Commit and push
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          cd homebrew-tap
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/redfireforge.rb
+          git diff --cached --quiet && echo "No changes — cask already up to date" && exit 0
+          git commit -m "chore: bump redfireforge cask to v${VERSION}"
+          git push origin main

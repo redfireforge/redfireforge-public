@@ -28,19 +28,17 @@ RedfireForge (web / Tauri)
 | `4445` | HTTPS / WSS | mTLS-protected GraphQL endpoint (Phase 3) |
 | `4446` | HTTP | Health probe for PrerequisiteGate (Phase 3) |
 
-## One-Time Setup
+## Certificates
+
+TLS certs are **already committed** under `certs/`. Start compose without running generate scripts.
+
+To renew (developers):
 
 ```bash
-cd docker/graphql/tls
-
-# Generate CA + server cert (for Phase 1 + Phase 2)
-./generate-cert.sh
-
-# Generate client cert (for Phase 3 — mTLS only)
-./generate-client-cert.sh
+bash scripts/renew-demo-tls-certs.sh
 ```
 
-The scripts are **idempotent** — re-running them does nothing if certs already exist. Use `FORCE=1 ./generate-cert.sh` to regenerate.
+The generate scripts remain for local rotation (`FORCE=1`). They are idempotent if certs already exist.
 
 ## Start / Stop
 
@@ -92,17 +90,16 @@ This stack powers **Lesson GQL-5 (new): HTTPS, TLS & Certificates** in the Graph
 | Phase 2 — CA cert   | `https://localhost:4443/graphql` | Paste `certs/ca.crt` into "CA Certificate (PEM)" |
 | Phase 3 — mTLS      | `https://localhost:4445/graphql` | CA cert + `certs/client.crt` + `certs/client.key` |
 
-## Embedding Certs in the Lesson File
+## Lesson PEM constants
 
-After running `generate-cert.sh`, embed the CA cert PEM in the lesson:
+Do not paste PEMs by hand. After renewing certs:
 
 ```bash
-cat docker/graphql/tls/certs/ca.crt
+bash scripts/renew-demo-tls-certs.sh
+# or: node scripts/sync-demo-tls-certs.js
 ```
 
-Copy the full `-----BEGIN CERTIFICATE----- … -----END CERTIFICATE-----` block into a `GQL_TLS_CA_CERT` constant in `graphql-lesson-helpers/lesson-https-tls.ts`, following the pattern of `DEV_CA_CERT` in `ws-tls-local.ts`.
-
-For mTLS, also embed the client cert and key from `certs/client.crt` and `certs/client.key`.
+That updates `GQL_TLS_*` in `lesson-https-tls.ts` (and the WebSocket / Kafka / gRPC PEM constants).
 
 ## Platform Notes
 

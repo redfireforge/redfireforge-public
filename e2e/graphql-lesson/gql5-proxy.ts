@@ -33,7 +33,7 @@ export function resolveGql5ProxyTarget(
 export async function _setupGql5LiveProxy(page: Page, request: APIRequestContext): Promise<void> {
   await page.route('**/__proxy', async (route) => {
     const bodyStr = route.request().postData() ?? '';
-    let payload: Gql5ProxyPayload | null = null;
+    let payload: Gql5ProxyPayload | null;
     try {
       payload = JSON.parse(bodyStr) as Gql5ProxyPayload;
     } catch {

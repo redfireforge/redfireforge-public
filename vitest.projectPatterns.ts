@@ -8,6 +8,7 @@ export const ALL_TEST_GLOBS = [
   'src/**/*.test.{ts,tsx}',
   'src-server/**/*.test.{ts,tsx}',
   'cli/**/*.test.ts',
+  'vite/**/*.test.ts',
 ] as const;
 
 /** Demo-only test files — run in the `demo` Vitest project. */

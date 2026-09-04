@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { seedAppData } from './helpers';
+import { seedAppData, seedWorkflowsInLocalStorage } from './helpers';
 import type { Workflow } from '../src/features/workflow/types/workflow';
 
 function makeWorkflowWithEndNode(): Workflow {
@@ -130,10 +130,7 @@ function makeWorkflowWithMultipleEndNodes(): Workflow {
 
 async function seedWorkflowData(page: import('@playwright/test').Page, workflow: Workflow) {
   await seedAppData(page);
-  await page.addInitScript((workflowJson: string, workflowId: string) => {
-    localStorage.setItem('workflows', workflowJson);
-    localStorage.setItem('workflows_selected_id', workflowId);
-  }, JSON.stringify([workflow]), workflow.id);
+  await seedWorkflowsInLocalStorage(page, [workflow], workflow.id);
 }
 
 test.describe('Workflow End Node', () => {

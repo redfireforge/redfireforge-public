@@ -1,0 +1,12 @@
+{
+  "stackKey": "graphql-tls",
+  "sinceVersion": "0.8.3",
+  "description": "Apollo GraphQL TLS (4443/4444) + mTLS (4445/4446) demo server",
+  "composeFiles": ["docker-compose.yml", "docker-compose.mtls.yml"],
+  "buildOnStart": false,
+  "composeProfile": null,
+  "requiresCompanionProbe": false,
+  "ports": [4443, 4444, 4445, 4446],
+  "minMemoryMb": 512,
+  "certExpiresAt": "2036-08-30"
+}

@@ -12,8 +12,9 @@ fi
 
 CA_KEY="$TMP_DIR/ca.key"
 CA_SRL="$TMP_DIR/ca.srl"
+DAYS="${DAYS:-3650}"
 
-openssl req -x509 -newkey rsa:2048 -days 3650 -nodes \
+openssl req -x509 -newkey rsa:2048 -days "$DAYS" -nodes \
   -keyout "$CA_KEY" \
   -out "$ROOT_DIR/ca.crt" \
   -subj "/C=US/ST=CA/L=Local/O=RedfireForge/OU=gRPC Fixtures/CN=redfire-grpc-fixture-ca"
@@ -26,7 +27,7 @@ openssl req -new -nodes -newkey rsa:2048 \
 openssl x509 -req -in "$TMP_DIR/server.csr" \
   -CA "$ROOT_DIR/ca.crt" -CAkey "$CA_KEY" -CAcreateserial \
   -CAserial "$CA_SRL" \
-  -out "$ROOT_DIR/server.crt" -days 3650 -sha256 \
+  -out "$ROOT_DIR/server.crt" -days "$DAYS" -sha256 \
   -extensions req_ext -extfile "$ROOT_DIR/openssl-server.cnf"
 
 openssl req -new -nodes -newkey rsa:2048 \
@@ -37,7 +38,7 @@ openssl req -new -nodes -newkey rsa:2048 \
 openssl x509 -req -in "$TMP_DIR/client.csr" \
   -CA "$ROOT_DIR/ca.crt" -CAkey "$CA_KEY" -CAcreateserial \
   -CAserial "$CA_SRL" \
-  -out "$ROOT_DIR/client.crt" -days 3650 -sha256 \
+  -out "$ROOT_DIR/client.crt" -days "$DAYS" -sha256 \
   -extensions req_ext -extfile "$ROOT_DIR/openssl-client.cnf"
 
 echo "Generated fixture certs under $ROOT_DIR"

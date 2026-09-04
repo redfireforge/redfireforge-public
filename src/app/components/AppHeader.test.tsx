@@ -288,4 +288,36 @@ describe('AppHeader', () => {
     expect(badge.textContent).toContain('✗');
     expect(badge.getAttribute('title')).toContain('Select an environment');
   });
+
+  it('opens the keyboard shortcuts modal when ? is pressed', () => {
+    setup();
+    expect(screen.queryByTestId('keyboard-shortcuts-modal')).toBeNull();
+    fireEvent.keyDown(window, { key: '?' });
+    expect(screen.getByTestId('keyboard-shortcuts-modal')).toBeTruthy();
+  });
+
+  it('closes the keyboard shortcuts modal when ? is pressed a second time', () => {
+    setup();
+    fireEvent.keyDown(window, { key: '?' });
+    expect(screen.getByTestId('keyboard-shortcuts-modal')).toBeTruthy();
+    fireEvent.keyDown(window, { key: '?' });
+    expect(screen.queryByTestId('keyboard-shortcuts-modal')).toBeNull();
+  });
+
+  it('closes the keyboard shortcuts modal when Escape is pressed', () => {
+    setup();
+    fireEvent.keyDown(window, { key: '?' });
+    expect(screen.getByTestId('keyboard-shortcuts-modal')).toBeTruthy();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByTestId('keyboard-shortcuts-modal')).toBeNull();
+  });
+
+  it('does not open the shortcuts modal when ? is typed inside an input', () => {
+    setup();
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    fireEvent.keyDown(input, { key: '?' });
+    expect(screen.queryByTestId('keyboard-shortcuts-modal')).toBeNull();
+    input.remove();
+  });
 });

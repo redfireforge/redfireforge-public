@@ -15,9 +15,10 @@ export const cliReportsCiLesson: DemoLesson = {
   category: 'data-and-ci',
   name: 'Reports & CI/CD Integration',
   description:
-    'Every report format the CLI can emit (JSON, JUnit, Markdown), quiet mode for ' +
-    'log-limited CI runners, and wiring it into a real GitHub Actions job.',
-  estimatedMinutes: 6,
+    'Every report format the CLI can emit (JSON to a file or straight to stdout, ' +
+    'JUnit, Markdown), quiet mode for log-limited CI runners, and wiring it into a ' +
+    'real GitHub Actions job.',
+  estimatedMinutes: 8,
   desktopOnly: false,
 
   concept: {
@@ -29,7 +30,8 @@ export const cliReportsCiLesson: DemoLesson = {
       'Markdown for a PR comment a teammate will actually read. All three come from ' +
       'the exact same run — pick as many as you need, they\'re not mutually exclusive.',
     keyTerms: [
-      { term: '-o / --output', definition: 'Full JSON report — config + summary + every per-request result.' },
+      { term: '-o / --output <path>', definition: 'Full JSON report — config + summary + every per-request result.' },
+      { term: '-o / --output json', definition: 'A flat, CI-shaped JSON summary printed straight to stdout — pipe it into jq, no temp file.' },
       { term: '--junit', definition: '<testsuites>/<testsuite>/<testcase> XML most CI dashboards already know how to render.' },
       { term: '--markdown', definition: 'A ready-to-paste PR comment — title, metrics table, timing breakdown, pass/fail banner.' },
     ],
@@ -100,6 +102,73 @@ export const cliReportsCiLesson: DemoLesson = {
         '}',
       // 2 beats: the report-written line, then the summary block.
       terminalHighlightLines: [[1, 1], [4, 4]],
+      pauseAfter: true,
+    },
+
+    // ── Step 2: --output json — Straight to stdout for CI ─────────────
+    {
+      id: 'cli6-json-stdout',
+      title: '--output json — Straight to stdout',
+      description:
+        'The full report above is rich, but a pipeline usually just wants "how many passed, and what broke?" — and it wants it without writing a temp file first.\n\n' +
+        'Passing the **keyword** `json` instead of a path prints a flat, CI-shaped summary directly to stdout. Every other line — the header, the console summary, even the SLA and baseline reports — is suppressed, so the stream is safe to pipe straight into `jq`. Errors still go to stderr.\n\n' +
+        'Exit codes are untouched, so `--fail-on-error` still fails the build.\n\n' +
+        '**Flags used:**\n' +
+        '- `--output json` — print the CI report to stdout (a **format**, not a filename)\n' +
+        '- `--fail-on-error` — still exits `1` when anything failed',
+      terminalCommand: 'redfireforge run examples/cli-error-handling.yaml --output json --fail-on-error; echo "exit: $?"',
+      terminalOutput:
+        '{\n' +
+        '  "passed": 20,\n' +
+        '  "failed": 5,\n' +
+        '  "total": 25,\n' +
+        '  "durationMs": 1107,\n' +
+        '  "results": [\n' +
+        '    {\n' +
+        '      "name": "Valid Request 2 (Success)",\n' +
+        '      "status": "pass",\n' +
+        '      "durationMs": 216,\n' +
+        '      "error": null\n' +
+        '    },\n' +
+        '    {\n' +
+        '      "name": "Non-Existent Resource (404)",\n' +
+        '      "status": "fail",\n' +
+        '      "durationMs": 32,\n' +
+        '      "error": "HTTP 404: {}"\n' +
+        '    }\n' +
+        '  ]\n' +
+        '}\n' +
+        'exit: 1',
+      // 3 beats: the pass/fail counts, the failing entry, then the preserved exit code.
+      terminalHighlightLines: [[2, 4], [13, 18], [21, 21]],
+      pauseAfter: true,
+    },
+
+    // ── Step 3: Piping it somewhere useful ─────────────────────────
+    {
+      id: 'cli6-json-pipe',
+      title: 'Piping stdout JSON Into a Gate',
+      description:
+        'Because stdout is pure JSON, standard shell tooling just works — no parsing of human-readable text, no temp files to clean up.\n\n' +
+        'This is the difference between `--output json` and `-o results.json`: the first is a **stream**, the second is an **artifact**. Use the stream for gating and summaries; use the artifact when you need the full per-request detail later.\n\n' +
+        '`--output json` works the same way on `workflow` and `mock simulate`. For `workflow`, one result is emitted per **iteration**, matching `--output junit`, with the individual steps kept under a `steps` array.',
+      terminalCommand: 'redfireforge run examples/cli-basic-test.yaml --output json | jq -r "\\(.passed)/\\(.total) passed in \\(.durationMs)ms"',
+      terminalOutput:
+        '9/9 passed in 540ms\n' +
+        '\n' +
+        '# a workflow iteration keeps its steps nested:\n' +
+        '$ redfireforge workflow checkout.yaml -i 4 --output json | jq ".results[0]"\n' +
+        '{\n' +
+        '  "name": "Iteration 1",\n' +
+        '  "status": "fail",\n' +
+        '  "durationMs": 56,\n' +
+        '  "error": "Create Order: (http): expected 2xx, got HTTP 500",\n' +
+        '  "steps": [\n' +
+        '    { "name": "Login", "status": "pass", "durationMs": 54, "error": null },\n' +
+        '    { "name": "Create Order", "status": "fail", "durationMs": 2, "error": "(http): expected 2xx, got HTTP 500" }\n' +
+        '  ]\n' +
+        '}',
+      terminalHighlightLines: [[1, 1], [10, 13]],
       pauseAfter: true,
     },
 
@@ -272,20 +341,23 @@ export const cliReportsCiLesson: DemoLesson = {
       title: 'Choosing Report Formats',
       description:
         'Pick the format that matches who (or what) will consume it:\n\n' +
-        '- `-o results.json` — anything parsing the output programmatically (dashboards, diffing tools)\n' +
+        '- `--output json` — a **stream** for a pipeline to gate on, straight to stdout\n' +
+        '- `-o results.json` — an **artifact** with the full per-request detail\n' +
         '- `--junit results.xml` — CI systems with a built-in test-report UI (almost all of them)\n' +
         '- `--markdown results.md` — a PR comment a human will read\n' +
         '- `--data-rows-summary results.json` — per-row pass/fail for a parameterized CI gate (covered in the Data-Driven lesson)\n\n' +
-        'All four are additive — a single run can emit all of them at once.',
+        'The file-writing formats are additive — one run can emit all of them at once. ' +
+        '`--output json` is the one exception: it owns stdout, so it replaces the console summary rather than adding to it.',
       terminalOutput:
-        '# -o results.json      → parse programmatically (dashboards, diffing)\n' +
+        '# --output json       → stream to stdout, pipe into jq (owns stdout)\n' +
+        '# -o results.json      → artifact with full per-request detail\n' +
         '# --junit results.xml  → CI systems with a built-in test-report UI\n' +
         '# --markdown results.md → a PR comment a human will read\n' +
         '# --data-rows-summary  → per-row pass/fail in a parameterized CI gate\n' +
         '#\n' +
-        '# All additive — one run can emit all four at once:\n' +
+        '# The file formats are additive — one run can emit all four at once:\n' +
         '$ redfireforge run examples/cli-basic-test.yaml -o r.json --junit r.xml --markdown r.md --data-rows-summary r-rows.json -q',
-      terminalHighlightLines: [[6, 7]],
+      terminalHighlightLines: [[1, 2], [7, 8]],
       pauseAfter: true,
     },
   ],

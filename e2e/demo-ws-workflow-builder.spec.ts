@@ -44,44 +44,8 @@ const CONFIG_RING_AFTER_STEP: Record<number, string> = {
   8: WF.NODE_WS_RECEIVE,
 };
 
-function parseStepNumber(counter: string): number {
-  const match = counter.match(/(\d+)\s*\/\s*\d+/);
-  return match ? Number(match[1]) : NaN;
-}
-
 async function advanceOneStep(page: Parameters<typeof launchLesson>[0]): Promise<void> {
-  const panelSel = '[data-testid="demo-live-panel"]';
-  const counterSel = '.demo-live-step-counter';
-  const nextBtn = page.locator('[aria-label="Next step"]');
-  const skipBadge = page.locator('.demo-live-phase-badge.skippable');
-  const beforeCounter = (await page.locator(counterSel).textContent()) ?? '';
-  const beforeStep = parseStepNumber(beforeCounter);
-
-  const deadline = Date.now() + DEMO_ACTION_TIMEOUT;
-  while (Date.now() < deadline) {
-    const currentCounter = (await page.locator(counterSel).textContent()) ?? '';
-    const currentStep = parseStepNumber(currentCounter);
-    if (Number.isFinite(currentStep) && currentStep > beforeStep) return;
-
-    const phase = await page.locator(panelSel).getAttribute('data-step-phase');
-    const nextEnabled = await nextBtn.isEnabled().catch(() => false);
-
-    if (nextEnabled) {
-      await nextBtn.click();
-      await page.waitForTimeout(180);
-      continue;
-    }
-
-    if (phase === 'reading' && await skipBadge.isVisible().catch(() => false)) {
-      await skipBadge.click();
-      await page.waitForTimeout(180);
-      continue;
-    }
-
-    await page.waitForTimeout(220);
-  }
-
-  throw new Error(`advanceOneStep timeout: counter did not advance from ${beforeCounter.trim()}`);
+  await runNextStep(page, DEMO_ACTION_TIMEOUT);
 }
 
 async function assertConfigStepOpensWithoutSelectionRing(

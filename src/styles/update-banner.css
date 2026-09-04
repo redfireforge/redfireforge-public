@@ -115,3 +115,79 @@
 .update-banner__dismiss:hover {
   color: var(--text);
 }
+
+/* ── Cloud Waitlist Banner ────────────────────────────────── */
+.waitlist-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 14px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  border-bottom: 1px solid color-mix(in srgb, #6366f1 40%, var(--border));
+  background: color-mix(in srgb, #6366f1 10%, var(--surface));
+  color: var(--text);
+  z-index: 9998;
+  flex-shrink: 0;
+}
+
+.waitlist-banner__icon {
+  font-size: 1rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.waitlist-banner__text {
+  flex: 1;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.waitlist-banner__cta {
+  padding: 4px 12px;
+  background: #6366f1;
+  color: #fff;
+  border-radius: 5px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-decoration: none;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.waitlist-banner__cta:hover {
+  opacity: 0.85;
+}
+
+.waitlist-banner__dismiss {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 2px 4px;
+  flex-shrink: 0;
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.waitlist-banner__dismiss:hover {
+  color: var(--text);
+}
+
+.waitlist-banner__privacy {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  opacity: 0.75;
+  text-decoration: underline;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.waitlist-banner__privacy:hover {
+  opacity: 1;
+  color: var(--text);
+}

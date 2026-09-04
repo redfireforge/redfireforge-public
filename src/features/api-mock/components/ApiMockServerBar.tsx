@@ -3,7 +3,7 @@ import type { ApiMockServerDefinitionV1 } from '@shared/api-mock/contracts';
 import type { ApiMockRuntimeStatus } from './ApiMockServerTabs';
 import { CopyIcon, CheckIcon, SettingsIcon, RestartIcon, StopIcon, PlayIcon, PanelLeftIcon } from './ApiMockIcons';
 import { mockClientOrigin } from '@shared/api-mock/harExport';
-import { isTauri } from '@shared/utils/platform';
+import { isE2eDesktopShim, isTauri } from '@shared/utils/platform';
 import { analyzeNativeUnsupported } from '@shared/api-mock/nativeCapabilities';
 
 interface Props {
@@ -50,7 +50,7 @@ export function ApiMockServerBar({
   const running = status === 'running';
   const busy = status === 'starting' || status === 'draining' || status === 'applying';
   const labelClass = running ? 'running' : status === 'error' ? 'error' : 'stopped';
-  const desktopRequired = !isTauri();
+  const desktopRequired = !isTauri() && !isE2eDesktopShim();
   const nativeWarnings = isTauri() ? analyzeNativeUnsupported(server) : [];
   const tlsEnabled = Boolean(server.settings.tls?.enabled);
   const emptyRules = server.routes.length === 0;

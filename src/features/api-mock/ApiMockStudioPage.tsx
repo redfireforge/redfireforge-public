@@ -24,6 +24,7 @@ import {
   mergeConflictAcknowledgements,
   mergeRuntimeInfo,
   API_MOCK_MAX_TABS,
+  tryPickNextAutoPort,
   reorderServers,
   runConflictAnalysis,
 } from './apiMockPageHelpers';
@@ -190,11 +191,11 @@ export function ApiMockStudioPage() {
     }
     void (async () => {
       const portRes = await apiMockControlClient.nextAutoPort(servers.map(s => s.port));
-      if (!portRes.ok) {
+      const port = portRes.ok ? portRes.data.port : tryPickNextAutoPort(servers);
+      if (port == null) {
         confirm(formatTabLimitMessage(), () => {}, undefined, TAB_LIMIT_CONFIRM_OPTIONS);
         return;
       }
-      const port = portRes.data.port;
       const srv = createServer(servers.length + 1, port);
       if (isApiMockDemoPersistenceActive()) {
         srv.name = nextApiMockDemoServerName(servers.map(s => s.name));
@@ -234,11 +235,11 @@ export function ApiMockStudioPage() {
     if (!source) return;
     void (async () => {
       const portRes = await apiMockControlClient.nextAutoPort(servers.map(s => s.port));
-      if (!portRes.ok) {
+      const port = portRes.ok ? portRes.data.port : tryPickNextAutoPort(servers);
+      if (port == null) {
         confirm(formatTabLimitMessage(), () => {}, undefined, TAB_LIMIT_CONFIRM_OPTIONS);
         return;
       }
-      const port = portRes.data.port;
       const copy = duplicateServerDefinition(source, port);
       if (isApiMockDemoPersistenceActive()) {
         rememberApiMockDemoImportedServer(copy.id);

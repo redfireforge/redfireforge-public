@@ -156,13 +156,13 @@ test.describe('GQL-16 — full lesson (Docker)', () => {
 
     await rapidAdvanceToLastStepReading(page, TOTAL_STEPS - 1, MUTATION_TIMEOUT);
 
-    let { counter, title } = await getStepInfo(page);
-    expect(counter).toMatch(new RegExp(`${TOTAL_STEPS}\\s*[/]\\s*${TOTAL_STEPS}`));
+    const before = await getStepInfo(page);
+    expect(before.counter).toMatch(new RegExp(`${TOTAL_STEPS}\\s*[/]\\s*${TOTAL_STEPS}`));
 
     await finishDemoStep(page, MUTATION_TIMEOUT);
-    ({ counter, title } = await getStepInfo(page));
-    expect(counter).toMatch(new RegExp(`${TOTAL_STEPS}\\s*[/]\\s*${TOTAL_STEPS}`));
-    expect(title).toMatch(/Step Through with Debug Mode/i);
+    const after = await getStepInfo(page);
+    expect(after.counter).toMatch(new RegExp(`${TOTAL_STEPS}\\s*[/]\\s*${TOTAL_STEPS}`));
+    expect(after.title).toMatch(/Step Through with Debug Mode/i);
 
     await expect(page.locator('[data-testid="gql-canvas-query-node"]')).toBeVisible({ timeout: 15_000 });
     await expect(page.locator('[data-testid="gql-canvas-assert-node"]')).toBeVisible({ timeout: 15_000 });

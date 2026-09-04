@@ -60,6 +60,7 @@ export async function completeDemoStep(
     const stuckPhase = await page.locator(DEMO_LIVE_PANEL).getAttribute('data-step-phase');
     throw new Error(
       `${lessonLabel} step ${stepNum}/${maxSteps} "${title}" stuck in phase "${stuckPhase}" after ${timeout}ms: ${err}`,
+      { cause: err },
     );
   }
 }

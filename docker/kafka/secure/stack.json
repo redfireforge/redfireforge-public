@@ -1,0 +1,12 @@
+{
+  "stackKey": "kafka-secure",
+  "sinceVersion": "0.8.3",
+  "description": "Redpanda SASL/SCRAM broker (host ports 19093, 18083, 19645)",
+  "composeFiles": ["docker-compose.yml"],
+  "buildOnStart": false,
+  "composeProfile": null,
+  "requiresCompanionProbe": false,
+  "ports": [19093, 18083, 19645],
+  "minMemoryMb": 2048,
+  "certExpiresAt": null
+}

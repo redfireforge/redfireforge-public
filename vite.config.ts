@@ -8,6 +8,7 @@ import { withKeepAliveConnection } from './src/shared/utils/outboundRequestHeade
 import { probeApiMockEcho } from './src/shared/api-mock/echoHealthProbe'
 import { demoHubRootImportsPlugin } from './vite/demoHubRootImports'
 import { demoLiveGuardPlugin } from './vite/demoLiveGuardPlugin'
+import { localDockerPlugin } from './vite/localDockerPlugin'
 import { createMonacoAwareLogger, monacoDevNoisePlugin } from './vite/monacoDevNoisePlugin'
 
 const PROXY_RETRY_CODES = new Set([
@@ -410,7 +411,7 @@ const pkg = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf-8')
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [demoHubRootImportsPlugin(), monacoDevNoisePlugin(), react(), proxyPlugin(), demoLiveGuardPlugin(), docsPlugin()],
+  plugins: [demoHubRootImportsPlugin(), monacoDevNoisePlugin(), react(), proxyPlugin(), demoLiveGuardPlugin(), localDockerPlugin(), docsPlugin()],
   customLogger: createMonacoAwareLogger(),
   build: {
     chunkSizeWarningLimit: 10000,
@@ -501,6 +502,9 @@ export default defineConfig({
         '**/e2e/screenshots/**',
         '**/playwright-report/**',
         '**/test-results/**',
+        // Windows: watching cargo output DLLs under src-tauri/target races
+        // MSVC (`EBUSY` on `tauri_plugin_mcp_bridge-*.dll`) and kills Vite.
+        '**/src-tauri/target/**',
       ],
     },
     proxy: {

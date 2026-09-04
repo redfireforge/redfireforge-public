@@ -19,6 +19,14 @@ on:
           - standard
           - demo
           - both
+      tag_name:
+        description: 'Override tag for release (e.g. v0.8.2-lh). Empty = artifact-only build.'
+        required: false
+        default: ''
+      checkout_ref:
+        description: 'Git ref to check out (e.g. v0.8.2). Defaults to the triggered ref.'
+        required: false
+        default: ''
 
 jobs:
   # Completes on branch pushes so GitHub reports a passing run instead of
@@ -64,8 +72,12 @@ jobs:
           if event == "workflow_dispatch":
               selected = rows if variant == "both" else [r for r in rows if r["variant"] == variant]
           elif event == "push":
-              want = "demo" if ref_name.endswith("-demo") else "standard"
-              selected = [r for r in rows if r["variant"] == want]
+              # vX.Y.Z-lh / vX.Y.Z-demo → Learning Hub only (do not rebuild Standard)
+              # vX.Y.Z → both variants; LH assets publish to vX.Y.Z-lh
+              if ref_name.endswith("-lh") or ref_name.endswith("-demo"):
+                  selected = [r for r in rows if r["variant"] == "demo"]
+              else:
+                  selected = rows
           else:
               selected = []
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
@@ -75,9 +87,12 @@ jobs:
   # ⚠️  RELEASE CHECKLIST REMINDER
   # After this workflow completes on a tag push, go to:
   #   https://github.com/redfireforge/redfireforge-public/releases
-  # and click "Publish release" on the draft. The releases/latest API only
-  # returns published, non-prerelease releases — unpublished drafts return null
-  # and break the in-app update notifier, download CTA, and download page.
+  # and click "Publish release" on BOTH drafts:
+  #   - "RedfireForge vX.Y.Z"             (Standard)
+  #   - "RedfireForge Learning Hub vX.Y.Z" (tag: vX.Y.Z-lh)
+  # The releases/latest API only returns published, non-prerelease releases —
+  # unpublished drafts return null and break the in-app update notifier, download
+  # CTA, and download page.
   build:
     needs: prepare
     if: needs.prepare.result == 'success' && needs.prepare.outputs.include != '[]'
@@ -92,15 +107,38 @@ jobs:
     name: Build (${{ matrix.label }})
 
     steps:
+      - id: resolve-ref
+        shell: bash
+        env:
+          CHECKOUT_REF: ${{ inputs.checkout_ref }}
+          REF_NAME: ${{ github.ref_name }}
+          GITHUB_REF: ${{ github.ref }}
+        run: |
+          if [ -n "$CHECKOUT_REF" ]; then
+            echo "checkout=$CHECKOUT_REF" >> "$GITHUB_OUTPUT"
+          elif [[ "$REF_NAME" == *-lh || "$REF_NAME" == *-demo ]]; then
+            # v0.8.2-lh must build the v0.8.2 tree, not the tag-commit on develop.
+            base="${REF_NAME%-lh}"
+            base="${base%-demo}"
+            echo "checkout=$base" >> "$GITHUB_OUTPUT"
+          else
+            echo "checkout=$GITHUB_REF" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@v5
+        with:
+          # Dispatch can override (e.g. checkout_ref=v0.8.2). A vX.Y.Z-lh tag
+          # push checks out vX.Y.Z so LH is never built from a later develop tip.
+          ref: ${{ steps.resolve-ref.outputs.checkout }}
 
       - name: Extract release notes from CHANGELOG
         id: notes
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') || inputs.tag_name != ''
         shell: bash
         run: |
-          VERSION="${{ github.ref_name }}"
+          VERSION="${{ inputs.tag_name || github.ref_name }}"
           VERSION="${VERSION#v}"
+          VERSION="${VERSION%-lh}"
           NOTES=$(sed -n "/^## \[${VERSION}\]/,/^## \[/p" CHANGELOG.md | tail -n +2 | sed '$d')
           if [ -z "$NOTES" ]; then
             NOTES="See [CHANGELOG.md](https://github.com/redfireforge/redfireforge-public/blob/master/CHANGELOG.md) for details."
@@ -167,6 +205,12 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      - name: Check TLS cert expiry
+        if: matrix.variant == 'demo' && !startsWith(matrix.platform, 'windows')
+        run: |
+          bash scripts/check-cert-expiry.sh
+          node scripts/sync-demo-tls-certs.js --check
+
       - name: Set macOS signing identity (only when a real cert is configured)
         # Tauri v2 calls `security import` whenever APPLE_CERTIFICATE is present
         # in the environment — even as an empty string — because it checks
@@ -214,8 +258,8 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
-          releaseName: 'RedfireForge ${{ github.ref_name }}'
+          tagName: ${{ inputs.tag_name || (startsWith(github.ref, 'refs/tags/') && github.ref_name || '') }}
+          releaseName: 'RedfireForge ${{ inputs.tag_name || github.ref_name }}'
           releaseBody: |
             ${{ steps.notes.outputs.notes }}
 
@@ -240,23 +284,26 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
-          releaseName: 'RedfireForge Learning Hub ${{ github.ref_name }}'
+          # Use a separate -lh tag so the Learning Hub release doesn't collide with the
+          # Standard release (GitHub allows only one release per tag).
+          # v0.8.2 → v0.8.2-lh; a push of v0.8.2-lh keeps that tag (no -lh-lh).
+          tagName: ${{ inputs.tag_name || (startsWith(github.ref, 'refs/tags/') && (endsWith(github.ref_name, '-lh') && github.ref_name || format('{0}-lh', github.ref_name)) || '') }}
+          releaseName: 'RedfireForge Learning Hub ${{ inputs.tag_name || github.ref_name }}'
           releaseBody: |
             ${{ steps.notes.outputs.notes }}
 
             ---
             Learning Hub build with interactive tutorials.
 
-            **macOS:** Gatekeeper will block the app on first launch. Run once in Terminal after installing: `xattr -cr /Applications/RedfireForge.app`
+            **macOS:** Gatekeeper will block the app on first launch. Run once in Terminal after installing: `xattr -cr "/Applications/RedfireForge Learning Hub.app"`
             **Windows:** If SmartScreen appears, click **More info** → **Run anyway**.
             **Linux:** `sudo dpkg -i *.deb` or `chmod +x *.AppImage && ./*.AppImage`
 
             SHA256 checksums are in `SHA256SUMS.txt` above.
           releaseDraft: true
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          prerelease: false
           updaterJsonPreferNsis: true
-          assetNamePattern: 'RedfireForge-LearningHub-[version]-[platform]-[arch][ext]'
+          releaseAssetNamePattern: 'RedfireForge-LearningHub-[version]-[platform]-[arch][ext]'
           args: --target ${{ matrix.target }} --config src-tauri/tauri.conf.demo.json
 
       - name: Cleanup macOS keychain

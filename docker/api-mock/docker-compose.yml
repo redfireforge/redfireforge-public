@@ -7,6 +7,7 @@
 #
 # Port 4017 avoids GraphQL 4010, companion 3001, and mock listeners 4600–4699.
 # Allowlist origin in Studio: http://localhost:4017  (hostname, not 127.0.0.1)
+name: rff-api-mock
 services:
   api-mock-echo:
     build: .

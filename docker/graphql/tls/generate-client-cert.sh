@@ -30,7 +30,7 @@ if [[ -f "$CERT_DIR/client.crt" ]] && [[ "${FORCE:-0}" != "1" ]]; then
   exit 0
 fi
 
-DAYS="${DAYS:-825}"
+DAYS="${DAYS:-3650}"
 
 # Client key + CSR
 openssl req -nodes -newkey rsa:2048 \

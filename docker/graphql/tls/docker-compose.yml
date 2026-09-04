@@ -9,11 +9,7 @@
 #   WSS    wss://localhost:4443/graphql    ← used automatically for subscriptions
 #   Health http://localhost:4444/health    ← PrerequisiteGate health probe
 #
-# Setup (one-time, before first use):
-#   cd docker/graphql/tls
-#   ./generate-cert.sh
-#
-# Start:
+# Certs are pre-bundled under certs/. Start:
 #   docker compose -f docker/graphql/tls/docker-compose.yml up -d
 #
 # If you already built docker/graphql (port 4010), reuse that image without rebuilding:
@@ -31,6 +27,7 @@
 # Note: this stack runs an independent copy of the GraphQL server internally
 # (gql-test-server-tls) so it does not conflict with the plain-HTTP server
 # started by docker/graphql/docker-compose.yml (which uses port 4010).
+name: rff-graphql-tls
 services:
   gql-test-server-tls:
     # Reuse image from docker/graphql when already built (avoids registry pull on corp networks).

@@ -7,11 +7,12 @@ import '@testing-library/jest-dom';
 import { ApiMockServerBar } from './ApiMockServerBar';
 import { DEFAULT_SETTINGS } from '@shared/api-mock/defaults';
 import type { ApiMockServerDefinitionV1 } from '@shared/api-mock/contracts';
-import { isTauri } from '@shared/utils/platform';
+import { isE2eDesktopShim, isTauri } from '@shared/utils/platform';
 import { analyzeNativeUnsupported } from '@shared/api-mock/nativeCapabilities';
 
 vi.mock('../../../shared/utils/platform', () => ({
   isTauri: vi.fn(() => false),
+  isE2eDesktopShim: vi.fn(() => false),
 }));
 
 vi.mock('../../../shared/api-mock/nativeCapabilities', () => ({
@@ -67,6 +68,18 @@ describe('ApiMockServerBar', () => {
     // Clicking disabled button does not fire onStart
     fireEvent.click(startBtn);
     expect(onStart).not.toHaveBeenCalled();
+  });
+
+  it('enables Start when the Playwright desktop shim is set', () => {
+    vi.mocked(isE2eDesktopShim).mockReturnValue(true);
+    const onStart = vi.fn();
+    render(<ApiMockServerBar server={makeServer()} onUpdate={vi.fn()} onStart={onStart} />);
+
+    const startBtn = screen.getByTestId('api-mock-start');
+    expect(startBtn).toBeEnabled();
+    expect(screen.queryByTestId('api-mock-desktop-required')).toBeNull();
+    fireEvent.click(startBtn);
+    expect(onStart).toHaveBeenCalled();
   });
 
   it('renders stopped state and starts the server in Tauri (desktop) mode', () => {

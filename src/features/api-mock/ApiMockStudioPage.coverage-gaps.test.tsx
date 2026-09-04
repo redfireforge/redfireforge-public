@@ -68,6 +68,7 @@ const clearConsole = vi.fn();
 // can exercise start/stop/apply/restart branches.
 vi.mock('@shared/utils/platform', () => ({
   isTauri: () => true,
+  isE2eDesktopShim: () => false,
   supportsWorkers: () => false,
   isNode: () => false,
 }));

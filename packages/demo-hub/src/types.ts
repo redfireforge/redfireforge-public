@@ -97,6 +97,8 @@ export interface DemoLesson {
   dockerEndpointLabels?: string[];
   /** docker compose command the user must run to start the required container. */
   dockerCommand?: string;
+  /** Structured stack key for desktop path resolution / Phase 3 Start Stack. */
+  dockerStack?: DockerStackConfig;
   /** Optional PrerequisiteGate title (default: 🐳 Docker Required). */
   gateLabel?: string;
   /** GraphQL Studio demo tabs this lesson needs (default 1). User cap = 8 − tabBudget. */
@@ -123,6 +125,26 @@ export interface DemoLesson {
    *  Used as fallback for users who completed before step-count tracking
    *  was added — tells the UI which steps are genuinely new. */
   previousStepCount?: number;
+}
+
+export type DockerStackKey =
+  | 'graphql'
+  | 'graphql-tls'
+  | 'grpc'
+  | 'grpc-spring'
+  | 'kafka-plaintext'
+  | 'kafka-secure'
+  | 'kafka-tls'
+  | 'kafka-schema-registry'
+  | 'ws-socketio'
+  | 'ws-graphql'
+  | 'ws-stomp'
+  | 'ws-tls'
+  | 'api-mock';
+
+/** Structured Docker stack config — replaces free-text dockerCommand for desktop. */
+export interface DockerStackConfig {
+  stackKey: DockerStackKey;
 }
 
 export interface ConceptContent {

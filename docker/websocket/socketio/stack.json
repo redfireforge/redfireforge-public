@@ -1,0 +1,12 @@
+{
+  "stackKey": "ws-socketio",
+  "sinceVersion": "0.8.3",
+  "description": "Socket.IO echo server (port 3100)",
+  "composeFiles": ["docker-compose.yml"],
+  "buildOnStart": false,
+  "composeProfile": null,
+  "requiresCompanionProbe": false,
+  "ports": [3100],
+  "minMemoryMb": 256,
+  "certExpiresAt": null
+}

@@ -1,4 +1,4 @@
-import { useMemo, type RefObject } from 'react';
+import { useMemo, useState, type RefObject } from 'react';
 import type { Environment, Microservice } from '@shared/types';
 import type { KafkaConnectionSnapshot } from '@shared/kafka/kafkaConfig';
 import { isCustomThemeId, findSavedTheme } from '../themeCustomizerUtils';
@@ -8,6 +8,8 @@ import { CustomSelect, type CustomSelectItems } from '@shared/components/CustomS
 import HeaderProtocolIndicator from './HeaderProtocolIndicator';
 import KafkaConnectionIndicator from './KafkaConnectionIndicator';
 import { DesktopDownloadButton } from './DesktopDownloadButton';
+import { useAppShortcuts } from '../hooks/useAppShortcuts';
+import KeyboardShortcutsModal from '@shared/components/KeyboardShortcutsModal';
 
 interface ThemeItem {
   readonly id: string;
@@ -66,6 +68,9 @@ export default function AppHeader({
   kafkaHasClusters,
   onNavigateToKafkaSettings,
 }: AppHeaderProps) {
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  useAppShortcuts(() => setShowShortcuts((v) => !v));
+
   const selectedSvc = microservices.find((s) => s.id === selectedSvcId);
   const protocolIndicator = resolveHeaderProtocolIndicator(
     activeTab,
@@ -164,6 +169,9 @@ export default function AppHeader({
           </div>
         </div>
       </div>
+      {showShortcuts && (
+        <KeyboardShortcutsModal onClose={() => setShowShortcuts(false)} />
+      )}
     </header>
   );
 }

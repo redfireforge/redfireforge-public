@@ -75,9 +75,9 @@ export async function generateSelfSigned(hosts: string[] = ['localhost', '127.0.
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
     if (code === 'ENOENT') {
-      throw new Error('openssl was not found on PATH. Install it, or paste an existing certificate and key.');
+      throw new Error('openssl was not found on PATH. Install it, or paste an existing certificate and key.', { cause: err });
     }
-    throw new Error(`Could not generate a self-signed certificate: ${err instanceof Error ? err.message : String(err)}`);
+    throw new Error(`Could not generate a self-signed certificate: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
   } finally {
     await rm(dir, { recursive: true, force: true }).catch(() => {});
   }
@@ -133,9 +133,9 @@ export async function generateClientCredentials(commonName = 'api-mock-client'):
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
     if (code === 'ENOENT') {
-      throw new Error('openssl was not found on PATH. Install it, or paste an existing client CA certificate.');
+      throw new Error('openssl was not found on PATH. Install it, or paste an existing client CA certificate.', { cause: err });
     }
-    throw new Error(`Could not issue a client certificate: ${err instanceof Error ? err.message : String(err)}`);
+    throw new Error(`Could not issue a client certificate: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
   } finally {
     await rm(dir, { recursive: true, force: true }).catch(() => {});
   }

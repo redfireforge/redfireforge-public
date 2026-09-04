@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { DemoLesson } from '../types';
-import { isLessonDesktopOnlyBlocked, isDockerLessonBlockedOnWeb } from './lessonPlatform';
+import { isLessonDesktopOnlyBlocked, isDockerLessonBlockedOnWeb, isLocalDemoWebHost } from './lessonPlatform';
 
 vi.mock('@shared/utils/platform', () => ({
   isTauri: vi.fn(() => false),
@@ -92,13 +92,27 @@ describe('isDockerLessonBlockedOnWeb', () => {
     expect(isDockerLessonBlockedOnWeb(dockerLesson)).toBe(false);
   });
 
+  it('returns false on 127.0.0.2 (loopback /8)', () => {
+    vi.stubGlobal('window', { location: { hostname: '127.0.0.2' } });
+    expect(isDockerLessonBlockedOnWeb(dockerLesson)).toBe(false);
+  });
+
   it('returns false on ::1 (IPv6 loopback)', () => {
     vi.stubGlobal('window', { location: { hostname: '::1' } });
     expect(isDockerLessonBlockedOnWeb(dockerLesson)).toBe(false);
   });
 
+  it('returns false on [::1] and *.localhost (RFC 6761 loopback)', () => {
+    vi.stubGlobal('window', { location: { hostname: '[::1]' } });
+    expect(isDockerLessonBlockedOnWeb(dockerLesson)).toBe(false);
+    vi.stubGlobal('window', { location: { hostname: 'app.localhost' } });
+    expect(isDockerLessonBlockedOnWeb(dockerLesson)).toBe(false);
+  });
+
   it('returns true on a hosted domain when lesson has dockerEndpoint', () => {
     vi.stubGlobal('window', { location: { hostname: 'demo.redfireforge.com' } });
+    expect(isDockerLessonBlockedOnWeb(dockerLesson)).toBe(true);
+    vi.stubGlobal('window', { location: { hostname: 'app.redfireforge.com' } });
     expect(isDockerLessonBlockedOnWeb(dockerLesson)).toBe(true);
   });
 
@@ -106,6 +120,40 @@ describe('isDockerLessonBlockedOnWeb', () => {
     vi.stubGlobal('window', { location: { hostname: 'demo.redfireforge.com' } });
     const multi: DemoLesson = { ...noDockerLesson, dockerEndpoints: ['http://localhost:4010/health'] };
     expect(isDockerLessonBlockedOnWeb(multi)).toBe(true);
+  });
+
+  it('isLocalDemoWebHost covers loopback spellings', () => {
+    expect(isLocalDemoWebHost('localhost')).toBe(true);
+    expect(isLocalDemoWebHost('localhost.')).toBe(true);
+    expect(isLocalDemoWebHost('127.0.0.1')).toBe(true);
+    expect(isLocalDemoWebHost('127.0.0.2')).toBe(true);
+    expect(isLocalDemoWebHost('::1')).toBe(true);
+    expect(isLocalDemoWebHost('[::1]')).toBe(true);
+    expect(isLocalDemoWebHost('app.localhost')).toBe(true);
+    expect(isLocalDemoWebHost('::ffff:127.0.0.1')).toBe(true);
+    expect(isLocalDemoWebHost('[::ffff:127.0.0.1]')).toBe(true);
+    expect(isLocalDemoWebHost('0:0:0:0:0:0:0:1')).toBe(true);
+    expect(isLocalDemoWebHost('[::1].')).toBe(true);
+    expect(isLocalDemoWebHost('0:0:0:0:0:ffff:127.0.0.1')).toBe(true);
+    expect(isLocalDemoWebHost('[0:0:0:0:0:ffff:127.0.0.2]')).toBe(true);
+    expect(isLocalDemoWebHost('::ffff:7f00:1')).toBe(true);
+    expect(isLocalDemoWebHost('[::ffff:7f00:1].')).toBe(true);
+    expect(isLocalDemoWebHost('0:0:0:0:0:ffff:7f00:1')).toBe(true);
+    expect(isLocalDemoWebHost('::ffff:c0a8:10a')).toBe(false);
+    expect(isLocalDemoWebHost('0:0:0:0:0:ffff:192.168.1.10')).toBe(false);
+    expect(isLocalDemoWebHost('127.999.0.1')).toBe(false);
+    expect(isLocalDemoWebHost('demo.redfireforge.com')).toBe(false);
+    expect(isLocalDemoWebHost('192.168.1.10')).toBe(false);
+  });
+
+  it('treats app.localhost as local so helper enablement is not the narrow isLocalhost() list', () => {
+    expect(isLocalDemoWebHost('app.localhost')).toBe(true);
+    expect(isLocalDemoWebHost('demo.redfireforge.com')).toBe(false);
+  });
+
+  it('returns false on IPv4-mapped IPv6 loopback (local dev)', () => {
+    vi.stubGlobal('window', { location: { hostname: '::ffff:127.0.0.1' } });
+    expect(isDockerLessonBlockedOnWeb(dockerLesson)).toBe(false);
   });
 
   it('returns false on hosted domain when E2E desktop shim is active', () => {
