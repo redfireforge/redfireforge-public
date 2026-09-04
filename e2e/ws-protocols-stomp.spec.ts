@@ -27,6 +27,7 @@ test.beforeAll(async ({ browser }) => {
       `RabbitMQ Docker is not reachable at ${RABBITMQ_HEALTH}. ` +
       `Start it with: docker compose -f docker/websocket/stomp/docker-compose.yml up -d\n` +
       `Original error: ${err}`,
+      { cause: err },
     );
   } finally {
     await ctx.close();

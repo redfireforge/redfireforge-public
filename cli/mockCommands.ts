@@ -27,6 +27,7 @@ import {
   rollbackCompanionStarts,
   sleep,
 } from './mockCommandShared';
+import { resolveOutputTarget, stdoutFormatOf } from './outputTarget';
 
 
 export async function runMockSimulate(opts: {
@@ -35,6 +36,9 @@ export async function runMockSimulate(opts: {
   output?: string;
   junit?: string;
 }): Promise<number> {
+  const outputTarget = resolveOutputTarget(opts.output);
+  const stdoutFormat = stdoutFormatOf(outputTarget);
+
   const raw = asWorkspace(loadDefinitionFile(opts.file));
   const loaded = cliLoadAndValidate(raw);
   if (reportValidation(loaded.validationErrors)) return 1;
@@ -53,11 +57,8 @@ export async function runMockSimulate(opts: {
     failed: failed.length,
     results,
   };
-  const json = JSON.stringify(summary, null, 2);
-  if (opts.output) writeFileSync(resolve(opts.output), json, 'utf8');
-  else console.log(json);
 
-  if (opts.junit) {
+  const buildJunit = () => {
     const cases = results.map(r => {
       const name = r.sampleId;
       if (isFailedSimulation(r)) {
@@ -65,8 +66,16 @@ export async function runMockSimulate(opts: {
       }
       return `<testcase classname="api-mock" name="${escapeXml(name)}"/>`;
     }).join('\n');
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<testsuite name="api-mock-simulate" tests="${results.length}" failures="${failed.length}">\n${cases}\n</testsuite>\n`;
-    writeFileSync(resolve(opts.junit), xml, 'utf8');
+    return `<?xml version="1.0" encoding="UTF-8"?>\n<testsuite name="api-mock-simulate" tests="${results.length}" failures="${failed.length}">\n${cases}\n</testsuite>\n`;
+  };
+
+  const json = JSON.stringify(summary, null, 2);
+  if (stdoutFormat === 'junit') process.stdout.write(buildJunit());
+  else if (outputTarget?.kind === 'file') writeFileSync(resolve(outputTarget.path), json, 'utf8');
+  else console.log(json);
+
+  if (opts.junit) {
+    writeFileSync(resolve(opts.junit), buildJunit(), 'utf8');
   }
 
   console.error(`Simulated ${results.length} sample(s); ${failed.length} failure(s).`);

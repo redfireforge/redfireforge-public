@@ -22,8 +22,12 @@
   },
   "include": [
     "vite.config.ts",
+    "vite/**/*.ts",
     "vitest.projectPatterns.ts",
     "vitest.node-globals.d.ts",
     "scripts/product-coverage-filter.ts"
+  ],
+  "exclude": [
+    "vite/**/*.test.ts"
   ]
 }

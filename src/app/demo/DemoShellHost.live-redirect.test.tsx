@@ -75,6 +75,8 @@ vi.mock('./demoHubRuntimeRef', () => ({
   syncDemoHubRuntimeRef: () => {},
   resetDemoHubRuntimeRef: () => {},
   DEMO_HUB_MOUNT_ID: 'demo-hub-mount',
+  useDemoHubMountEl: () => document.getElementById('demo-hub-mount'),
+  registerDemoHubMount: () => {},
 }));
 
 import { DemoShellHost } from './DemoShellHost';

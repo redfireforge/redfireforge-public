@@ -12,6 +12,7 @@ import {
   connectWsTo,
   disconnectWs,
   sendWsMessage,
+  ensureWsMockServer,
   WS_DEFAULT_MOCK_URL,
 } from './ws-helpers';
 
@@ -33,15 +34,7 @@ const switchMode = (page: Page, mode: 'client' | 'mock' | 'saved') => switchWsMo
 /* ── Ensure a mock WS echo server is running on port 9876 ── */
 
 test.beforeAll(async ({ browser }) => {
-  const ctx = await browser.newContext();
-  const page = await ctx.newPage();
-  // Start mock echo server via backend API
-  await page.request.post('http://localhost:3001/api/ws/mock/start', {
-    data: { port: 9876 },
-  }).catch(() => {});
-  // Give the server a moment to bind the port
-  await page.waitForTimeout(1000);
-  await ctx.close();
+  await ensureWsMockServer(browser);
 });
 
 // NOTE: Do NOT stop the mock server in afterAll — other parallel specs

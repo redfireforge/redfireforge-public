@@ -1,0 +1,11 @@
+docker/**/*.yml   text eol=lf
+docker/**/*.yaml  text eol=lf
+docker/**/*.sh    text eol=lf
+docker/**/*.json  text eol=lf
+docker/**/*.cnf   text eol=lf
+docker/**/*.conf  text eol=lf
+docker/**/*.md    text eol=lf
+docker/**/*.crt   binary
+docker/**/*.key   binary
+docker/**/*.pem   binary
+scripts/*.sh      text eol=lf

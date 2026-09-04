@@ -4,12 +4,14 @@ WORKDIR /workspace
 COPY pom.xml ./
 COPY src ./src
 
-# BuildKit TARGETARCH is amd64|arm64. Map to protoc/grpc plugin classifiers so we
-# never download a host-OS (e.g. osx-aarch_64) binary inside the Linux image.
-ARG TARGETARCH=arm64
-RUN CLASSIFIER="$(case "${TARGETARCH}" in \
-      amd64) echo linux-x86_64 ;; \
-      arm64) echo linux-aarch_64 ;; \
+# BuildKit sets TARGETARCH (amd64|arm64). Do not default to arm64 — without
+# BuildKit that wrong default breaks x86_64 Linux/WSL (aarch64 protoc →
+# "Syntax error: ( unexpected"). Fall back to uname -m inside the image.
+ARG TARGETARCH
+RUN ARCH="${TARGETARCH:-$(uname -m)}" \
+  && CLASSIFIER="$(case "${ARCH}" in \
+      amd64|x86_64) echo linux-x86_64 ;; \
+      arm64|aarch64) echo linux-aarch_64 ;; \
       *) echo linux-x86_64 ;; \
     esac)" \
   && mvn -q -DskipTests package -Dos.detected.classifier="${CLASSIFIER}"

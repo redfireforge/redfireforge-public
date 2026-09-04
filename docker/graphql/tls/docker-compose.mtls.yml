@@ -10,12 +10,7 @@
 #   WSS    wss://localhost:4445/graphql    ← mTLS subscriptions (requires client cert)
 #   Health http://localhost:4446/health    ← plain HTTP health probe
 #
-# Setup (one-time, before first use):
-#   cd docker/graphql/tls
-#   ./generate-cert.sh          # creates CA + server cert
-#   ./generate-client-cert.sh   # creates client cert + key
-#
-# Start:
+# Certs (CA + server + client) are pre-bundled under certs/. Start:
 #   docker compose -f docker/graphql/tls/docker-compose.mtls.yml up -d
 #
 # Stop:
@@ -26,6 +21,7 @@
 #   Paste certs/client.key  into "Client Private Key (PEM)".
 #   Also paste certs/ca.crt into "CA Certificate (PEM)" — the mTLS server's
 #   own cert is still self-signed and needs CA validation on the client side.
+name: rff-graphql-tls
 services:
   gql-test-server-mtls:
     build: ../                           # docker/graphql/Dockerfile + server.js

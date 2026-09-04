@@ -104,6 +104,19 @@ describe('demo lesson adapter import audit', () => {
     expect(missing).toEqual([]);
   });
 
+  it('grpc roster does not import adapters (production chunk cycle)', () => {
+    const roster = readFileSync(
+      join(LESSONS_ROOT, 'protocols/grpc-lesson-contract/roster.ts'),
+      'utf8',
+    );
+    const fixtures = readFileSync(
+      join(LESSONS_ROOT, 'protocols/grpc-lesson-contract/rosterFixtures.ts'),
+      'utf8',
+    );
+    expect(roster).not.toMatch(/from ['"][^'"]*adapters/);
+    expect(fixtures).not.toMatch(/from ['"][^'"]*adapters/);
+  });
+
   it('adapter modules do not import demo-player lessons', () => {
     const violations: string[] = [];
     for (const file of collectLessonSources(ADAPTERS_ROOT)) {

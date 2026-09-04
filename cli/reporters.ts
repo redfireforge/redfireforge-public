@@ -73,6 +73,111 @@ export function buildJsonReport(
   };
 }
 
+// ── CI JSON report (stdout, `--output json`) ────────────────
+
+export interface CiJsonTestResult {
+  name: string;
+  status: 'pass' | 'fail';
+  durationMs: number;
+  error: string | null;
+  /** Workflow runs only: the steps that made up this iteration. */
+  steps?: CiJsonTestResult[];
+}
+
+export interface CiJsonReport {
+  passed: number;
+  failed: number;
+  total: number;
+  durationMs: number;
+  results: CiJsonTestResult[];
+}
+
+function ciResultName(r: RequestResult): string {
+  // Parameterized rows share a scenario name, so qualify them to stay unique.
+  return r.dataRowLabel ? `${r.scenarioName} [${r.dataRowLabel}]` : r.scenarioName;
+}
+
+function ciResultError(r: RequestResult): string | null {
+  if (r.passed) return null;
+
+  const detail = r.errorMessage
+    || (r.failureDetails.length > 0 ? formatFailureDetails(r.failureDetails) : null);
+
+  // A 404 body is often just `{}`, which tells a pipeline nothing — lead with the status.
+  if ((r.transportType ?? 'http') === 'http' && r.httpStatus >= 400) {
+    return detail ? `HTTP ${r.httpStatus}: ${detail}` : `HTTP ${r.httpStatus}`;
+  }
+
+  return detail ?? formatTransportErrorFallback(r);
+}
+
+function ciStepResult(r: RequestResult): CiJsonTestResult {
+  return {
+    name: ciResultName(r),
+    status: r.passed ? 'pass' : 'fail',
+    durationMs: Math.round(r.responseTimeMs),
+    error: ciResultError(r),
+  };
+}
+
+/**
+ * Flat, CI-friendly shape kept deliberately stable — pipelines parse this
+ * directly, so it is decoupled from the richer `TestRun` export.
+ */
+export function buildCiJsonReport(
+  results: RequestResult[],
+  durationMs: number,
+): CiJsonReport {
+  const exportSafeResults = redactGrpcHarnessRunnerArtifactsForExport(results);
+  const passed = exportSafeResults.filter(r => r.passed).length;
+
+  return {
+    passed,
+    failed: exportSafeResults.length - passed,
+    total: exportSafeResults.length,
+    durationMs: Math.round(durationMs),
+    results: exportSafeResults.map(ciStepResult),
+  };
+}
+
+/**
+ * Workflow variant: one result per iteration, matching `buildWorkflowJunitXml`
+ * so both formats agree on what a test is. Per-step detail is preserved under
+ * `steps`, and the iteration error mirrors the JUnit failure message.
+ */
+export function buildWorkflowCiJsonReport(
+  results: RequestResult[],
+  iterations: number,
+  durationMs: number,
+): CiJsonReport {
+  const exportSafeResults = redactGrpcHarnessRunnerArtifactsForExport(results);
+  const grouped = groupResultsByIteration(exportSafeResults, iterations);
+
+  const iterationResults: CiJsonTestResult[] = grouped.map((iterResults, i) => {
+    const steps = iterResults.map(ciStepResult);
+    const failedSteps = steps.filter(s => s.status === 'fail');
+    return {
+      name: `Iteration ${i + 1}`,
+      status: failedSteps.length === 0 ? 'pass' : 'fail',
+      durationMs: steps.reduce((sum, s) => sum + s.durationMs, 0),
+      error: failedSteps.length === 0
+        ? null
+        : failedSteps.map(s => `${s.name}: ${s.error}`).join('; '),
+      steps,
+    };
+  });
+
+  const passed = iterationResults.filter(r => r.status === 'pass').length;
+
+  return {
+    passed,
+    failed: iterationResults.length - passed,
+    total: iterationResults.length,
+    durationMs: Math.round(durationMs),
+    results: iterationResults,
+  };
+}
+
 // ── JUnit XML report ────────────────────────────────────────
 
 function escapeXml(s: string): string {
@@ -334,7 +439,8 @@ interface PerIterationStats {
   stepCount: number;
 }
 
-function computePerIterationStats(results: RequestResult[], iterations: number): PerIterationStats[] {
+/** Shared by every per-iteration workflow reporter so they cannot drift apart. */
+function groupResultsByIteration(results: RequestResult[], iterations: number): RequestResult[][] {
   const byIteration = new Map<number, RequestResult[]>();
   for (const r of results) {
     const idx = r.iterationIndex ?? 0;
@@ -342,20 +448,20 @@ function computePerIterationStats(results: RequestResult[], iterations: number):
     byIteration.get(idx)!.push(r);
   }
 
-  const stats: PerIterationStats[] = [];
+  const grouped: RequestResult[][] = [];
   for (let i = 0; i < iterations; i++) {
-    const iterResults = byIteration.get(i) || [];
-    const allPassed = iterResults.every(r => r.passed);
-    const totalDuration = iterResults.reduce((sum, r) => sum + r.responseTimeMs, 0);
-    stats.push({
-      index: i,
-      passed: allPassed,
-      durationMs: totalDuration,
-      stepCount: iterResults.length,
-    });
+    grouped.push(byIteration.get(i) || []);
   }
+  return grouped;
+}
 
-  return stats;
+function computePerIterationStats(results: RequestResult[], iterations: number): PerIterationStats[] {
+  return groupResultsByIteration(results, iterations).map((iterResults, i) => ({
+    index: i,
+    passed: iterResults.every(r => r.passed),
+    durationMs: iterResults.reduce((sum, r) => sum + r.responseTimeMs, 0),
+    stepCount: iterResults.length,
+  }));
 }
 
 function formatRowLabel(r: RequestResult): string {

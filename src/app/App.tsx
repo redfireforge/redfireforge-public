@@ -23,8 +23,8 @@ import AppSubNav from './components/AppSubNav';
 import AppSidebarRegion from './components/AppSidebarRegion';
 import AppShellOverlays from './components/AppShellOverlays';
 import AppProtocolStudios from './components/AppProtocolStudios';
-import { ExportToApiMockModal, type ExportToApiMockItem } from '../features/api-mock/components/ExportToApiMockModal';
-import { UpdateNotificationBanner } from './components/UpdateNotificationBanner';
+import type { ExportToApiMockItem } from '../features/api-mock/components/ExportToApiMockModal';
+import { AppShellBanners } from './components/AppShellBanners';
 import { DesktopRequiredModal } from './components/DesktopRequiredModal';
 import { useDesktopFeatureGate } from './hooks/useDesktopFeatureGate';
 import { useRerunFailed } from './hooks/useRerunFailed';
@@ -325,7 +325,7 @@ export default function App() {
         setSelectedSvcId={setSelectedSvcId}
       />
     <div className={`app ${sidebarCollapsed ? '' : 'sidebar-visible'}`}>
-      <UpdateNotificationBanner />
+      <AppShellBanners />
       {desktopRequiredFeature && (
         <DesktopRequiredModal
           featureName={desktopRequiredFeature}
@@ -707,6 +707,9 @@ export default function App() {
             setCatalogConvert={setCatalogConvert}
             handleSaveConvertedVersion={handleSaveConvertedVersion}
             showToast={toast.show}
+            exportToMockItems={exportToMockItems}
+            exportToMockSourceKind={exportToMockSourceKind}
+            onClearExportToMock={() => setExportToMockItems(null)}
           />
         </main>
       </div>
@@ -735,13 +738,6 @@ export default function App() {
         RustExecutorTestPanel={RustExecutorTestPanel}
       />
 
-      {exportToMockItems && (
-        <ExportToApiMockModal
-          items={exportToMockItems}
-          sourceKind={exportToMockSourceKind}
-          onClose={() => setExportToMockItems(null)}
-        />
-      )}
     </div>
     </>
   );

@@ -157,14 +157,14 @@ test.describe('GQL-14 — full lesson (Docker)', () => {
 
     await rapidAdvanceToLastStepReading(page, TOTAL_STEPS - 1, MUTATION_TIMEOUT);
 
-    let { counter, title } = await getStepInfo(page);
-    expect(counter).toMatch(new RegExp(`${TOTAL_STEPS}\\s*[/]\\s*${TOTAL_STEPS}`));
+    const before = await getStepInfo(page);
+    expect(before.counter).toMatch(new RegExp(`${TOTAL_STEPS}\\s*[/]\\s*${TOTAL_STEPS}`));
 
     // Last step: Next stays disabled — use finishDemoStep, not completeCurrentStepAction.
     await finishDemoStep(page, MUTATION_TIMEOUT);
-    ({ counter, title } = await getStepInfo(page));
-    expect(counter).toMatch(new RegExp(`${TOTAL_STEPS}\\s*[/]\\s*${TOTAL_STEPS}`));
-    expect(title).toMatch(/Per-Tab Schema Polling/i);
+    const after = await getStepInfo(page);
+    expect(after.counter).toMatch(new RegExp(`${TOTAL_STEPS}\\s*[/]\\s*${TOTAL_STEPS}`));
+    expect(after.title).toMatch(/Per-Tab Schema Polling/i);
 
     const phase = await page.locator(LIVE_PANEL).getAttribute('data-step-phase');
     expect(phase).toBe('done');

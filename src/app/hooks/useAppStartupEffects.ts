@@ -9,6 +9,7 @@ import { isProtocolsTab, setLastProtocolsTab, type Tab, LAST_PROTOCOLS_TAB_STORA
 import type { UseRequestsReturn } from '../../features/requests/hooks/useRequests';
 import type { ToastApi } from '@workflow/components/WorkflowToastProvider';
 import { DEMO_HUB_ENABLED } from '../../config/features';
+import { useOpenDockerSettings } from './useOpenDockerSettings';
 
 type Params = {
   loading: boolean;
@@ -35,6 +36,7 @@ export function useAppStartupEffects({
   activeTab,
   setActiveTab,
 }: Params): void {
+  useOpenDockerSettings(setActiveTab);
   const envReconciledRef = useRef(false);
   useEffect(() => {
     if (loading || !wb.loaded || envReconciledRef.current) return;

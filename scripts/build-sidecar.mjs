@@ -9,7 +9,7 @@
  */
 import { build } from 'esbuild';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, copyFileSync, writeFileSync, rmSync, statSync, chmodSync, readFileSync } from 'node:fs';
+import { mkdirSync, copyFileSync, writeFileSync, rmSync, statSync, chmodSync, readFileSync, readdirSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -65,6 +65,31 @@ const isMac = triple.includes('apple');
 const binName = `redfireforge-companion-${triple}${isWindows ? '.exe' : ''}`;
 const binPath = join(OUT_DIR, binName);
 
+// node-gyp's `devdir` leaks in as npm_config_devdir and npm 11+ warns on it.
+delete process.env.npm_config_devdir;
+
+function findWindowsSignTool() {
+  const candidates = [];
+  try {
+    for (const line of execFileSync('where.exe', ['signtool'], { encoding: 'utf8' }).split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (trimmed) candidates.push(trimmed);
+    }
+  } catch {
+    // signtool is often not on PATH
+  }
+  const kits = 'C:\\Program Files (x86)\\Windows Kits\\10\\bin';
+  try {
+    for (const ver of readdirSync(kits)) {
+      const candidate = join(kits, ver, 'x64', 'signtool.exe');
+      if (isFile(candidate)) candidates.push(candidate);
+    }
+  } catch {
+    // Windows SDK not installed
+  }
+  return candidates.find((p) => isFile(p)) ?? null;
+}
+
 mkdirSync(WORK, { recursive: true });
 mkdirSync(OUT_DIR, { recursive: true });
 
@@ -101,13 +126,23 @@ chmodSync(binPath, 0o755);
 
 // A signed binary must have its signature dropped before the section is added.
 if (isMac) execFileSync('codesign', ['--remove-signature', binPath], { stdio: 'inherit' });
+if (isWindows) {
+  const signtool = findWindowsSignTool();
+  if (signtool) {
+    execFileSync(signtool, ['remove', '/s', binPath], { stdio: 'inherit' });
+  } else {
+    console.warn('signtool not found; postject may warn that the copied Node.js signature looks corrupted.');
+  }
+}
 
 const postject = [
   binPath, 'NODE_SEA_BLOB', BLOB,
   '--sentinel-fuse', 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2',
 ];
 if (isMac) postject.push('--macho-segment-name', 'NODE_SEA');
-execFileSync('npx', ['--yes', 'postject', ...postject], { stdio: 'inherit', shell: isWindows });
+const npxEnv = { ...process.env };
+delete npxEnv.npm_config_devdir;
+execFileSync('npx', ['--yes', 'postject', ...postject], { stdio: 'inherit', shell: isWindows, env: npxEnv });
 
 // Ad-hoc signature keeps macOS from killing the binary; `tauri build` re-signs
 // the whole bundle with the real identity afterwards.

@@ -7,6 +7,7 @@ import DesktopOnlyGate from './components/DesktopOnlyGate';
 import { renderMarkdown } from './ConceptSlide';
 import { isGraphqlStudioLesson } from './adapters';
 import { isLessonDesktopOnlyBlocked, isDockerLessonBlockedOnWeb } from './utils/lessonPlatform';
+import { inferDockerStackKey } from './utils/dockerStack';
 import LessonNotesEditor from './LessonNotesEditor';
 import { useLessonNotesContext } from './LessonNotesContext';
 
@@ -23,9 +24,13 @@ type SelectedPanel = 'concept' | 'notes' | number;
 export default function LessonPlayer({ lesson, onStartDemo, newStepsFrom }: LessonPlayerProps) {
   const { getNote, hasNote, saveNote } = useLessonNotesContext();
   const gateKey = `prereq-gate-cleared:${lesson.id}`;
-  const [dockerGateCleared, setDockerGateCleared] = useState(
-    () => sessionStorage.getItem(gateKey) === '1',
-  );
+  const [dockerGateCleared, setDockerGateCleared] = useState(() => {
+    try {
+      return sessionStorage.getItem(gateKey) === '1';
+    } catch {
+      return false;
+    }
+  });
   const [downServiceLabels, setDownServiceLabels] = useState<string[]>([]);
   const [tabGateCleared, setTabGateCleared] = useState(false);
   const [selected, setSelected] = useState<SelectedPanel>('concept');
@@ -48,6 +53,10 @@ export default function LessonPlayer({ lesson, onStartDemo, newStepsFrom }: Less
   const handleServerReady = useCallback(() => {
     setDockerGateCleared(true);
     try { sessionStorage.setItem(gateKey, '1'); } catch { /* quota */ }
+  }, [gateKey]);
+  const handleServerLost = useCallback(() => {
+    setDockerGateCleared(false);
+    try { sessionStorage.removeItem(gateKey); } catch { /* quota */ }
   }, [gateKey]);
   const handleTabCapacityReady = useCallback(() => setTabGateCleared(true), []);
   const tabBudget = lesson.tabBudget ?? 1;
@@ -170,18 +179,27 @@ export default function LessonPlayer({ lesson, onStartDemo, newStepsFrom }: Less
           <DesktopOnlyGate reason={dockerBlockedOnWeb ? 'docker-backend' : 'desktop-only'} />
         )}
 
-        {selected === 'concept' && needsDockerGate && !desktopBlocked && !dockerBlockedOnWeb && (
-          <PrerequisiteGate
-            endpoints={dockerEndpoints}
-            endpointLabels={lesson.dockerEndpointLabels}
-            dockerCommand={lesson.dockerCommand ?? `docker compose -f docker/websocket/socketio/docker-compose.yml up`}
-            gateLabel={lesson.gateLabel}
-            onServerReady={handleServerReady}
-            onProbeStatusChange={handleProbeStatus}
-            tabBudget={needsTabGate ? tabBudget : undefined}
-            onTabCapacityReady={needsTabGate ? handleTabCapacityReady : undefined}
-            initiallyCleared={dockerGateCleared}
-          />
+        {needsDockerGate && !desktopBlocked && !dockerBlockedOnWeb && (
+          <div hidden={selected !== 'concept'} data-testid="demo-lesson-prereq-wrap">
+            <PrerequisiteGate
+              endpoints={dockerEndpoints}
+              endpointLabels={lesson.dockerEndpointLabels}
+              dockerCommand={lesson.dockerCommand ?? `docker compose -f docker/websocket/socketio/docker-compose.yml up`}
+              stackKey={
+                lesson.dockerStack?.stackKey
+                ?? inferDockerStackKey(
+                  lesson.dockerCommand ?? 'docker compose -f docker/websocket/socketio/docker-compose.yml up',
+                )
+              }
+              gateLabel={lesson.gateLabel}
+              onServerReady={handleServerReady}
+              onServerLost={handleServerLost}
+              onProbeStatusChange={handleProbeStatus}
+              tabBudget={needsTabGate ? tabBudget : undefined}
+              onTabCapacityReady={needsTabGate ? handleTabCapacityReady : undefined}
+              initiallyCleared={dockerGateCleared}
+            />
+          </div>
         )}
 
         <div className="demo-lesson-player-footer">

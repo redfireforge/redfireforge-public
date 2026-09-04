@@ -19,6 +19,7 @@ import type { ToastType } from '@workflow/components/WorkflowToastProvider';
 import SendToHarnessModal from '../../features/requests/components/SendToHarnessModal';
 import BatchSendToHarnessModal from '../../features/requests/components/BatchSendToHarnessModal';
 import { catalogEndpointToRequest } from '../../features/catalog/utils/catalogEndpointToRequest';
+import { ExportToApiMockModal, type ExportToApiMockItem } from '../../features/api-mock/components/ExportToApiMockModal';
 
 function findFolderForBatch(folders: RequestFolder[], folderId: string): RequestFolder | undefined {
   for (const f of folders) {
@@ -76,6 +77,10 @@ interface AppWorkbenchModalsProps {
   setCatalogConvert: Dispatch<SetStateAction<CatalogConvertTarget | undefined>>;
   handleSaveConvertedVersion: (entryId: string, args: SaveConvertedVersionArgs) => Promise<void>;
   showToast?: (type: ToastType, title: string, subtitle?: string) => void;
+
+  exportToMockItems: ExportToApiMockItem[] | null;
+  exportToMockSourceKind: 'requests' | 'catalog';
+  onClearExportToMock: () => void;
 }
 
 export default function AppWorkbenchModals(props: AppWorkbenchModalsProps) {
@@ -116,6 +121,9 @@ export default function AppWorkbenchModals(props: AppWorkbenchModalsProps) {
     setCatalogConvert,
     handleSaveConvertedVersion,
     showToast,
+    exportToMockItems,
+    exportToMockSourceKind,
+    onClearExportToMock,
   } = props;
 
   return (
@@ -240,6 +248,13 @@ export default function AppWorkbenchModals(props: AppWorkbenchModalsProps) {
           />
         );
       })()}
+      {exportToMockItems && (
+        <ExportToApiMockModal
+          items={exportToMockItems}
+          sourceKind={exportToMockSourceKind}
+          onClose={onClearExportToMock}
+        />
+      )}
     </>
   );
 }

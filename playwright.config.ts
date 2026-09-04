@@ -1,6 +1,10 @@
 import { execSync } from 'node:child_process';
 import { defineConfig } from '@playwright/test';
 
+// Playwright workers set FORCE_COLOR=1. Agent/CI shells often also set
+// NO_COLOR, and Node then warns on every worker start. Prefer Playwright color.
+delete process.env.NO_COLOR;
+
 function isLocalPortListening(port: number): boolean {
   try {
     execSync(`lsof -nP -iTCP:${port} -sTCP:LISTEN`, { stdio: 'ignore' });
@@ -41,7 +45,7 @@ function isLocalPortListening(port: number): boolean {
  *   cd docker/kafka/secure   && docker compose up -d   # kafka-secure
  *   cd docker/kafka/tls      && docker compose up -d   # kafka-tls
  *   cd docker/websocket      && docker compose up -d   # ws-protocols-*
- *   cd docker/websocket/tls  && docker compose up -d   # ws-tls-local-demo
+ *   cd docker/websocket && docker compose -f docker-compose.tls.yml up -d   # ws-tls-local-demo
  *   cd docker/graphql        && docker compose up -d   # graphql-test-server (4010)
  *   cd docker/grpc           && docker compose up -d   # grpc-test-server (50051)
  *
@@ -104,7 +108,6 @@ const ALL_DOCKER_SPECS = DOCKER_SPECS;
  */
 const DEMO_STEPTHROUGH_SPECS = [
   '**/demo-ws-workflow-builder.spec.ts',
-  '**/demo-kafka-schema-registry.spec.ts',
   '**/ws-basics-em.spec.ts',
   '**/demo-cat-convert-openapi.spec.ts',
   // GQL-1 has its own isolated project — see demo-gql1 below.
@@ -181,6 +184,8 @@ const DEMO_GQL_LESSONS_SPEC = '**/graphql-lessons.spec.ts';
 /** Docker-gated demo hub validation — requires live Kafka/WS/SSE stacks; run via E2E_WITH_DOCKER=1. */
 const DOCKER_DEMO_SPECS = [
   '**/demo-hub-docker-validate.spec.ts',
+  // Needs Schema Registry on :8085 (started by global-setup when E2E_WITH_DOCKER=1).
+  '**/demo-kafka-schema-registry.spec.ts',
 ];
 
 const withDocker = process.env.E2E_WITH_DOCKER === '1';
@@ -270,7 +275,8 @@ export default defineConfig({
       use: { browserName: 'chromium' },
     },
 
-    // ── Demo step-through: slow per-lesson validation (EM setup, config modals, etc.) ─
+    // ── Demo step-through: slow per-lesson validation (EM setup, config modals, etc.)
+    // Kafka Schema Registry is in DOCKER_DEMO_SPECS (needs :8085). ─
     {
       name: 'demo-stepthrough',
       testMatch: DEMO_STEPTHROUGH_SPECS,

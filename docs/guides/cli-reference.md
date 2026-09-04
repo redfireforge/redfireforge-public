@@ -166,10 +166,57 @@ npx tsx cli/index.ts run <file> [options]
 | Option | Type | Description |
 |--------|------|-------------|
 | `-o, --output <path>` | string | Write JSON report to file |
+| `-o, --output json` | keyword | Print a CI-friendly JSON report to stdout |
+| `-o, --output junit` | keyword | Print JUnit XML to stdout |
 | `--junit <path>` | string | Write JUnit XML report to file |
 | `--markdown <path>` | string | Write Markdown report to file |
 | `--data-rows-summary <path>` | string | Write data row summary JSON (CI/CD format) |
 | `-q, --quiet` | flag | Suppress progress output |
+
+###### Machine-readable stdout
+
+`--output json` and `--output junit` are format keywords rather than filenames,
+and are supported by `run`, `workflow`, and `mock simulate`. When either is used,
+all human-readable output is suppressed so stdout contains only the report —
+diagnostics still go to stderr, and exit codes are unchanged.
+
+```bash
+rff run tests/api-test.yaml --output json | jq '.failed'
+```
+
+```json
+{
+  "passed": 12,
+  "failed": 2,
+  "total": 14,
+  "durationMs": 3421,
+  "results": [
+    { "name": "Get Users", "status": "pass", "durationMs": 123, "error": null },
+    { "name": "Create Order", "status": "fail", "durationMs": 456, "error": "Expected status 201 but got 500" }
+  ]
+}
+```
+
+The SLA and baseline-comparison reports that normally print on a failing run are
+also suppressed, so exit codes 2, 3 and 4 still fire without corrupting stdout.
+
+For `workflow`, results are emitted **per iteration** so `total` matches
+`--output junit`. Steps are preserved under an additive `steps` array:
+
+```json
+{
+  "name": "Iteration 1",
+  "status": "fail",
+  "durationMs": 56,
+  "error": "Create Order: (http): expected 2xx, got HTTP 500",
+  "steps": [
+    { "name": "Login", "status": "pass", "durationMs": 54, "error": null },
+    { "name": "Create Order", "status": "fail", "durationMs": 2, "error": "(http): expected 2xx, got HTTP 500" }
+  ]
+}
+```
+
+To write to a file literally named `json`, qualify the path: `--output ./json`.
 
 ##### Exit Code Control
 
@@ -274,6 +321,8 @@ npx tsx cli/index.ts workflow <file> [options]
 | Option | Type | Description |
 |--------|------|-------------|
 | `-o, --output <path>` | string | Write JSON report to file |
+| `-o, --output json` | keyword | Print a CI-friendly JSON report to stdout |
+| `-o, --output junit` | keyword | Print JUnit XML to stdout |
 | `--junit <path>` | string | Write JUnit XML report to file |
 | `--markdown <path>` | string | Write Markdown report to file |
 | `-q, --quiet` | flag | Suppress progress output |

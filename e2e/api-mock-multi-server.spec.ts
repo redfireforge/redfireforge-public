@@ -9,6 +9,7 @@
 
 import { test, expect, type Page } from '@playwright/test';
 import { API_MOCK } from '../src/shared/selectors/apiMock';
+import { installApiMockDesktopShim } from './demo-player-helpers';
 import { silenceLogStream } from './grpc-helpers';
 import {
   CONFLICT_NAME,
@@ -44,6 +45,7 @@ test.describe.configure({ mode: 'serial', retries: 0 });
 
 test.beforeEach(async ({ page }) => {
   await silenceLogStream(page);
+  await installApiMockDesktopShim(page);
 });
 
 async function setUsersBodyV2(page: Page): Promise<void> {

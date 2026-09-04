@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCopyToClipboard } from '@shared/hooks/useCopyToClipboard';
 import { SearchMatchBar } from '@shared/components/SearchMatchBar';
 
 interface Props {
@@ -15,7 +15,7 @@ interface Props {
   copyText?: string;
 }
 
-const COPIED_RESET_MS = 1600;
+const COPIED_RESET_MS = 1500;
 
 /**
  * Response body search + expand/collapse toolbar used in RequestEditor
@@ -28,29 +28,7 @@ export default function ResponseBodySearchBar({
   onExpandAll, onCollapseAll,
   copyText,
 }: Props) {
-  const [copied, setCopied] = useState(false);
-  const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // The toolbar unmounts when the user switches response tabs or closes the
-  // modal, which is well inside the 1.6s window.
-  useEffect(() => () => {
-    if (resetTimer.current) clearTimeout(resetTimer.current);
-  }, []);
-
-  const handleCopy = async () => {
-    if (!copyText) return;
-    try {
-      await navigator.clipboard.writeText(copyText);
-      setCopied(true);
-      if (resetTimer.current) clearTimeout(resetTimer.current);
-      resetTimer.current = setTimeout(() => setCopied(false), COPIED_RESET_MS);
-    } catch {
-      // Clipboard is unavailable over plain HTTP, in a restricted iframe, and
-      // when the user denies permission. Staying silent is deliberate: the
-      // button simply does not flash, which is the same signal as nothing
-      // having been copied. Throwing here would break the search toolbar.
-    }
-  };
+  const [copied, copyToClipboard] = useCopyToClipboard(COPIED_RESET_MS);
 
   return (
     <div className="req-resp-search" data-testid="req-resp-search">
@@ -74,12 +52,12 @@ export default function ResponseBodySearchBar({
         <button
           type="button"
           className="jt-expand-collapse-btn"
-          onClick={() => { void handleCopy(); }}
-          data-testid="req-resp-copy"
+          onClick={() => { void copyToClipboard(copyText); }}
+          data-testid="response-copy-btn"
           // The label changes with the state, so a screen reader hears the
           // confirmation the sighted flash gives.
           aria-label={copied ? 'Response body copied' : 'Copy response body'}
-          title={copied ? 'Copied!' : 'Copy response body'}
+          title={copied ? 'Copied!' : 'Copy response'}
         >
           {copied ? (
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>

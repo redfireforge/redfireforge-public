@@ -59,12 +59,13 @@ Quick reference:
 | `ws-protocols-socketio.spec.ts` | `docker/websocket/socketio/docker-compose.yml` | 3100 |
 | `ws-protocols-graphql.spec.ts` | `docker/websocket/graphql/docker-compose.yml` | 4100 |
 | `ws-protocols-stomp.spec.ts` | `docker/websocket/stomp/docker-compose.yml` | 15674 |
-| `ws-tls-local-demo.spec.ts` | `docker/websocket/tls/docker-compose.yml` | — |
+| `ws-tls-local-demo.spec.ts` | `docker/websocket/docker-compose.tls.yml` | — |
 | `graphql-test-server.spec.ts` | `docker/graphql/docker-compose.yml` | 4010 |
 | `environment-manager.spec.ts` | None (seeded localStorage) | 5173 |
 | `graphql-multi-tab.spec.ts` | None (`/__proxy` mocks, Phase 6B-4 + 6F-13) | 5173 |
 | `ws-basics-em.spec.ts` | None (Demo Hub live lesson) | 5173 |
 | `demo-ws-workflow-builder.spec.ts` | None (Demo Hub live lesson) | 5173 |
+| `demo-kafka-schema-registry.spec.ts` | `docker/kafka/schema-registry` (`--project=docker`) | 8085 |
 | `demo-gql-first-query.spec.ts` | `docker/graphql` for full lesson (4010) | 5173 |
 | `demo-gql-variables.spec.ts` | `docker/graphql` for full lesson (4010) | 5173 |
 | `demo-gql-mutations.spec.ts` | `docker/graphql` for full lesson (4010) | 5173 |
@@ -97,7 +98,10 @@ npx playwright test --project=demo-gql3 e2e/demo-gql-mutations.spec.ts --reporte
 ### Demo step-through (slow — run on demand)
 
 These specs walk through live demo lessons step-by-step (~30–90 s each). They live in the
-`demo-stepthrough` Playwright project (excluded from the default `chromium` run):
+`demo-stepthrough` Playwright project (excluded from the default `chromium` run).
+Nightly `e2e-nightly.yml` runs them plus API Mock / AM-01…AM-24 via
+`npm run test:e2e:demo:hub:ci`. The Kafka Schema Registry demo is **not** here —
+it needs `:8085` and runs in `--project=docker` when `E2E_WITH_DOCKER=1`.
 
 ```bash
 # WebSocket Basics EM + {{wsBaseUrl}} validation, WS Workflow Builder modal regression

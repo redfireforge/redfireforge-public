@@ -413,7 +413,7 @@ describe('dispatchKafkaResumeMessage', () => {
   it('Kafka dispatch and direct HTTP resume both call notifyResume with same shape', () => {
     // Kafka dispatch path
     addPausedCorrelation(makeKafkaEntry({ correlationId: 'kafka-corr' }));
-    let kafkaPayload: Record<string, unknown> = {};
+    let kafkaPayload: Record<string, unknown>;
     registerResumeWaiter('kafka-corr', (data) => { kafkaPayload = data.webhookData; });
 
     dispatchKafkaResumeMessage(makeMsg({ key: 'kafka-corr' }));  // uses key source won't match — use body

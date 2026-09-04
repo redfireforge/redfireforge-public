@@ -17,7 +17,7 @@ export function registerMockCommands(program: Command): void {
     .description('Run saved simulation samples against a mock definition (side-effect-free)')
     .argument('<file>', 'Workspace / server JSON or YAML (or native export envelope)')
     .option('--server <id>', 'Server id (defaults to activeServerId or first)')
-    .option('-o, --output <path>', 'Write JSON results to file')
+    .option('-o, --output <path|json|junit>', 'Write JSON results to file, or print `json`/`junit` to stdout')
     .option('--junit <path>', 'Write JUnit XML results to file')
     .action(async (file: string, opts: { server?: string; output?: string; junit?: string }) => {
       const code = await runMockSimulate({ file, serverId: opts.server, output: opts.output, junit: opts.junit });

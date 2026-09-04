@@ -268,10 +268,12 @@ The server uses a **self-signed certificate** from a dev Root CA, exactly what y
 
 **Prerequisites — Web browser**
 1. \`npm run server\` — starts Node.js proxy on port 3001 (required for browser TLS)
-2. \`cd docker/websocket && ./generate-cert.sh && ./generate-client-cert.sh && docker compose -f docker-compose.tls.yml -f docker-compose.mtls.yml up -d\`
+2. \`cd docker/websocket && docker compose -f docker-compose.tls.yml -f docker-compose.mtls.yml up -d\`
+   (TLS certs are pre-bundled in the repo and Learning Hub.)
 
 **Prerequisites — Tauri desktop** *(no proxy needed)*
-1. \`cd docker/websocket && ./generate-cert.sh && ./generate-client-cert.sh && docker compose -f docker-compose.tls.yml -f docker-compose.mtls.yml up -d\``,
+1. Use **Start Stack** in the lesson gate, or:
+   \`cd docker/websocket && docker compose -f docker-compose.tls.yml -f docker-compose.mtls.yml up -d\``,
     diagram: `<svg viewBox="0 -10 720 390" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <marker id="tls-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">

@@ -1,0 +1,12 @@
+{
+  "stackKey": "ws-tls",
+  "sinceVersion": "0.8.3",
+  "description": "WebSocket TLS (8766/8767) + mTLS (8768/8769) echo",
+  "composeFiles": ["docker-compose.tls.yml", "docker-compose.mtls.yml"],
+  "buildOnStart": false,
+  "composeProfile": null,
+  "requiresCompanionProbe": false,
+  "ports": [8766, 8767, 8768, 8769],
+  "minMemoryMb": 256,
+  "certExpiresAt": "2036-08-30"
+}

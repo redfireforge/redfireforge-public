@@ -1,0 +1,12 @@
+{
+  "stackKey": "grpc-spring",
+  "sinceVersion": "0.8.3",
+  "description": "Go echo + Spring Boot gRPC servers (compose profile spring; ports 9090, 8081 plus default gRPC stack)",
+  "composeFiles": ["docker-compose.yml"],
+  "buildOnStart": false,
+  "composeProfile": "spring",
+  "requiresCompanionProbe": true,
+  "ports": [50051, 50052, 50443, 50453, 50444, 50454, 50055, 50560, 9090, 8081],
+  "minMemoryMb": 1024,
+  "certExpiresAt": "2036-07-01"
+}

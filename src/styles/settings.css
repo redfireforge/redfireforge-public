@@ -78,6 +78,204 @@
 .settings-add-row input { flex: 1; }
 .settings-divider { border-top: 1px solid var(--border); margin: 20px 0; }
 .settings-section-desc { font-size: 0.82rem; color: var(--text-muted); margin-bottom: 12px; }
+
+/* Learning Hub Docker tab (Phase 6) */
+.docker-settings__web-note,
+.docker-settings__loading,
+.docker-settings__usage-note {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin: 0 0 12px;
+}
+.docker-settings__error,
+.docker-settings__uninstall-errors {
+  font-size: 0.78rem;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  white-space: pre-wrap;
+}
+.docker-settings__stack-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.docker-settings__stack-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.docker-settings__stack-row:last-child { border-bottom: none; }
+.docker-settings__stack-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--text-muted);
+}
+.docker-settings__stack-dot.running {
+  background: var(--primary);
+}
+.docker-settings__stack-dot.checking {
+  background: var(--text-muted);
+  opacity: 0.55;
+}
+.docker-settings__stack-name {
+  flex: 1;
+  color: var(--text);
+  font-size: 0.85rem;
+}
+.docker-settings__stack-idle {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+.docker-settings__stop-all { margin-top: 12px; }
+.docker-settings__usage-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.docker-settings__usage-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-size: 0.82rem;
+}
+.docker-settings__usage-table tr:last-child td { border-bottom: none; }
+.docker-settings__usage-total td { background: var(--bg); }
+.docker-settings__pref-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 12px;
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text);
+  font-weight: 400;
+}
+.docker-settings__pref-card:hover {
+  background: var(--surface-hover);
+}
+.docker-settings__pref-card:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 20%, transparent);
+}
+.docker-settings__pref-card:has(input:disabled) {
+  opacity: 0.55;
+  cursor: default;
+}
+.docker-settings__pref-card input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 3px 0 0;
+  padding: 0;
+  flex-shrink: 0;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+.docker-settings__pref-card:has(input:disabled) input[type="checkbox"] {
+  cursor: default;
+}
+.docker-settings__pref-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+}
+.docker-settings__pref-title {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text);
+}
+.docker-settings__pref-hint {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+.docker-settings__uninstall-done {
+  color: var(--text);
+  font-size: 0.85rem;
+}
+.docker-settings__prefetch-log {
+  max-height: 160px;
+  overflow: auto;
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  white-space: pre-wrap;
+}
+
+.docker-prefetch-overlay {
+  position: fixed;
+  inset: 0;
+  background: transparent;
+  z-index: 10050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.docker-prefetch-modal {
+  width: min(520px, calc(100vw - 48px));
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, white 28%, var(--border));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, white 14%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, white 7%, transparent),
+    0 12px 40px rgba(0, 0, 0, 0.45),
+    0 2px 8px rgba(0, 0, 0, 0.25);
+}
+.docker-prefetch-modal__header {
+  padding: 16px 20px 0;
+}
+.docker-prefetch-modal__header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.docker-prefetch-modal__body {
+  padding: 12px 20px 8px;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+.docker-prefetch-modal__body p { margin: 0 0 8px; }
+.docker-prefetch-modal__error {
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+.docker-prefetch-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 20px 16px;
+}
 .settings-list { display: flex; flex-direction: column; gap: 10px; }
 .settings-empty-hint { font-size: 0.82rem; color: var(--text-muted); font-style: italic; margin: 4px 0; }
 

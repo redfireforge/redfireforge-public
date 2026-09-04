@@ -23,8 +23,8 @@ CERT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/certs"
 mkdir -p "$CERT_DIR"
 
 # Idempotent: skip if CA cert already exists.
-# The leaf certs embedded in ws-tls-local.ts were signed by the EXISTING CA.
-# Regenerating would create a NEW CA that doesn't match the embedded certs.
+# After FORCE=1, run `node scripts/sync-demo-tls-certs.js` (or the renew wrapper)
+# so lesson PEM constants match the new CA.
 # Re-run with FORCE=1 to regenerate (e.g. FORCE=1 ./generate-cert.sh).
 if [[ -f "$CERT_DIR/ca.crt" ]] && [[ "${FORCE:-0}" != "1" ]]; then
   echo "Certs already exist in $CERT_DIR — skipping generation."
@@ -32,7 +32,7 @@ if [[ -f "$CERT_DIR/ca.crt" ]] && [[ "${FORCE:-0}" != "1" ]]; then
   exit 0
 fi
 
-DAYS="${DAYS:-825}"
+DAYS="${DAYS:-3650}"
 
 # 1. Root CA
 openssl req -x509 -nodes -newkey rsa:2048 \

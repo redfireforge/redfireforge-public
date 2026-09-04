@@ -27,6 +27,7 @@ test.beforeAll(async ({ browser }) => {
       `GraphQL-WS Docker is not reachable at ${GQL_HEALTH}. ` +
       `Start it with: docker compose -f docker/websocket/graphql/docker-compose.yml up -d\n` +
       `Original error: ${err}`,
+      { cause: err },
     );
   } finally {
     await ctx.close();

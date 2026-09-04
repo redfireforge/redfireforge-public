@@ -100,6 +100,6 @@ const server = createServer((req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-  // eslint-disable-next-line no-console
+   
   console.log(`[grpc-oauth2-mock] listening on http://${HOST}:${PORT}`);
 });

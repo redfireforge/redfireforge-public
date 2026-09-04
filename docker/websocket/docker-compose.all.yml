@@ -16,9 +16,10 @@
 #   docker compose -f docker-compose.tls.yml up -d
 #   docker compose -f docker-compose.mtls.yml up -d
 #
-# mTLS prerequisites (one-time):
-#   cd docker/websocket && ./generate-cert.sh && ./generate-client-cert.sh
+# TLS/mTLS certs are pre-bundled under certs/. Renew with:
+#   bash scripts/renew-demo-tls-certs.sh
 
+name: rff-ws-all
 include:
   - socketio/docker-compose.yml
   - stomp/docker-compose.yml

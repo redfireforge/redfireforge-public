@@ -171,7 +171,8 @@ Fixture certs are checked into `docker/grpc/certs/`:
 - `server.crt` / `server.key` — server cert for TLS + mTLS fixture targets
 - `client.crt` / `client.key` — client cert for mTLS probes
 
-To rotate certs locally, run:
+To rotate certs locally (repo checkout only — `certs/generate.sh` is not
+in the Learning Hub extract):
 
 ```bash
 ./certs/generate.sh

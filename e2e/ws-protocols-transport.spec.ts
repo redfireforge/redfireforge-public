@@ -18,6 +18,10 @@ import {
   waitForWsConnected,
 } from './ws-helpers';
 
+/** Dedicated echo port so parallel specs that stop :9876 cannot flake WP-22/23. */
+const WP_TRANSPORT_PORT = 9890;
+const WP_TRANSPORT_URL = `ws://localhost:${WP_TRANSPORT_PORT}`;
+
 test.beforeAll(async ({ browser }) => { await ensureWsMockServer(browser); });
 
 /* ── WP-01–03: Protocol Detection & Selector ─────────── */
@@ -93,11 +97,15 @@ test.describe('TLS Panel (WP-16–18)', () => {
 /* ── WP-22–23: Browser Transport Mode ────────────────── */
 
 test.describe('Browser Transport (WP-22–23)', () => {
+  test.beforeAll(async ({ browser }) => {
+    await ensureWsMockServer(browser, WP_TRANSPORT_PORT);
+  });
+
   test('WP-22: Transport mode shows in badge after connect', async ({ page }) => {
     await gotoWsStudio(page);
-    await connectWsTo(page);
+    await connectWsTo(page, WP_TRANSPORT_URL, WP_TRANSPORT_PORT);
     await switchWsLeftTab(page, 'connect');
-    await waitForWsConnected(page);
+    await waitForWsConnected(page, { url: WP_TRANSPORT_URL, mockPort: WP_TRANSPORT_PORT });
     const transportBadge = page.locator('[data-testid="transport-badge"]');
     await expect(transportBadge).toBeVisible({ timeout: 10_000 });
     const text = await transportBadge.textContent();
@@ -107,9 +115,9 @@ test.describe('Browser Transport (WP-22–23)', () => {
 
   test('WP-23: Protocol badge shows after connect', async ({ page }) => {
     await gotoWsStudio(page);
-    await connectWsTo(page);
+    await connectWsTo(page, WP_TRANSPORT_URL, WP_TRANSPORT_PORT);
     await switchWsLeftTab(page, 'connect');
-    await waitForWsConnected(page);
+    await waitForWsConnected(page, { url: WP_TRANSPORT_URL, mockPort: WP_TRANSPORT_PORT });
     await expect(page.locator('[data-testid="protocol-badge"]')).toBeVisible();
     await disconnectWs(page);
   });

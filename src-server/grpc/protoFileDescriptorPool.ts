@@ -102,7 +102,7 @@ export function parseUserProtoFilesIntoRoot(
         throw importError;
       }
       const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`Failed to parse ${path}: ${message}`);
+      throw new Error(`Failed to parse ${path}: ${message}`, { cause: error });
     }
   }
 

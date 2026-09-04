@@ -369,15 +369,13 @@ export class GrpcService {
     }
 
     let requestBuffer: Buffer;
-    let protoSerializationMs = 0;
+    const encodeStarted = Date.now();
     try {
-      const encodeStarted = Date.now();
       requestBuffer = encodeProtoMessage(
         descriptor,
         methodInfo.requestTypeName,
         request.body,
       );
-      protoSerializationMs = Date.now() - encodeStarted;
     } catch (encodeError) {
       const message = encodeError instanceof Error ? encodeError.message : String(encodeError);
       const schemaFailure = /Invalid descriptor schema|not found in descriptor/i.test(message);
@@ -390,6 +388,8 @@ export class GrpcService {
         { requestId: request.requestId, durationMs: Date.now() - started },
       );
     }
+
+    const protoSerializationMs = Date.now() - encodeStarted;
 
     const timeoutMs = request.timeoutMs ?? GRPC_DEFAULT_CALL_TIMEOUT_MS;
     let metadata: Record<string, string>;

@@ -12,8 +12,32 @@ import {
 } from './validate';
 import { migrateGrpcLessonProgress, isGrpcLessonProgressCompatible, assertGrpcLessonMigrationsComplete } from './versioning';
 import { GRPC_LESSON_SCHEMA_VERSION } from './types';
+import {
+  GRPC_DEMO_DOCKER_COMMAND,
+  GRPC_DEMO_PREREQUISITE_ENDPOINTS,
+  GRPC_EXPRESS_HEALTH_URL,
+  GRPC_SPRING_DOCKER_COMMAND,
+  GRPC_SPRING_FIXTURE_ACTUATOR_HEALTH_URL,
+  GRPC_STUDIO_LESSON_ALLOWED_TABS,
+  GRPC_TRANSPORT_MODES_PREREQUISITE_ENDPOINTS,
+} from '../../../adapters/grpcStudioAdapter';
 
 describe('validateGrpcLessonRoster', () => {
+  it('keeps roster fixtures aligned with grpcStudioAdapter (no adapter import at init)', () => {
+    const first = GRPC_LESSON_ROSTER[0];
+    const spring = GRPC_LESSON_ROSTER.find((e) => e.id === 'grpc-spring-boot');
+    const transport = GRPC_LESSON_ROSTER.find((e) => e.id === 'grpc-transport-modes');
+    expect(first?.dockerEndpoints).toEqual([...GRPC_DEMO_PREREQUISITE_ENDPOINTS]);
+    expect(first?.dockerCommand).toBe(GRPC_DEMO_DOCKER_COMMAND);
+    expect(first?.allowedTabs).toEqual([...GRPC_STUDIO_LESSON_ALLOWED_TABS]);
+    expect(spring?.dockerEndpoints).toEqual([
+      GRPC_EXPRESS_HEALTH_URL,
+      GRPC_SPRING_FIXTURE_ACTUATOR_HEALTH_URL,
+    ]);
+    expect(spring?.dockerCommand).toBe(GRPC_SPRING_DOCKER_COMMAND);
+    expect(transport?.dockerEndpoints).toEqual([...GRPC_TRANSPORT_MODES_PREREQUISITE_ENDPOINTS]);
+  });
+
   it('validates all 25 canonical roster entries', () => {
     const result = validateGrpcLessonRoster();
     expect(result.ok, result.issues.map((i) => `${i.path}: ${i.message}`).join('\n')).toBe(true);

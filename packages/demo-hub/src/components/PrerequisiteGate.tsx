@@ -12,6 +12,24 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { checkEndpoint } from '../utils/checkEndpoint';
 import { deriveEndpointHostPort, deriveEndpointLabel } from '../utils/endpointLabel';
+import { isTauri } from '@shared/utils/platform';
+import {
+  CLONE_MARKER,
+  DOCKER_DESKTOP_INSTALL_URL,
+  formatDockerCommandForHost,
+  isWindowsHost,
+  stripCertGenerationFromCommand,
+  withRepoClonePreamble,
+} from '../utils/dockerCommandDisplay';
+import {
+  lessonWantsComposeBuild,
+  resolveExtractedDockerStackPath,
+  injectComposeProjectFlag,
+  rewriteDockerCommandPath,
+} from '../utils/dockerStack';
+import type { DockerStackKey } from '../types';
+import { useLocalDockerHelper } from '../hooks/useLocalDockerHelper';
+import DockerStackControls from './DockerStackControls';
 import {
   countUserTabsInStorage,
   MAX_TABS,
@@ -27,17 +45,21 @@ interface PrerequisiteGateProps {
   endpointLabels?: string[];
   /** Human-readable docker compose command to display */
   dockerCommand: string;
+  /** When set on desktop, the command is rewritten to the extracted stack dir. */
+  stackKey?: DockerStackKey;
   /** Optional gate title (default: Docker Required). */
   gateLabel?: string;
   /** Called once when the server first becomes reachable — parent uses this to enable Start Demo */
   onServerReady: () => void;
+  /** Called when a previously cleared gate finds endpoints down again (Settings Stop / Docker quit). */
+  onServerLost?: () => void;
   /** Fires after every probe with the friendly names of services still unreachable (empty when all up). */
   onProbeStatusChange?: (downLabels: string[]) => void;
   /** GraphQL Studio tab slots this lesson reserves (§11.0). Omit when not a studio lesson. */
   tabBudget?: number;
   /** Called once when the user has closed enough tabs for this lesson. */
   onTabCapacityReady?: () => void;
-  /** When true, the gate starts in 'up' state and skips polling (server was already confirmed reachable). */
+  /** When true, the gate starts in 'up' and re-verifies once, then keeps the 3s probe. */
   initiallyCleared?: boolean;
 }
 
@@ -49,8 +71,10 @@ export default function PrerequisiteGate({
   endpoints,
   endpointLabels,
   dockerCommand,
+  stackKey,
   gateLabel = '🐳 Docker Required',
   onServerReady,
+  onServerLost,
   onProbeStatusChange,
   tabBudget,
   onTabCapacityReady,
@@ -64,10 +88,18 @@ export default function PrerequisiteGate({
     () => probeEndpoints.map((url, i) => endpointLabels?.[i] ?? deriveEndpointLabel(url)),
     [probeEndpoints, endpointLabels],
   );
+  const { helperOk } = useLocalDockerHelper();
+  const showDockerControls = Boolean(stackKey && (isTauri() || helperOk));
   const [probeState, setProbeState] = useState<ProbeState>(initiallyCleared ? 'up' : 'idle');
   const [serviceStates, setServiceStates] = useState<ProbeState[]>([]);
   const [tabCapacityState, setTabCapacityState] = useState<TabCapacityState>('idle');
   const [tabsToClose, setTabsToClose] = useState(0);
+  const [copied, setCopied] = useState(false);
+  const [extractedPath, setExtractedPath] = useState<string | null>(null);
+  // Web never has an extracted stack path — show the clone preamble on first paint
+  // (do not wait for the desktop resolve, which would flash compose-only first).
+  const [pathResolved, setPathResolved] = useState(!stackKey || !isTauri());
+  const copiedResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const mountedRef = useRef(true);
   const notifiedRef = useRef(initiallyCleared ?? false);
@@ -75,6 +107,68 @@ export default function PrerequisiteGate({
   const budget = tabBudget ?? 1;
   const needsTabGate = budget > 0 && Boolean(onTabCapacityReady);
   const showServiceBreakdown = probeEndpoints.length > 1;
+  useEffect(() => {
+    let cancelled = false;
+    if (!stackKey || !isTauri()) {
+      setExtractedPath(null);
+      setPathResolved(true);
+      return;
+    }
+    setPathResolved(false);
+    void resolveExtractedDockerStackPath(stackKey)
+      .then((path) => {
+        if (!cancelled) setExtractedPath(path);
+      })
+      .catch(() => {
+        if (!cancelled) setExtractedPath(null);
+      })
+      .finally(() => {
+        if (!cancelled) setPathResolved(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [stackKey]);
+
+  const commandPending = Boolean(stackKey && isTauri() && !pathResolved);
+
+  const displayedCommand = useMemo(() => {
+    const composeOnly = stripCertGenerationFromCommand(dockerCommand);
+    const raw = extractedPath
+      ? rewriteDockerCommandPath(composeOnly, extractedPath)
+      // Avoid a clone-preamble flash while the desktop path is resolving.
+      : !pathResolved
+        ? composeOnly
+        : withRepoClonePreamble(composeOnly);
+    const withProject = stackKey ? injectComposeProjectFlag(raw, stackKey) : raw;
+    return formatDockerCommandForHost(withProject);
+  }, [dockerCommand, extractedPath, pathResolved, stackKey]);
+
+  useEffect(() => {
+    setCopied(false);
+    if (copiedResetRef.current) {
+      clearTimeout(copiedResetRef.current);
+      copiedResetRef.current = null;
+    }
+  }, [displayedCommand]);
+
+  const copyCommand = useCallback(async () => {
+    try {
+      if (commandPending || !navigator.clipboard?.writeText) {
+        setCopied(false);
+        return;
+      }
+      await navigator.clipboard.writeText(displayedCommand);
+      setCopied(true);
+      if (copiedResetRef.current) clearTimeout(copiedResetRef.current);
+      copiedResetRef.current = setTimeout(() => {
+        setCopied(false);
+        copiedResetRef.current = null;
+      }, 2000);
+    } catch {
+      setCopied(false);
+    }
+  }, [commandPending, displayedCommand]);
 
   const checkTabCapacity = useCallback(async () => {
     if (!needsTabGate || !mountedRef.current) return;
@@ -98,8 +192,6 @@ export default function PrerequisiteGate({
 
   const probe = useCallback(async () => {
     if (!mountedRef.current || probeEndpoints.length === 0) return;
-    // Once confirmed up, stop polling — no need to re-check.
-    if (notifiedRef.current) return;
     // Only show "Checking…" on the first probe (idle → checking). Subsequent
     // polls must keep the last known status (usually "down") so the Concept
     // page does not flash ✗ → ⏳ → ✗ every 3 seconds while Docker is offline.
@@ -114,16 +206,19 @@ export default function PrerequisiteGate({
     onProbeStatusChange?.(
       probeLabels.filter((_, i) => !results[i]),
     );
-    if (ok && !notifiedRef.current) {
-      notifiedRef.current = true;
-      onServerReady();
-      // Stop further polling now that all services are confirmed reachable.
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
+    if (ok) {
+      if (!notifiedRef.current) {
+        notifiedRef.current = true;
+        onServerReady();
       }
+      return;
     }
-  }, [probeEndpoints, probeLabels, onServerReady, onProbeStatusChange]);
+    // Keep polling after a clear so Settings Stop / Docker quit disable Start Demo.
+    if (notifiedRef.current) {
+      notifiedRef.current = false;
+      onServerLost?.();
+    }
+  }, [probeEndpoints, probeLabels, onServerReady, onServerLost, onProbeStatusChange]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -134,22 +229,34 @@ export default function PrerequisiteGate({
       // Seed per-service rows as up immediately. Otherwise serviceStates stays []
       // and the breakdown shows "checking…" under "Server detected — ready to start".
       setServiceStates(probeEndpoints.map(() => 'up' as ProbeState));
+      let cancelled = false;
       void (async () => {
         if (probeEndpoints.length === 0) return;
         const results = await Promise.all(
           probeEndpoints.map((url) => checkEndpoint(url, 6000)),
         );
-        if (!mountedRef.current) return;
+        if (cancelled) return;
         setServiceStates(results.map((up) => (up ? 'up' : 'down')));
         if (!results.every(Boolean)) {
           // Server went down — reset state and start polling.
           notifiedRef.current = false;
           setProbeState('down');
+          onProbeStatusChange?.(
+            probeLabels.filter((_, i) => !results[i]),
+          );
+          onServerLost?.();
+        }
+        if (!cancelled) {
           intervalRef.current = setInterval(() => { void probe(); }, 3000);
         }
       })();
       void checkTabCapacity();
-      return () => { mountedRef.current = false; if (intervalRef.current) clearInterval(intervalRef.current); };
+      return () => {
+        cancelled = true;
+        mountedRef.current = false;
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        if (copiedResetRef.current) clearTimeout(copiedResetRef.current);
+      };
     }
     notifiedRef.current = false;
     tabNotifiedRef.current = false;
@@ -162,8 +269,9 @@ export default function PrerequisiteGate({
     return () => {
       mountedRef.current = false;
       clearInterval(intervalRef.current!);
+      if (copiedResetRef.current) clearTimeout(copiedResetRef.current);
     };
-  }, [probe, checkTabCapacity, initiallyCleared, probeEndpoints]);
+  }, [probe, checkTabCapacity, initiallyCleared, probeEndpoints, onServerLost, onProbeStatusChange, probeLabels]);
 
   const statusIcon = {
     idle:     '⏳',
@@ -221,11 +329,57 @@ export default function PrerequisiteGate({
         </ul>
       )}
 
+      {showDockerControls && stackKey && (
+        <DockerStackControls
+          stackKey={stackKey}
+          buildOnStart={lessonWantsComposeBuild(dockerCommand)}
+        />
+      )}
+
       <div className="prereq-instruction">
-        <p className="prereq-instruction-title">Run this command in a terminal:</p>
-        <pre className="prereq-command" data-testid="prereq-command">
-          <code>{dockerCommand}</code>
-        </pre>
+        <p className="prereq-instruction-title">
+          {showDockerControls
+            ? 'Or run this command in a terminal:'
+            : 'Run this command in a terminal:'}
+        </p>
+        <div className="prereq-command-wrapper">
+          <pre
+            className={`prereq-command${commandPending ? ' prereq-command--pending' : ''}`}
+            data-testid="prereq-command"
+            aria-busy={commandPending}
+          >
+            <code>{commandPending ? 'Resolving stack path…' : displayedCommand}</code>
+          </pre>
+          <button
+            type="button"
+            className="prereq-copy-btn"
+            data-testid="prereq-copy-btn"
+            disabled={commandPending}
+            onClick={() => { void copyCommand(); }}
+            aria-label={commandPending ? 'Resolving stack path' : 'Copy command to clipboard'}
+          >
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+          <span className="prereq-sr-only" aria-live="polite">
+            {copied ? 'Command copied to clipboard' : ''}
+          </span>
+        </div>
+        {isWindowsHost() && displayedCommand.includes(CLONE_MARKER) && (
+          <p className="prereq-stack-hint" data-testid="prereq-windows-paste-hint">
+            Paste this into PowerShell — Command Prompt does not treat # as a comment.
+          </p>
+        )}
+        <p className="prereq-docker-hint" data-testid="prereq-docker-hint">
+          Don't have Docker Desktop?{' '}
+          <a
+            href={DOCKER_DESKTOP_INSTALL_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Install it free →
+          </a>
+          {' '}A restart may be required after installing on Windows.
+        </p>
         <p className="prereq-instruction-note">
           This page will detect when all required services are reachable — the Start Demo button below will unlock.
         </p>

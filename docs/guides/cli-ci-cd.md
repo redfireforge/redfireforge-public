@@ -762,6 +762,54 @@ npx tsx cli/index.ts run tests/api-test.yaml \
   --markdown results.md
 ```
 
+### 8. Gate on stdout JSON Instead of Parsing Logs
+
+When a pipeline needs to *read* the result rather than just react to the exit
+code, pass the keyword `json` to `--output`. The report goes straight to stdout
+and every other line is suppressed, so it can be piped without a temp file:
+
+```bash
+npx tsx cli/index.ts run tests/api-test.yaml --output json | jq '.failed'
+```
+
+```json
+{
+  "passed": 12,
+  "failed": 2,
+  "total": 14,
+  "durationMs": 3421,
+  "results": [
+    { "name": "Get Users", "status": "pass", "durationMs": 123, "error": null },
+    { "name": "Create Order", "status": "fail", "durationMs": 456, "error": "HTTP 500: internal error" }
+  ]
+}
+```
+
+Never scrape the human-readable summary — its layout is not a stable contract.
+This schema is.
+
+A GitHub Actions step that both gates and summarises:
+
+```yaml
+- name: Run API tests
+  run: |
+    npx redfireforge-cli run tests/api-test.yaml \
+      --output json \
+      --fail-on-error > results.json
+
+- name: Summarize
+  if: always()
+  run: |
+    jq -r '"\(.passed)/\(.total) passed in \(.durationMs)ms"' results.json >> $GITHUB_STEP_SUMMARY
+    jq -r '.results[] | select(.status=="fail") | "- \(.name): \(.error)"' results.json >> $GITHUB_STEP_SUMMARY
+```
+
+`--output junit` works the same way, and both are also supported by the
+`workflow` and `mock simulate` commands.
+
+> `json` and `junit` are format keywords, not filenames. To write to a file
+> literally named `json`, qualify it: `--output ./json`.
+
 ---
 
 ## Exit Codes Reference
@@ -769,8 +817,20 @@ npx tsx cli/index.ts run tests/api-test.yaml \
 | Code | Meaning | CI Behavior |
 |------|---------|-------------|
 | `0` | All tests passed | Build succeeds |
-| `1` | Test failure | Build fails (with `--fail-on-error` or threshold exceeded) |
-| `2` | Error (invalid file, execution error) | Build fails |
+| `1` | Test failure, or an execution error (invalid/missing file) | Build fails |
+| `2` | Performance regression vs. baseline | Build fails (with `--fail-on-regression`) |
+| `3` | Regression **and** test failures | Build fails (with `--fail-on-regression`) |
+| `4` | SLA violation | Build fails (with `--fail-on-sla`) |
+
+A **test failure** only exits `1` if you pass `--fail-on-error` or
+`--fail-threshold <pct>`; otherwise the run reports the failures and still exits
+`0`. An **execution error** (invalid or missing file) always exits `1`, with no
+flag required. Codes `2`/`3` need `--fail-on-regression` and `4` needs
+`--fail-on-sla`. The `workflow` command uses `1` for failures and `2` for
+execution errors.
+
+These are unaffected by `--output json`: the report is written to stdout and the
+process still exits with the code above, so gating keeps working.
 
 ---
 

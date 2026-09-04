@@ -3,6 +3,7 @@
 # Endpoint: ws://localhost:15674/ws (STOMP over WebSocket)
 # Management UI: http://localhost:15672 (guest/guest)
 # Credentials: guest/guest
+name: rff-ws-stomp
 services:
   ws-stomp-rabbitmq:
     image: rabbitmq:3-management

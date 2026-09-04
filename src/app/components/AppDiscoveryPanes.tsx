@@ -1,7 +1,7 @@
 import { GalleryPage, type GalleryPageProps } from '../../features/gallery/GalleryPage';
 import TrainingTracksView from '../../features/training/TrainingTracksView';
 import { DEMO_HUB_ENABLED } from '../../config/features';
-import { DEMO_HUB_MOUNT_ID } from '../demo/demoHubRuntimeRef';
+import { DEMO_HUB_MOUNT_ID, registerDemoHubMount } from '../demo/demoHubRuntimeRef';
 import type { Tab } from '../utils/appTabUtils';
 
 interface Props {
@@ -44,7 +44,11 @@ export function AppDiscoveryPanes({
         </div>
       )}
       {DEMO_HUB_ENABLED && activeTab === 'demo-hub' && (
-        <div id={DEMO_HUB_MOUNT_ID} className="app-tab-pane demo-hub-pane" />
+        <div
+          id={DEMO_HUB_MOUNT_ID}
+          className="app-tab-pane demo-hub-pane"
+          ref={registerDemoHubMount}
+        />
       )}
       {activeTab === 'training' && (
         <div className="app-tab-pane training-pane">

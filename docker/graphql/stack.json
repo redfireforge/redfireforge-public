@@ -1,0 +1,12 @@
+{
+  "stackKey": "graphql",
+  "sinceVersion": "0.8.3",
+  "description": "Apollo GraphQL demo server (port 4010)",
+  "composeFiles": ["docker-compose.yml"],
+  "buildOnStart": false,
+  "composeProfile": null,
+  "requiresCompanionProbe": false,
+  "ports": [4010],
+  "minMemoryMb": 512,
+  "certExpiresAt": null
+}

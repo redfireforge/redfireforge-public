@@ -411,6 +411,26 @@ redfireforge workflow my-workflow.yaml -i 100 \
   --junit results.xml \
   --markdown results.md \
   --fail-threshold 5
+
+# Machine-readable summary on stdout, for a CI gate
+redfireforge workflow my-workflow.yaml -i 100 --output json | jq '.failed'
+```
+
+Workflow JSON reports one result **per iteration** — matching `--output junit`,
+so both formats agree on `total`. An iteration fails if any of its steps failed,
+and the steps are preserved under `steps`:
+
+```json
+{
+  "name": "Iteration 1",
+  "status": "fail",
+  "durationMs": 56,
+  "error": "Create Order: (http): expected 2xx, got HTTP 500",
+  "steps": [
+    { "name": "Login", "status": "pass", "durationMs": 54, "error": null },
+    { "name": "Create Order", "status": "fail", "durationMs": 2, "error": "(http): expected 2xx, got HTTP 500" }
+  ]
+}
 ```
 
 See [CLI Reference](./cli-reference.md) for full documentation.

@@ -3,6 +3,8 @@ import DemoHubHeader from './DemoHubHeader';
 import DomainSelector from './DomainSelector';
 import LessonList from './LessonList';
 import LessonPlayer from './LessonPlayer';
+import StaleStackPrompt from './components/StaleStackPrompt';
+import DockerImagePrefetchModal from './components/DockerImagePrefetchModal';
 import { allDomains } from './lessons/index';
 import type { useDemoHub } from './useDemoHub';
 
@@ -25,6 +27,8 @@ export default function DemoHub({ hub }: DemoHubProps) {
         onBackToDomains={hub.goToDomains}
       />
       <div className="demo-hub-body">
+        <DockerImagePrefetchModal />
+        <StaleStackPrompt />
         {state.view === 'domains' && (
           <DomainSelector
             domains={allDomains}

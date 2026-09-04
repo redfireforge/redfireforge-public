@@ -78,7 +78,7 @@ export function parseProtosetBase64(protosetBase64: string): protobuf.Root {
     buffer = Buffer.from(normalizedBase64, 'base64');
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Invalid protosetBase64: ${message}`);
+    throw new Error(`Invalid protosetBase64: ${message}`, { cause: error });
   }
   if (buffer.length === 0) {
     throw new Error('protosetBase64 decoded to an empty buffer');
@@ -89,7 +89,7 @@ export function parseProtosetBase64(protosetBase64: string): protobuf.Root {
     fileDescriptorSet = descriptor.FileDescriptorSet.decode(buffer);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Failed to decode protoset: ${message}`);
+    throw new Error(`Failed to decode protoset: ${message}`, { cause: error });
   }
   if (!fileDescriptorSet.file?.length) {
     throw new Error('protoset contains no file descriptors');
@@ -101,7 +101,7 @@ export function parseProtosetBase64(protosetBase64: string): protobuf.Root {
     return root;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Failed to load protoset descriptor: ${message}`);
+    throw new Error(`Failed to load protoset descriptor: ${message}`, { cause: error });
   }
 }
 

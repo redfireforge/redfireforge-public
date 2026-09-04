@@ -17,6 +17,7 @@ function resolveGrpcJs(): typeof import('@grpc/grpc-js') {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(
       `@grpc/grpc-js is required for server gRPC transport features. Install dependencies and retry. (${message})`,
+      { cause: error },
     );
   }
 }

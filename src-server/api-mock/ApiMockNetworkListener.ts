@@ -189,7 +189,7 @@ export class ApiMockNetworkListener {
           handler,
         );
       } catch (err) {
-        throw new Error(`TLS material rejected: ${err instanceof Error ? err.message : String(err)}`);
+        throw new Error(`TLS material rejected: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
       }
     } else {
       server = http.createServer(handler);

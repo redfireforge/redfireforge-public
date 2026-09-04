@@ -17,12 +17,16 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CERTS_DIR="$SCRIPT_DIR/certs"
+DAYS="${DAYS:-3650}"
 
-rm -rf "$CERTS_DIR"
+# Do not `rm -rf` this directory — certs/README.md lives here.
 mkdir -p "$CERTS_DIR"
+rm -f "$CERTS_DIR"/ca.crt "$CERTS_DIR"/ca.key \
+  "$CERTS_DIR"/broker.crt "$CERTS_DIR"/broker.key \
+  "$CERTS_DIR"/broker.csr "$CERTS_DIR"/broker-ext.cnf "$CERTS_DIR"/ca.srl
 
 echo "Generating CA key and certificate..."
-openssl req -new -x509 -days 365 -nodes \
+openssl req -new -x509 -days "$DAYS" -nodes \
   -keyout "$CERTS_DIR/ca.key" \
   -out "$CERTS_DIR/ca.crt" \
   -subj "/C=US/ST=Test/L=Test/O=RedfireForge/CN=RedfireForge-CA"
@@ -44,7 +48,7 @@ IP.1  = 127.0.0.1
 EOF
 
 echo "Signing broker certificate with CA..."
-openssl x509 -req -days 365 \
+openssl x509 -req -days "$DAYS" \
   -in "$CERTS_DIR/broker.csr" \
   -CA "$CERTS_DIR/ca.crt" \
   -CAkey "$CERTS_DIR/ca.key" \

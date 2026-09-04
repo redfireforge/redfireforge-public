@@ -43,6 +43,9 @@ import {
   waitForKafkaConnectedBadge,
   waitForKafkaDisconnectedBadge,
 } from './kafka-docker-helpers';
+import { installKafkaCompanionLock } from './kafka-companion-lock';
+
+installKafkaCompanionLock(test);
 
 // ── Skip guard ────────────────────────────────────────────────────────────────
 

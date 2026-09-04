@@ -7,8 +7,10 @@
  */
 
 import { execSync } from 'child_process';
+import { existsSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { seedSchemaRegistryOrdersValue } from './schema-registry-seed';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..');
@@ -194,7 +196,13 @@ function startStack(stack: DockerStackDef): void {
 
 function ensureGqlTlsCerts(): void {
   const tlsDir = path.join(REPO_ROOT, 'docker/graphql/tls');
-  console.log('[docker-infra] Ensuring GraphQL TLS certs exist...');
+  const ca = path.join(tlsDir, 'certs/ca.crt');
+  const client = path.join(tlsDir, 'certs/client.crt');
+  if (existsSync(ca) && existsSync(client)) {
+    console.log('[docker-infra] GraphQL TLS certs already present (pre-bundled).');
+    return;
+  }
+  console.log('[docker-infra] Generating missing GraphQL TLS certs...');
   execSync('./generate-cert.sh', { cwd: tlsDir, stdio: 'inherit' });
   execSync('./generate-client-cert.sh', { cwd: tlsDir, stdio: 'inherit' });
 }
@@ -242,6 +250,10 @@ async function ensureStacks(stacks: DockerStackDef[]): Promise<void> {
 export async function ensureDockerInfrastructure(fullDocker: boolean): Promise<void> {
   const stacks = fullDocker ? FULL_DOCKER_STACKS : [GRAPHQL_STACK];
   await ensureStacks(stacks);
+  if (fullDocker && await isSchemaRegistryHealthy()) {
+    await seedSchemaRegistryOrdersValue();
+    console.log('[docker-infra] Schema Registry demo subject orders-value is present');
+  }
 }
 
 /** Start gRPC echo fixture only (Phase 1H E2E). */

@@ -1,4 +1,5 @@
 import { DEMO_HUB_ENABLED } from '../../config/features';
+import { isTauri } from '@shared/utils/platform';
 
 export type Tab = 'environments' | 'preferences' | 'kafka-settings' | 'requests' | 'catalog' | 'workflow' | 'workflow-executions' | 'webhook-deliveries' | 'workflow-runner' | 'gallery' | 'training' | 'scenarios' | 'runner' | 'param-runner' | 'results' | 'kafka-message-studio' | 'websocket-studio' | 'sse-studio' | 'graphql-studio' | 'grpc-studio' | 'api-mock-studio' | 'demo-hub';
 
@@ -75,6 +76,11 @@ export function readTabFromUrl(): Tab {
 }
 
 export function writeTabToUrl(tab: Tab): void {
+  // Tauri serves the UI over a custom protocol. history.replaceState() with a
+  // relative path can navigate WKWebView off tauri://localhost and leave the
+  // native Reload error page (flash of UI, then blank). Desktop has no need
+  // for shareable ?tab= URLs.
+  if (isTauri()) return;
   const resolvedTab = tab === 'demo-hub' && !DEMO_HUB_ENABLED ? DEFAULT_TAB : tab;
   try {
     const url = new URL(window.location.href);

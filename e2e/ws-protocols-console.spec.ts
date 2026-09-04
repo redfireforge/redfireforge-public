@@ -27,6 +27,7 @@ test.beforeAll(async ({ browser }) => {
       `Socket.IO Docker is not reachable at ${SIO_HEALTH}. ` +
       `Start it with: docker compose -f docker/websocket/docker-compose.all.yml up -d\n` +
       `Original error: ${err}`,
+      { cause: err },
     );
   } finally {
     await ctx.close();

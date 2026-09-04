@@ -21,7 +21,7 @@ function longFromDecimalString(value: string, fieldType: string): protobuf.util.
     return protobuf.util.Long.fromString(value.trim(), isUnsignedWideLongFieldType(fieldType));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Invalid 64-bit integer "${value}": ${message}`);
+    throw new Error(`Invalid 64-bit integer "${value}": ${message}`, { cause: error });
   }
 }
 
@@ -445,7 +445,7 @@ function parseDescriptorRoot(descriptor: GrpcDescriptor): protobuf.Root {
     return root;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Invalid descriptor schema for key ${descriptor.key}: ${message}`);
+    throw new Error(`Invalid descriptor schema for key ${descriptor.key}: ${message}`, { cause: error });
   }
 }
 

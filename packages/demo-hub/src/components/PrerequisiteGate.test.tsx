@@ -3,8 +3,9 @@
  */
 import '@testing-library/jest-dom';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen, act, fireEvent } from '@testing-library/react';
 import PrerequisiteGate from './PrerequisiteGate';
+import { DOCKER_DESKTOP_INSTALL_URL, withRepoClonePreamble } from '../utils/dockerCommandDisplay';
 
 // Mock checkEndpoint so tests don't make real network calls
 vi.mock('../utils/checkEndpoint', () => ({
@@ -18,8 +19,31 @@ vi.mock('../adapters', () => ({
     Math.max(0, userCount - (8 - budget)),
 }));
 
+vi.mock('@shared/utils/platform', () => ({
+  isTauri: vi.fn(() => false),
+}));
+
+vi.mock('./DockerStackControls', () => ({
+  default: () => <div data-testid="docker-stack-controls" />,
+}));
+
+vi.mock('../hooks/useLocalDockerHelper', () => ({
+  useLocalDockerHelper: vi.fn(() => ({ enabled: false, helperOk: false })),
+}));
+
+vi.mock('../utils/dockerStack', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../utils/dockerStack')>();
+  return {
+    ...actual,
+    resolveExtractedDockerStackPath: vi.fn(async () => null),
+  };
+});
+
 import { checkEndpoint } from '../utils/checkEndpoint';
 import { countUserTabsInStorage } from '../adapters';
+import { resolveExtractedDockerStackPath } from '../utils/dockerStack';
+import { isTauri } from '@shared/utils/platform';
+import { useLocalDockerHelper } from '../hooks/useLocalDockerHelper';
 const mockCheck = checkEndpoint as ReturnType<typeof vi.fn>;
 const mockCountUserTabs = vi.mocked(countUserTabsInStorage);
 
@@ -34,6 +58,9 @@ describe('PrerequisiteGate', () => {
     vi.useFakeTimers();
     mockCheck.mockResolvedValue(false);
     mockCountUserTabs.mockResolvedValue(0);
+    vi.mocked(resolveExtractedDockerStackPath).mockResolvedValue(null);
+    vi.mocked(isTauri).mockReturnValue(false);
+    vi.mocked(useLocalDockerHelper).mockReturnValue({ enabled: false, helperOk: false });
     DEFAULT_PROPS.onServerReady = vi.fn();
   });
 
@@ -76,6 +103,18 @@ describe('PrerequisiteGate', () => {
     // Advance past multiple poll intervals
     await act(() => vi.advanceTimersByTimeAsync(9000));
     expect(DEFAULT_PROPS.onServerReady).toHaveBeenCalledOnce();
+  });
+
+  it('calls onServerLost when endpoints go down after a successful clear', async () => {
+    const onServerLost = vi.fn();
+    mockCheck.mockResolvedValue(true);
+    render(<PrerequisiteGate {...DEFAULT_PROPS} onServerLost={onServerLost} />);
+    await act(() => vi.advanceTimersByTimeAsync(100));
+    expect(DEFAULT_PROPS.onServerReady).toHaveBeenCalledOnce();
+    mockCheck.mockResolvedValue(false);
+    await act(() => vi.advanceTimersByTimeAsync(3100));
+    expect(onServerLost).toHaveBeenCalledOnce();
+    expect(screen.getByTestId('prereq-status').className).toContain('prereq-status--down');
   });
 
   it('polls again after 3 seconds', async () => {
@@ -431,11 +470,15 @@ describe('PrerequisiteGate', () => {
 
   it('initiallyCleared re-verify updates service rows when a probe is down', async () => {
     mockCheck.mockImplementation(async (url: string) => url.includes('4444'));
+    const onServerLost = vi.fn();
+    const onProbeStatusChange = vi.fn();
     render(
       <PrerequisiteGate
         endpoints={['http://127.0.0.1:4444/health', 'http://127.0.0.1:4446/health']}
         dockerCommand="docker compose up"
         onServerReady={vi.fn()}
+        onServerLost={onServerLost}
+        onProbeStatusChange={onProbeStatusChange}
         initiallyCleared
       />,
     );
@@ -444,5 +487,310 @@ describe('PrerequisiteGate', () => {
     const rows = screen.getAllByTestId('prereq-service');
     expect(rows[0].textContent).toContain('reachable');
     expect(rows[1].textContent).toContain('not detected');
+    expect(onServerLost).toHaveBeenCalledOnce();
+    expect(onProbeStatusChange).toHaveBeenCalledWith(expect.arrayContaining([expect.any(String)]));
+  });
+
+  it('initiallyCleared remount does not apply a stale re-verify', async () => {
+    let resolveFirst: (up: boolean) => void = () => {};
+    mockCheck.mockImplementation(
+      () => new Promise<boolean>((resolve) => { resolveFirst = resolve; }),
+    );
+    const onServerLost = vi.fn();
+    const { unmount } = render(
+      <PrerequisiteGate
+        {...DEFAULT_PROPS}
+        onServerLost={onServerLost}
+        initiallyCleared
+      />,
+    );
+    unmount();
+    await act(async () => {
+      resolveFirst(false);
+      await Promise.resolve();
+    });
+    expect(onServerLost).not.toHaveBeenCalled();
+  });
+
+  it('shows clone preamble plus the lesson compose command', async () => {
+    render(<PrerequisiteGate {...DEFAULT_PROPS} />);
+    await act(() => vi.advanceTimersByTimeAsync(100));
+    const text = screen.getByTestId('prereq-command').textContent ?? '';
+    expect(text).toContain('git clone https://github.com/redfireforge/redfireforge-public.git');
+    expect(text).toContain(DEFAULT_PROPS.dockerCommand);
+  });
+
+  it('copies the displayed command and shows Copied then Copy', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    render(<PrerequisiteGate {...DEFAULT_PROPS} />);
+    await act(() => vi.advanceTimersByTimeAsync(100));
+    const btn = screen.getByTestId('prereq-copy-btn');
+    expect(btn.textContent).toBe('Copy');
+    await act(async () => {
+      fireEvent.click(btn);
+      await Promise.resolve();
+    });
+    expect(writeText).toHaveBeenCalledWith(withRepoClonePreamble(DEFAULT_PROPS.dockerCommand));
+    expect(btn.textContent).toBe('Copied');
+    await act(() => vi.advanceTimersByTimeAsync(2000));
+    expect(btn.textContent).toBe('Copy');
+  });
+
+  it('stays on Copy when clipboard write fails', async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error('denied'));
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    render(<PrerequisiteGate {...DEFAULT_PROPS} />);
+    await act(() => vi.advanceTimersByTimeAsync(100));
+    const btn = screen.getByTestId('prereq-copy-btn');
+    await act(async () => {
+      fireEvent.click(btn);
+      await Promise.resolve();
+    });
+    expect(btn.textContent).toBe('Copy');
+  });
+
+  it('does not mount Start Stack on a hosted hostname', async () => {
+    vi.mocked(useLocalDockerHelper).mockReturnValue({ enabled: false, helperOk: false });
+    render(
+      <PrerequisiteGate
+        {...DEFAULT_PROPS}
+        stackKey="graphql"
+      />,
+    );
+    await act(() => vi.advanceTimersByTimeAsync(100));
+    expect(screen.queryByTestId('docker-stack-controls')).toBeNull();
+  });
+
+  it('does not mount Start Stack on web when the helper is down', async () => {
+    render(
+      <PrerequisiteGate
+        {...DEFAULT_PROPS}
+        stackKey="graphql"
+      />,
+    );
+    await act(() => vi.advanceTimersByTimeAsync(100));
+    expect(screen.queryByTestId('docker-stack-controls')).toBeNull();
+    expect(screen.getByText('Run this command in a terminal:')).toBeTruthy();
+  });
+
+  it('mounts Start Stack and keeps the clone preamble when the helper is up', async () => {
+    vi.mocked(useLocalDockerHelper).mockReturnValue({ enabled: true, helperOk: true });
+    render(
+      <PrerequisiteGate
+        {...DEFAULT_PROPS}
+        stackKey="graphql"
+      />,
+    );
+    await act(() => vi.advanceTimersByTimeAsync(100));
+    expect(screen.getByTestId('docker-stack-controls')).toBeTruthy();
+    expect(screen.getByText('Or run this command in a terminal:')).toBeTruthy();
+    const text = screen.getByTestId('prereq-command').textContent ?? '';
+    expect(text).toContain('git clone https://github.com/redfireforge/redfireforge-public.git');
+  });
+
+  it('shows clone preamble on first paint on web even when stackKey is set', () => {
+    render(
+      <PrerequisiteGate
+        {...DEFAULT_PROPS}
+        stackKey="graphql"
+      />,
+    );
+    const text = screen.getByTestId('prereq-command').textContent ?? '';
+    expect(text).toContain('git clone https://github.com/redfireforge/redfireforge-public.git');
+    expect(text).toContain(
+      'docker compose -p rff-graphql -f docker/websocket/socketio/docker-compose.yml up',
+    );
+    expect(resolveExtractedDockerStackPath).not.toHaveBeenCalled();
+  });
+
+  it('stays on Copy when clipboard API is missing', async () => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: undefined,
+    });
+    render(<PrerequisiteGate {...DEFAULT_PROPS} />);
+    const btn = screen.getByTestId('prereq-copy-btn');
+    await act(async () => {
+      fireEvent.click(btn);
+      await Promise.resolve();
+    });
+    expect(btn.textContent).toBe('Copy');
+  });
+
+  it('splits && onto new lines for web Windows paste', () => {
+    const originalUa = navigator.userAgent;
+    Object.defineProperty(window.navigator, 'userAgent', {
+      configurable: true,
+      value: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    });
+    try {
+      render(
+        <PrerequisiteGate
+          endpoint="https://localhost:4443/health"
+          dockerCommand="cd docker/graphql/tls && ./generate-cert.sh && docker compose up -d && docker compose -f docker-compose.mtls.yml up -d"
+          stackKey="graphql-tls"
+          onServerReady={vi.fn()}
+        />,
+      );
+      const text = screen.getByTestId('prereq-command').textContent ?? '';
+      expect(text).toContain('git clone');
+      expect(text).toContain('cd docker/graphql/tls');
+      expect(text).toContain('docker compose -p rff-graphql-tls up -d');
+      expect(text).not.toContain('&&');
+      expect(text).not.toContain('generate-cert');
+      expect(screen.getByTestId('prereq-windows-paste-hint').textContent).toContain('PowerShell');
+    } finally {
+      Object.defineProperty(window.navigator, 'userAgent', {
+        configurable: true,
+        value: originalUa,
+      });
+    }
+  });
+
+  it('strips cert generation and still prepends the clone preamble on web', () => {
+    render(
+      <PrerequisiteGate
+        endpoint="https://localhost:4443/health"
+        dockerCommand="cd docker/graphql/tls && ./generate-cert.sh && ./generate-client-cert.sh && docker compose up -d"
+        stackKey="graphql-tls"
+        onServerReady={vi.fn()}
+      />,
+    );
+    const text = screen.getByTestId('prereq-command').textContent ?? '';
+    expect(text).toContain('git clone');
+    expect(text).toContain('cd docker/graphql/tls && docker compose -p rff-graphql-tls up -d');
+    expect(text).not.toContain('generate-cert');
+  });
+
+  it('hides the compose command and disables Copy while the desktop path resolves', () => {
+    vi.mocked(isTauri).mockReturnValue(true);
+    vi.mocked(resolveExtractedDockerStackPath).mockReturnValue(new Promise(() => {}));
+    render(
+      <PrerequisiteGate
+        endpoint="http://localhost:4010/health"
+        dockerCommand="cd docker/graphql && docker compose up -d"
+        stackKey="graphql"
+        onServerReady={vi.fn()}
+      />,
+    );
+    const text = screen.getByTestId('prereq-command').textContent ?? '';
+    expect(text).toContain('Resolving stack path');
+    expect(text).not.toContain('git clone');
+    expect(text).not.toContain('docker compose');
+    expect(screen.getByTestId('prereq-copy-btn')).toBeDisabled();
+  });
+
+  it('falls back to the clone preamble on desktop when extract path is missing', async () => {
+    vi.mocked(isTauri).mockReturnValue(true);
+    vi.mocked(resolveExtractedDockerStackPath).mockResolvedValueOnce(null);
+    render(
+      <PrerequisiteGate
+        endpoint="http://localhost:4010/health"
+        dockerCommand="cd docker/graphql && docker compose up -d"
+        stackKey="graphql"
+        onServerReady={vi.fn()}
+      />,
+    );
+    await act(() => vi.advanceTimersByTimeAsync(100));
+    const text = screen.getByTestId('prereq-command').textContent ?? '';
+    expect(text).toContain('git clone https://github.com/redfireforge/redfireforge-public.git');
+    expect(text).toContain('cd docker/graphql && docker compose -p rff-graphql up -d');
+    expect(screen.getByTestId('prereq-copy-btn')).not.toBeDisabled();
+  });
+
+  it('resets Copied when the displayed command changes', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    const { rerender } = render(<PrerequisiteGate {...DEFAULT_PROPS} />);
+    await act(() => vi.advanceTimersByTimeAsync(100));
+    const btn = screen.getByTestId('prereq-copy-btn');
+    await act(async () => {
+      fireEvent.click(btn);
+      await Promise.resolve();
+    });
+    expect(btn.textContent).toBe('Copied');
+    rerender(
+      <PrerequisiteGate
+        {...DEFAULT_PROPS}
+        dockerCommand="docker compose -f docker/graphql/docker-compose.yml up -d"
+      />,
+    );
+    expect(screen.getByTestId('prereq-copy-btn').textContent).toBe('Copy');
+  });
+
+  it('rewrites the command to the extracted stack path on desktop', async () => {
+    vi.mocked(isTauri).mockReturnValue(true);
+    vi.mocked(resolveExtractedDockerStackPath).mockResolvedValueOnce(
+      '/Users/me/Library/Application Support/com.redfireforge.desktop.demo/docker/graphql',
+    );
+    render(
+      <PrerequisiteGate
+        endpoint="http://localhost:4010/health"
+        dockerCommand="cd docker/graphql && docker compose up -d"
+        stackKey="graphql"
+        onServerReady={vi.fn()}
+      />,
+    );
+    await act(() => vi.advanceTimersByTimeAsync(100));
+    const text = screen.getByTestId('prereq-command').textContent ?? '';
+    expect(text).toContain(
+      'cd "$HOME/Library/Application Support/com.redfireforge.desktop.demo/docker/graphql" && docker compose -p rff-graphql up -d',
+    );
+    expect(text).not.toContain('git clone');
+    expect(text).not.toContain('cd docker/graphql');
+  });
+
+  it('rewrites the desktop command as two lines on Windows', async () => {
+    const originalUa = navigator.userAgent;
+    Object.defineProperty(window.navigator, 'userAgent', {
+      configurable: true,
+      value: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    });
+    vi.mocked(isTauri).mockReturnValue(true);
+    vi.mocked(resolveExtractedDockerStackPath).mockResolvedValueOnce(
+      'C:\\Users\\me\\AppData\\Roaming\\com.redfireforge.desktop.demo\\docker\\graphql',
+    );
+    try {
+      render(
+        <PrerequisiteGate
+          endpoint="http://localhost:4010/health"
+          dockerCommand="cd docker/graphql && docker compose up -d"
+          stackKey="graphql"
+          onServerReady={vi.fn()}
+        />,
+      );
+      await act(() => vi.advanceTimersByTimeAsync(100));
+      const text = screen.getByTestId('prereq-command').textContent ?? '';
+      expect(text).toContain(
+        'cd "%USERPROFILE%\\AppData\\Roaming\\com.redfireforge.desktop.demo\\docker\\graphql"',
+      );
+      expect(text).toContain('docker compose -p rff-graphql up -d');
+      expect(text).not.toContain('&&');
+      expect(text).not.toContain('C:\\Users\\me');
+      expect(text).not.toContain('git clone');
+      expect(screen.queryByTestId('prereq-windows-paste-hint')).toBeNull();
+    } finally {
+      Object.defineProperty(window.navigator, 'userAgent', {
+        configurable: true,
+        value: originalUa,
+      });
+    }
+  });
+
+  it('links to the Docker Desktop install page', async () => {
+    render(<PrerequisiteGate {...DEFAULT_PROPS} />);
+    await act(() => vi.advanceTimersByTimeAsync(100));
+    const hint = screen.getByTestId('prereq-docker-hint');
+    expect(hint.querySelector('a')).toHaveAttribute('href', DOCKER_DESKTOP_INSTALL_URL);
   });
 });

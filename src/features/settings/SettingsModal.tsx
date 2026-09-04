@@ -8,6 +8,19 @@ import SettingsStorageTab from './SettingsStorageTab';
 import SettingsExportImportTab from './SettingsExportImportTab';
 import AuditLogPanel from '../audit/components/AuditLogPanel';
 import { logAuthProfileCreated, logAuthProfileDeleted, logAuthProfileRenamed, logAuthProfileUpdated } from '../audit/utils/auditLog';
+import { DEMO_HUB_ENABLED } from '../../config/features';
+import {
+  consumeOpenDockerSettingsRequest,
+  OPEN_DOCKER_SETTINGS_EVENT,
+} from '@redfireforge/demo-hub/utils/dockerSettingsNav';
+
+const DockerStacksSettings = DEMO_HUB_ENABLED
+  ? React.lazy(() =>
+      import('@redfireforge/demo-hub/components/DockerStacksSettings').then((mod) => ({
+        default: mod.DockerStacksSettings,
+      })),
+    )
+  : null;
 
 export interface SettingsPageProps {
   appGlobalAuthProfiles: GlobalAuthProfile[];
@@ -33,7 +46,7 @@ export default function SettingsPage({
   onImport,
   confirm,
 }: SettingsPageProps) {
-  const [settingsTab, setSettingsTab] = useState<'globalAuth' | 'exportImport' | 'storage' | 'auditLog'>('globalAuth');
+  const [settingsTab, setSettingsTab] = useState<'globalAuth' | 'exportImport' | 'storage' | 'auditLog' | 'docker'>('globalAuth');
   const [maxRunsLocal, setMaxRunsLocal] = useState(50);
   const [storageUsage, setStorageUsage] = useState<{ usedBytes: number; entries: Record<string, number> }>({ usedBytes: 0, entries: {} });
   const [storageExpanded, setStorageExpanded] = useState(false);
@@ -50,6 +63,17 @@ export default function SettingsPage({
     })();
   }, []);
 
+  useEffect(() => {
+    if (!DEMO_HUB_ENABLED) return undefined;
+    if (consumeOpenDockerSettingsRequest()) setSettingsTab('docker');
+    const onOpen = () => {
+      consumeOpenDockerSettingsRequest();
+      setSettingsTab('docker');
+    };
+    window.addEventListener(OPEN_DOCKER_SETTINGS_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_DOCKER_SETTINGS_EVENT, onOpen);
+  }, []);
+
   return (
     <div className="settings-page">
       <div className="settings-page-header">
@@ -61,6 +85,16 @@ export default function SettingsPage({
         <button type="button" className={`settings-nav-item ${settingsTab === 'exportImport' ? 'active' : ''}`} onClick={() => setSettingsTab('exportImport')}>Export & Import</button>
         <button type="button" className={`settings-nav-item ${settingsTab === 'storage' ? 'active' : ''}`} onClick={() => setSettingsTab('storage')}>Storage</button>
         <button type="button" className={`settings-nav-item ${settingsTab === 'auditLog' ? 'active' : ''}`} onClick={() => setSettingsTab('auditLog')}>Audit Log</button>
+        {DEMO_HUB_ENABLED && (
+          <button
+            type="button"
+            className={`settings-nav-item ${settingsTab === 'docker' ? 'active' : ''}`}
+            data-testid="settings-tab-docker"
+            onClick={() => setSettingsTab('docker')}
+          >
+            Docker
+          </button>
+        )}
       </nav>
 
       <div className="settings-content">
@@ -310,6 +344,12 @@ export default function SettingsPage({
 
         {settingsTab === 'auditLog' && (
           <AuditLogPanel />
+        )}
+
+        {DEMO_HUB_ENABLED && settingsTab === 'docker' && DockerStacksSettings && (
+          <React.Suspense fallback={<div className="docker-settings__loading">Loading Docker settings…</div>}>
+            <DockerStacksSettings confirm={confirm} />
+          </React.Suspense>
         )}
       </div>
       </div>

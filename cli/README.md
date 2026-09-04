@@ -52,6 +52,9 @@ redfireforge run tests/api-test.yaml -c 10 -i 100
 # Run a workflow performance test
 redfireforge workflow tests/checkout-flow.yaml -i 50 -c 5
 
+# Print machine-readable JSON to stdout (for CI)
+redfireforge run tests/api-test.yaml --output json
+
 # Every command above also works with the short "rff" alias:
 rff run tests/api-test.yaml -c 10 -i 100
 ```
@@ -92,7 +95,8 @@ npx tsx cli/index.ts mock start ./api-mock-workspace.json --standalone --wait-re
 | Option | Commands | Description |
 |--------|----------|-------------|
 | `--server <id>` | simulate, verify | Target server (default: active / first) |
-| `-o, --output <path>` | simulate | Write JSON results |
+| `-o, --output <path>` | simulate | Write JSON results to a file |
+| `-o, --output json\|junit` | simulate | Print results to stdout in that format |
 | `--junit <path>` | simulate | Write JUnit XML |
 | `--min-calls <n>` | verify | Require at least N matching journal calls (samples when `--simulate`) |
 | `--expect-outcome <outcome>` | verify | Require matching outcome |
@@ -131,10 +135,79 @@ npx tsx cli/index.ts mock start ./api-mock-workspace.json --standalone --wait-re
 
 | Option | Description |
 |--------|-------------|
-| `-o, --output <path>` | Write JSON report |
+| `-o, --output <path>` | Write JSON report to a file |
+| `-o, --output json` | Print a CI-friendly JSON report to **stdout** |
+| `-o, --output junit` | Print JUnit XML to **stdout** |
 | `--junit <path>` | Write JUnit XML report |
 | `--markdown <path>` | Write Markdown report |
 | `-q, --quiet` | Suppress progress output |
+
+> `json` and `junit` are format keywords, not filenames — supported by `run`,
+> `workflow`, and `mock simulate`. To write to a file literally named `json`,
+> qualify it: `--output ./json`.
+
+### Machine-Readable Output (CI)
+
+`--output json` prints a flat, stable report to stdout and suppresses **all**
+other stdout output, so the stream is safe to pipe straight into `jq`:
+
+```bash
+rff run tests/api-test.yaml --output json | jq '.failed'
+```
+
+```json
+{
+  "passed": 12,
+  "failed": 2,
+  "total": 14,
+  "durationMs": 3421,
+  "results": [
+    {
+      "name": "Get Users",
+      "status": "pass",
+      "durationMs": 123,
+      "error": null
+    },
+    {
+      "name": "Create Order",
+      "status": "fail",
+      "durationMs": 456,
+      "error": "Expected status 201 but got 500"
+    }
+  ]
+}
+```
+
+Notes:
+
+- `status` is `"pass"` or `"fail"`; `error` is `null` for passing tests.
+- Parameterized rows are qualified as `Scenario [Row label]` so names stay unique.
+- Errors and diagnostics still go to **stderr**, keeping stdout pure.
+- Exit codes are unchanged — `--fail-on-error` (1), `--fail-on-regression` (2/3)
+  and `--fail-on-sla` (4) all still fire, and the SLA / baseline reports that
+  normally print on failure are suppressed so they cannot corrupt the report.
+
+#### Workflow runs
+
+For `workflow`, one result is emitted **per iteration** — matching `--output junit`,
+so both formats agree on `total`. Each iteration fails if any of its steps failed,
+and the individual steps are preserved under `steps` (same shape, one level deep):
+
+```json
+{
+  "name": "Iteration 1",
+  "status": "fail",
+  "durationMs": 56,
+  "error": "Create Order: (http): expected 2xx, got HTTP 500",
+  "steps": [
+    { "name": "Login", "status": "pass", "durationMs": 54, "error": null },
+    { "name": "Create Order", "status": "fail", "durationMs": 2, "error": "(http): expected 2xx, got HTTP 500" }
+  ]
+}
+```
+
+`steps` is additive — pipelines that only read the documented fields are unaffected.
+The iteration `error` concatenates every failing step as `Step: error`, joined by `; `.
 
 ### CI/CD Options
 
@@ -209,8 +282,16 @@ edges:
 | Code | Meaning |
 |------|---------|
 | 0 | Success — all tests passed |
-| 1 | Test failure — some requests failed or threshold exceeded |
-| 2 | Error — invalid file, missing file, or execution error |
+| 1 | Test failure, or an execution error (invalid/missing file) |
+| 2 | Performance regression vs. baseline (`--fail-on-regression`) |
+| 3 | Regression **and** test failures (`--fail-on-regression`) |
+| 4 | SLA violation (`--fail-on-sla`) |
+
+A **test failure** exits `1` only with `--fail-on-error` or `--fail-threshold <pct>`;
+otherwise failures are reported and the run still exits `0`. An **execution error**
+(invalid or missing file) always exits `1`, no flag required. Codes `2`/`3` need
+`--fail-on-regression`, `4` needs `--fail-on-sla`. The `workflow` command uses `1`
+for failures and `2` for execution errors. Exit codes are unaffected by `--output json`.
 
 ## CI/CD Example
 
@@ -224,6 +305,21 @@ edges:
       --junit results.xml \
       --fail-on-error \
       -q
+```
+
+To parse results in the pipeline instead of writing a file, stream JSON to stdout:
+
+```yaml
+- name: Run API Tests and gate on failures
+  run: |
+    npx redfireforge-cli run tests/api-test.yaml \
+      --output json \
+      --fail-on-error > results.json
+  # Non-zero exit already fails the step; results.json is still valid JSON.
+
+- name: Summarize
+  if: always()
+  run: jq -r '"\(.passed)/\(.total) passed in \(.durationMs)ms"' results.json
 ```
 
 ## Links

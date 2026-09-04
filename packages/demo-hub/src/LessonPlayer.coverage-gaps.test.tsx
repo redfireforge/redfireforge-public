@@ -12,12 +12,14 @@ import type { DemoLesson } from './types';
 // ── Module-level mock for PrerequisiteGate so we can fire callbacks in tests ──
 let capturedPrereqProps: {
   onServerReady: () => void;
+  onServerLost?: () => void;
   onProbeStatusChange?: (down: string[]) => void;
 } | null = null;
 
 vi.mock('./components/PrerequisiteGate', () => ({
   default: (props: {
     onServerReady: () => void;
+    onServerLost?: () => void;
     onProbeStatusChange?: (down: string[]) => void;
     dockerCommand: string;
   }) => {
@@ -67,6 +69,20 @@ describe('LessonPlayer — coverage gaps', () => {
     const platform = await import('./utils/lessonPlatform');
     vi.spyOn(platform, 'isLessonDesktopOnlyBlocked').mockReturnValue(true);
     wrap(<LessonPlayer lesson={makeLesson({ desktopOnly: true })} onStartDemo={vi.fn()} />);
+    expect(screen.getByRole('button', { name: /Desktop app required/i })).toHaveProperty('disabled', true);
+  });
+
+  it('shows docker-backend DesktopOnlyGate with Docker install link on hosted web', async () => {
+    const platform = await import('./utils/lessonPlatform');
+    vi.spyOn(platform, 'isDockerLessonBlockedOnWeb').mockReturnValue(true);
+    wrap(
+      <LessonPlayer
+        lesson={makeLesson({ dockerEndpoint: 'http://localhost:4010/graphql' })}
+        onStartDemo={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId('desktop-only-gate-note').textContent).toMatch(/Docker Desktop/i);
+    expect(screen.getByTestId('desktop-only-gate-docker-hint')).toBeTruthy();
     expect(screen.getByRole('button', { name: /Desktop app required/i })).toHaveProperty('disabled', true);
   });
 
@@ -133,6 +149,27 @@ describe('LessonPlayer — coverage gaps', () => {
     act(() => { capturedPrereqProps!.onServerReady(); });
     const startBtn = screen.getByRole('button', { name: /Start Demo/i });
     expect(startBtn).not.toBeDisabled();
+    act(() => { capturedPrereqProps!.onServerLost?.(); });
+    expect(screen.getByRole('button', { name: /Waiting for/i })).toHaveProperty('disabled', true);
+  });
+
+  it('keeps the docker gate mounted on a step so Start Demo can lock again', async () => {
+    const platform = await import('./utils/lessonPlatform');
+    vi.spyOn(platform, 'isLessonDesktopOnlyBlocked').mockReturnValue(false);
+    vi.spyOn(platform, 'isDockerLessonBlockedOnWeb').mockReturnValue(false);
+    wrap(
+      <LessonPlayer
+        lesson={makeLesson({ dockerEndpoint: 'http://localhost:4010/health' })}
+        onStartDemo={vi.fn()}
+      />,
+    );
+    act(() => { capturedPrereqProps!.onServerReady(); });
+    expect(screen.getByRole('button', { name: /Start Demo/i })).not.toBeDisabled();
+    fireEvent.click(screen.getByText('Step One'));
+    expect(screen.getByTestId('prereq-gate-mock')).toBeTruthy();
+    expect(screen.getByTestId('demo-lesson-prereq-wrap')).toHaveAttribute('hidden');
+    act(() => { capturedPrereqProps!.onServerLost?.(); });
+    expect(screen.getByRole('button', { name: /Waiting for/i })).toHaveProperty('disabled', true);
   });
 
   it('handleProbeStatus updates down service labels in the waiting button', async () => {

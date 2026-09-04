@@ -1,3 +1,5 @@
+name: rff-kafka-tls
+
 services:
   redpanda-tls:
     image: docker.redpanda.com/redpandadata/redpanda:v24.1.18

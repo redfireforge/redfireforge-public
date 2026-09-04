@@ -258,6 +258,8 @@ export function useDemoHubLiveDemo({
       } else {
         setStepPhase('done');
       }
+    } catch (e) {
+      console.warn('[DemoHub] Resume interrupted live demo failed:', e);
     } finally {
       resumingRef.current = false;
       clearDemoInitialSurface();

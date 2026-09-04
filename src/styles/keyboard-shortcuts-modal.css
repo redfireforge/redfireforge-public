@@ -1,0 +1,208 @@
+/* ── Keyboard Shortcuts Modal ─────────────────────────────────── */
+
+.ks-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+  padding: 24px;
+}
+
+.ks-modal-shell {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, white 28%, var(--border));
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  width: min(92vw, 720px);
+  max-height: min(86vh, 640px);
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, white 14%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, white 7%, transparent),
+    0 12px 40px rgba(0, 0, 0, 0.45),
+    0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+/* ── Header (drag handle) ─────────────────────────────────────── */
+
+.ks-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--bg);
+  cursor: grab;
+  user-select: none;
+}
+
+.ks-modal-header:active {
+  cursor: grabbing;
+}
+
+.ks-modal-header h3 {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+/* ── Body — two-column cheat sheet ───────────────────────────── */
+
+.ks-modal-body {
+  overflow-y: auto;
+  padding: 16px 20px 8px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 28px;
+  background: var(--surface);
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--text) 18%, transparent) transparent;
+}
+
+.ks-modal-body::-webkit-scrollbar { width: 4px; }
+.ks-modal-body::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text) 18%, transparent);
+  border-radius: 2px;
+}
+
+/* Last odd section spans full width so Requests isn't a lonely column */
+.ks-modal-section:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+/* ── Section ─────────────────────────────────────────────────── */
+
+.ks-modal-section {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 4px 0 10px;
+}
+
+.ks-modal-section-title {
+  margin: 0 0 6px;
+  padding-bottom: 6px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+
+/* ── Row ─────────────────────────────────────────────────────── */
+
+.ks-modal-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 32px;
+  padding: 3px 4px;
+  border-radius: 5px;
+  gap: 12px;
+}
+
+.ks-modal-row:hover {
+  background: color-mix(in srgb, var(--primary) 8%, var(--surface));
+}
+
+.ks-modal-label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text);
+  line-height: 1.35;
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── Key combo ───────────────────────────────────────────────── */
+
+.ks-modal-keys {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.ks-key-wrap {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.ks-modal-sep {
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  opacity: 0.55;
+  font-weight: 500;
+  line-height: 1;
+  user-select: none;
+  padding: 0 1px;
+}
+
+.ks-modal-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: ui-monospace, 'SFMono-Regular', 'Cascadia Code', 'JetBrains Mono', monospace;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  user-select: none;
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+/* ── Footer ──────────────────────────────────────────────────── */
+
+.ks-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--surface) 60%, var(--bg));
+}
+
+.ks-modal-hint {
+  margin: 0;
+  margin-right: auto;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  opacity: 0.75;
+}
+
+.ks-modal-close-btn {
+  min-width: 72px;
+}
+
+@media (max-width: 640px) {
+  .ks-modal-body {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .ks-modal-section:last-child:nth-child(odd) {
+    grid-column: auto;
+  }
+
+  .ks-modal-hint {
+    display: none;
+  }
+}

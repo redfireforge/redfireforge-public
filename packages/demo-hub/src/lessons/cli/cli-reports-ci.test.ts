@@ -6,11 +6,13 @@ describe('cli-reports-ci lesson', () => {
     expect(cliReportsCiLesson.id).toBe('cli-reports-ci');
     expect(cliReportsCiLesson.domainId).toBe('cli');
     expect(cliReportsCiLesson.category).toBe('data-and-ci');
-    expect(cliReportsCiLesson.estimatedMinutes).toBe(6);
+    expect(cliReportsCiLesson.estimatedMinutes).toBe(8);
     expect(cliReportsCiLesson.desktopOnly).toBe(false);
     expect(cliReportsCiLesson.initialTab).toBeUndefined();
     expect(cliReportsCiLesson.steps.map(s => s.id)).toEqual([
       'cli6-json-report',
+      'cli6-json-stdout',
+      'cli6-json-pipe',
       'cli6-junit',
       'cli6-markdown',
       'cli6-quiet',
@@ -21,7 +23,7 @@ describe('cli-reports-ci lesson', () => {
 
   it('has a concept slide with key terms and a diagram', () => {
     expect(cliReportsCiLesson.concept.title).toBe('Reports & CI/CD Integration');
-    expect(cliReportsCiLesson.concept.keyTerms?.length).toBe(3);
+    expect(cliReportsCiLesson.concept.keyTerms?.length).toBe(4);
     expect(cliReportsCiLesson.concept.diagram).toContain('<svg');
   });
 
@@ -74,5 +76,32 @@ describe('cli-reports-ci lesson', () => {
     const recap = cliReportsCiLesson.steps.find(s => s.id === 'cli6-recap');
     expect(recap?.terminalCommand).toBeUndefined();
     expect(recap?.terminalOutput).toContain('--data-rows-summary');
+  });
+
+  it('stdout-json step shows the flat CI shape and a preserved exit code', () => {
+    const step = cliReportsCiLesson.steps.find(s => s.id === 'cli6-json-stdout');
+    // The flat CI schema, not the rich TestRun export.
+    expect(step?.terminalOutput).toContain('"passed": 20');
+    expect(step?.terminalOutput).toContain('"total": 25');
+    expect(step?.terminalOutput).toContain('"status": "fail"');
+    // The status prefix is what makes an empty 404 body actionable in CI.
+    expect(step?.terminalOutput).toContain('HTTP 404');
+    expect(step?.terminalOutput).toContain('exit: 1');
+    expect(step?.terminalCommand).toContain('--output json');
+  });
+
+  it('pipe step demonstrates stdout being consumed by jq', () => {
+    const step = cliReportsCiLesson.steps.find(s => s.id === 'cli6-json-pipe');
+    expect(step?.terminalCommand).toContain('| jq');
+    expect(step?.terminalOutput).toContain('9/9 passed');
+    // Workflow results nest their steps under the iteration.
+    expect(step?.terminalOutput).toContain('Iteration 1');
+    expect(step?.terminalOutput).toContain('"steps"');
+  });
+
+  it('recap distinguishes the stdout stream from the file artifact', () => {
+    const recap = cliReportsCiLesson.steps.find(s => s.id === 'cli6-recap');
+    expect(recap?.terminalOutput).toContain('--output json');
+    expect(recap?.terminalOutput).toContain('owns stdout');
   });
 });

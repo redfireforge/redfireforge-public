@@ -1,9 +1,9 @@
-import { useEffect, useLayoutEffect, useState, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useLayoutEffect, type Dispatch, type SetStateAction } from 'react';
 import { createPortal } from 'react-dom';
 import type { Environment, GlobalAuthProfile, Microservice } from '@shared/types';
 import type { Tab } from '../utils/appTabUtils';
 import type { DemoHubApi } from './demoHubApi';
-import { syncDemoHubRuntimeRef, resetDemoHubRuntimeRef, DEMO_HUB_MOUNT_ID } from './demoHubRuntimeRef';
+import { syncDemoHubRuntimeRef, resetDemoHubRuntimeRef, useDemoHubMountEl } from './demoHubRuntimeRef';
 import { useDemoHub } from '@redfireforge/demo-hub/useDemoHub';
 import DemoHub from '@redfireforge/demo-hub/DemoHub';
 import { LessonNotesProvider } from '@redfireforge/demo-hub/LessonNotesContext';
@@ -50,7 +50,7 @@ export function DemoShellHost({
   setSelectedSvcId,
 }: DemoShellHostProps) {
   const demoHub = useDemoHub({ navigateToTab });
-  const [mountEl, setMountEl] = useState<HTMLElement | null>(null);
+  const mountEl = useDemoHubMountEl();
 
   useDemoShortcuts(demoHub, activeTab, navigateToTab, demoHub.suppressLiveTabExitRef);
   useDemoSidebarBridge(setSidebarCollapsed);
@@ -88,27 +88,6 @@ export function DemoShellHost({
     document.body.removeAttribute('data-demo-bootstrapping');
     clearDemoBootFreeze();
   }, []);
-
-  useLayoutEffect(() => {
-    let cancelled = false;
-    let attempts = 0;
-
-    const tryResolveMount = () => {
-      if (cancelled) return;
-      const el = document.getElementById(DEMO_HUB_MOUNT_ID);
-      if (el) {
-        setMountEl(el);
-        return;
-      }
-      attempts += 1;
-      if (attempts < 24) {
-        requestAnimationFrame(tryResolveMount);
-      }
-    };
-
-    tryResolveMount();
-    return () => { cancelled = true; };
-  }, [activeTab]);
 
   // Live demos render on the lesson tab — never park on empty Demo Hub.
   // Previously we skipped this while bootstrapping; that left a blank Demo Hub

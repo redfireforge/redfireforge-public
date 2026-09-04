@@ -20,6 +20,7 @@ import {
   mergeRuntimeInfo,
   parsePortOwnerServerId,
   pickNextAutoPort,
+  tryPickNextAutoPort,
   findPortOwner,
   formatPortTakenMessage,
   resolveNextAutoPort,
@@ -97,6 +98,11 @@ describe('apiMockPageHelpers', () => {
       Array.from({ length: 3 }, (_, i) => ({ port: 10 + i })),
       { min: 10, max: 12 },
     )).toThrow(/No available port/);
+    expect(tryPickNextAutoPort([{ port: 4600 }])).toBe(4601);
+    expect(tryPickNextAutoPort(
+      Array.from({ length: 3 }, (_, i) => ({ port: 10 + i })),
+      { min: 10, max: 12 },
+    )).toBeNull();
   });
 
   it('finds which saved mock already claims a listen port', () => {

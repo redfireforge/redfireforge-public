@@ -270,5 +270,11 @@ describe('appTabUtils', () => {
       // Should not throw
       expect(() => writeTabToUrl('workflow')).not.toThrow();
     });
+
+    it('does not touch history inside the Tauri webview', () => {
+      (global.window as Window & { __TAURI_INTERNALS__?: object }).__TAURI_INTERNALS__ = {};
+      writeTabToUrl('workflow');
+      expect(replaceStateMock).not.toHaveBeenCalled();
+    });
   });
 });

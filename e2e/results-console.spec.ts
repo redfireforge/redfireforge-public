@@ -145,6 +145,7 @@ async function seedAndOpenResultsExplorer(page: Page, testRun: ReturnType<typeof
   await page.addInitScript((wfs) => {
     localStorage.setItem('workflows', JSON.stringify(wfs));
     localStorage.setItem('perf-test-theme', 'dark');
+    localStorage.setItem('cloud-waitlist-dismissed', 'true');
   }, [CONSOLE_WORKFLOW]);
 
   await page.goto('http://localhost:5173');

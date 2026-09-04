@@ -1348,7 +1348,7 @@ describe('POST /api/graphql/batch', () => {
 
   it('empty-string operationName is NOT forwarded to upstream (prevents "Unknown operation" error)', async () => {
     let capturedArrayBatchBodies: unknown[] = [];
-    let capturedSeqBody: unknown = null;
+    let capturedSeqBody: unknown;
     mockUpstreamHandler = (req, res) => {
       let body = '';
       req.on('data', (c: Buffer) => { body += c.toString(); });

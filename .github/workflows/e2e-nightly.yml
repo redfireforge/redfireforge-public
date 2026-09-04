@@ -22,7 +22,9 @@ on:
           - chromium    # ~1357 tests, full product, no Docker (~30-45 min)
           - grpc        # gRPC Studio shell + TLS + schema-drift + interpolation
           - gql5        # GQL-5 TLS/mTLS demo lesson (requires Docker)
-          - all         # ci + grpc + gql5 in parallel
+          - demo-hub    # demo-stepthrough + API Mock product + AM-01…AM-24
+          - docker      # Kafka / WS / GraphQL / gRPC live stacks + Schema Registry demo
+          - all         # ci + grpc + gql5 + demo-hub + docker in parallel
       ref:
         description: 'Branch or SHA to test (default: develop)'
         required: false
@@ -147,5 +149,86 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: e2e-gql5-report-${{ github.run_id }}
+          path: playwright-report/
+          retention-days: 14
+
+  # --------------------------------------------------------------------------
+  # Learning Hub + API Mock — companion :3001, no Kafka Docker
+  # Schema Registry demo is in the docker job (needs :8085).
+  # --------------------------------------------------------------------------
+  e2e-demo-hub:
+    name: E2E Learning Hub + API Mock
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    if: |
+      github.event_name == 'schedule' ||
+      github.event.inputs.project == 'demo-hub' ||
+      github.event.inputs.project == 'all'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.inputs.ref || 'develop' }}
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Run Learning Hub step-through + API Mock + AM-01…AM-24
+        run: npm run test:e2e:demo:hub:ci
+        env:
+          CI: 'true'
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: e2e-demo-hub-report-${{ github.run_id }}
+          path: playwright-report/
+          retention-days: 14
+
+  # --------------------------------------------------------------------------
+  # Docker live stacks — Kafka, Schema Registry, WS protocols, GraphQL, gRPC
+  # --------------------------------------------------------------------------
+  e2e-docker:
+    name: E2E Docker stacks
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    if: |
+      github.event_name == 'schedule' ||
+      github.event.inputs.project == 'docker' ||
+      github.event.inputs.project == 'all'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.inputs.ref || 'develop' }}
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Run Docker project (includes Schema Registry demo)
+        run: npm run test:e2e:docker -- --workers=2 --reporter=list
+        env:
+          CI: 'true'
+          E2E_WITH_DOCKER: '1'
+          E2E_DOCKER_TEARDOWN: '1'
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: e2e-docker-report-${{ github.run_id }}
           path: playwright-report/
           retention-days: 14

@@ -1,0 +1,12 @@
+{
+  "stackKey": "api-mock",
+  "sinceVersion": "0.8.3",
+  "description": "API Mock AM-17 echo upstream (port 4017)",
+  "composeFiles": ["docker-compose.yml"],
+  "buildOnStart": false,
+  "composeProfile": null,
+  "requiresCompanionProbe": false,
+  "ports": [4017],
+  "minMemoryMb": 256,
+  "certExpiresAt": null
+}

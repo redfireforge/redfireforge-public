@@ -1,6 +1,6 @@
 [package]
 name = "redfireforge"
-version = "0.8.2"
+version = "0.8.3"
 description = "RedfireForge - API Performance Testing Tool"
 authors = ["you"]
 license = "MIT"
@@ -35,7 +35,8 @@ tokio-stream = "0.1"
 rand = "0.9"
 regex = "1"
 jsonschema = "0.27"
-chrono = "0.4"
+chrono = { version = "0.4", features = ["serde"] }
+semver = "1"
 hdrhistogram = "7"
 rdkafka = { version = "0.37", features = ["cmake-build", "ssl"] }
 futures = "0.3"

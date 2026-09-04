@@ -1,0 +1,12 @@
+{
+  "stackKey": "kafka-plaintext",
+  "sinceVersion": "0.8.3",
+  "description": "Redpanda plaintext + Console UI (host ports 19092, 18082, 19644, 18080)",
+  "composeFiles": ["docker-compose.yml"],
+  "buildOnStart": false,
+  "composeProfile": null,
+  "requiresCompanionProbe": false,
+  "ports": [19092, 18082, 19644, 18080],
+  "minMemoryMb": 2048,
+  "certExpiresAt": null
+}

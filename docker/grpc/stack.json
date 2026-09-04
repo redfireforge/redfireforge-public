@@ -1,0 +1,12 @@
+{
+  "stackKey": "grpc",
+  "sinceVersion": "0.8.3",
+  "description": "gRPC echo + TLS/mTLS + Envoy grpc-web + OAuth mock (ports 50051, 50443, 50444, 50055, 50560)",
+  "composeFiles": ["docker-compose.yml"],
+  "buildOnStart": false,
+  "composeProfile": null,
+  "requiresCompanionProbe": true,
+  "ports": [50051, 50052, 50443, 50453, 50444, 50454, 50055, 50560],
+  "minMemoryMb": 512,
+  "certExpiresAt": "2036-07-01"
+}

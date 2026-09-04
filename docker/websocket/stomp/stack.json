@@ -1,0 +1,12 @@
+{
+  "stackKey": "ws-stomp",
+  "sinceVersion": "0.8.3",
+  "description": "STOMP over WebSocket broker (ports 15674, 15672, 5672)",
+  "composeFiles": ["docker-compose.yml"],
+  "buildOnStart": false,
+  "composeProfile": null,
+  "requiresCompanionProbe": false,
+  "ports": [15674, 15672, 5672],
+  "minMemoryMb": 256,
+  "certExpiresAt": null
+}

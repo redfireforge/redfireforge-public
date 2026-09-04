@@ -1,2 +1,7 @@
 [http]
 proxy = ""
+
+# Vendored OpenSSL on MSVC does not emit ossl_static.pdb, which otherwise
+# floods the link step with LNK4099. Safe to ignore — the build still links.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "link-arg=/IGNORE:4099"]

@@ -205,10 +205,9 @@ async function clickWorkflowRunnerRun(ctx: DemoActionContext): Promise<boolean> 
     LESSON17_DEMO_CONCURRENCY,
     LESSON17_DEMO_TRACE_LEVEL,
   );
-  let started = selectAndRunRunnerWorkflow(LESSON17_WF_NAME);
-  if (!started) {
+  if (!selectAndRunRunnerWorkflow(LESSON17_WF_NAME)) {
     await ctx.delay(400);
-    started = selectAndRunRunnerWorkflow(LESSON17_WF_NAME);
+    selectAndRunRunnerWorkflow(LESSON17_WF_NAME);
   }
 
   if (runBtn) {

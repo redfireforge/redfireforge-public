@@ -180,6 +180,33 @@ Example: `staging-user-service-2024-01-15-103000.json`
 redfireforge run tests.yaml --output results.json
 ```
 
+### JSON to stdout (CI)
+
+Pass the keyword `json` instead of a path to print a flat, CI-shaped report
+straight to stdout. All other output is suppressed, so it can be piped directly:
+
+```bash
+redfireforge run tests.yaml --output json | jq '.failed'
+```
+
+```json
+{
+  "passed": 12,
+  "failed": 2,
+  "total": 14,
+  "durationMs": 3421,
+  "results": [
+    { "name": "Get Users", "status": "pass", "durationMs": 123, "error": null },
+    { "name": "Create Order", "status": "fail", "durationMs": 456, "error": "HTTP 500: internal error" }
+  ]
+}
+```
+
+This is a different, deliberately stable shape from the full `--output <path>`
+report above — use the file when you need every per-request field, and stdout
+when a pipeline just needs pass/fail counts. `--output junit` streams JUnit XML
+the same way.
+
 ### JUnit XML
 
 ```bash

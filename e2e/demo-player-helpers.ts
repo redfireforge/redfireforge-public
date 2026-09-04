@@ -221,6 +221,7 @@ export async function launchApiMockLesson(
   page: Page,
   lessonNameFragment: string,
 ): Promise<void> {
+  await installApiMockDesktopShim(page);
   await openDemoHub(page);
   await page.getByTestId('demo-domain-card-api-mock').click();
   await page.waitForSelector('.demo-lesson-list', { timeout: HUB_TIMEOUT });
@@ -233,16 +234,21 @@ export async function waitForPrerequisiteGateUp(
   page: Page,
   timeout = 20_000,
 ): Promise<void> {
-  const gate = page.locator('[data-testid="prereq-gate"]');
+  // LessonPlayer keeps the gate mounted (hidden) on step/notes so polling
+  // continues. Only wait when the concept-slide gate is actually visible.
+  const gate = page.locator('[data-testid="prereq-gate"]:visible');
   if ((await gate.count()) === 0) return;
-  await page.waitForFunction(
-    () =>
-      document
-        .querySelector('[data-testid="prereq-status"]')
-        ?.classList.contains('prereq-status--up') === true,
-    undefined,
+  await expect(page.locator('[data-testid="prereq-status"]:visible')).toHaveClass(
+    /prereq-status--up/,
     { timeout },
   );
+}
+
+/** Unlock desktop-gated API Mock Start while still using the web companion. */
+export async function installApiMockDesktopShim(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    (window as unknown as Record<string, unknown>).__RF_E2E_MOCK_DESKTOP__ = true;
+  });
 }
 
 /**

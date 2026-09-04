@@ -1,0 +1,12 @@
+{
+  "stackKey": "kafka-tls",
+  "sinceVersion": "0.8.3",
+  "description": "Redpanda TLS broker (host ports 19095, 18085, 19648)",
+  "composeFiles": ["docker-compose.yml"],
+  "buildOnStart": false,
+  "composeProfile": null,
+  "requiresCompanionProbe": false,
+  "ports": [19095, 18085, 19648],
+  "minMemoryMb": 2048,
+  "certExpiresAt": "2036-08-30"
+}

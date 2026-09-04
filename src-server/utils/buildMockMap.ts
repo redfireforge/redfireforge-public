@@ -92,7 +92,7 @@ export function buildMockMap(
               log:      console.log,
             });
           } catch (err) {
-            throw new Error(`Mock script error on ${typeName}.${fieldName}: ${toErrorMessage(err)}`);
+            throw new Error(`Mock script error on ${typeName}.${fieldName}: ${toErrorMessage(err)}`, { cause: err });
           }
         };
         hasOverride = true;
@@ -129,7 +129,7 @@ export function buildMockMap(
           } catch (err) {
             // Consistent with field script errors: throw so GraphQL returns a field error
             // rather than silently returning an error string as the scalar value.
-            throw new Error(`Mock scalar script error on ${scalarName}: ${toErrorMessage(err)}`);
+            throw new Error(`Mock scalar script error on ${scalarName}: ${toErrorMessage(err)}`, { cause: err });
           }
         };
       }

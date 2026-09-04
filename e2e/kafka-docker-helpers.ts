@@ -40,6 +40,62 @@ export async function waitForKafkaConnectedBadge(page: Page, timeoutMs = 20_000)
   await expect(page.locator('.kafka-status-badge.state-connected').first()).toBeVisible({ timeout: timeoutMs });
 }
 
+/** Header indicator on Message Studio / Designer — auto-connect can take >8s under CI load. */
+export async function waitForKafkaStatusConnected(page: Page, timeoutMs = 30_000): Promise<void> {
+  await expect(page.getByRole('button', { name: /Kafka status:.*Connected/i })).toBeVisible({ timeout: timeoutMs });
+}
+
+async function prepareKafkaConsumeForm(page: Page, topic: string): Promise<void> {
+  await page.locator('[data-testid="tab-consume"]').click();
+  await page.waitForTimeout(400);
+  await page.locator('[data-testid="con-topic-input"]').fill(topic);
+  await selectCustomOption(page, page.locator('[data-testid="con-position-select"]'), 'Earliest');
+  await expect(page.locator('[data-testid="con-position-select"]')).toContainText(/Earliest/i);
+
+  // Fresh group so Earliest is not stuck on a previously committed offset.
+  const group = page.locator('#kms-con-group');
+  if (await group.isVisible().catch(() => false)) await group.fill('');
+
+  const max = page.locator('#kms-con-max');
+  if (await max.isVisible().catch(() => false)) await max.fill('5');
+
+  const timeout = page.locator('#kms-con-timeout');
+  if (await timeout.isVisible().catch(() => false)) await timeout.fill('8000');
+
+  const jsonPath = page.locator('[data-testid="con-jsonpath-input"]');
+  if (await jsonPath.isVisible().catch(() => false)) await jsonPath.fill('');
+  const jsonVal = page.locator('[data-testid="con-jsonval-input"]');
+  if (await jsonVal.isVisible().catch(() => false)) await jsonVal.fill('');
+  const bodyContains = page.locator('[data-testid="con-body-contains-input"]');
+  if (await bodyContains.isVisible().catch(() => false)) await bodyContains.fill('');
+
+  // consumeOnce closes over React draft state — wait for fills/select to commit
+  // or the request still goes out as Latest and waits the full timeout on an empty window.
+  await page.waitForTimeout(500);
+  await expect(page.locator('[data-testid="con-consume-btn"]')).toBeEnabled({ timeout: 10_000 });
+}
+
+export async function consumeKafkaMessages(page: Page, topic: string): Promise<void> {
+  await prepareKafkaConsumeForm(page, topic);
+
+  const btn = page.locator('[data-testid="con-consume-btn"]');
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (attempt > 0) {
+      await page.locator('[data-testid="tab-publish"]').click();
+      await page.waitForTimeout(300);
+      await publishKafkaMessage(page, topic, { orderId: `E2E-CONSUME-RETRY-${attempt}`, status: 'CREATED' });
+      await prepareKafkaConsumeForm(page, topic);
+    }
+
+    await btn.click();
+    // locator.isVisible({ timeout }) does not wait — wait for the in-flight consume
+    // to finish, then assert the first result row.
+    await expect(btn).toHaveText(/Consume Once/, { timeout: 50_000 });
+    if (await page.locator('[data-testid="con-row-0"]').isVisible().catch(() => false)) return;
+  }
+  await expect(page.locator('[data-testid="con-row-0"]')).toBeVisible({ timeout: 5_000 });
+}
+
 export async function waitForKafkaDisconnectedBadge(page: Page, timeoutMs = 15_000): Promise<void> {
   await expect(page.locator('.kafka-status-badge.state-disconnected').first()).toBeVisible({ timeout: timeoutMs });
 }
