@@ -9,6 +9,7 @@ Format follows Keep a Changelog and Semantic Versioning.
 ## [Unreleased]
 
 ### Added
+- **Social preview card (L-16)** — README hero plus Open Graph / Twitter large-image tags on the demo and app shells, using the same 1200×630 art as [redfireforge.com/og-image.png](https://redfireforge.com/og-image.png). GitHub Settings still needs the 1280×640 `docs/assets/social/github-social-preview.png` upload (no public API).
 - **CLI `--output json` / `--output junit`** (#57) — `json` and `junit` are now *format keywords* for `-o/--output`, supported by `run`, `workflow`, and `mock simulate`. They print a flat, CI-shaped report straight to stdout and suppress every other stdout write (progress, console summary, file notices, and the SLA / baseline-comparison reports), so the stream can be piped directly into `jq`. Diagnostics still go to stderr and exit codes are unchanged, so `--fail-on-error` (1), `--fail-on-regression` (2/3) and `--fail-on-sla` (4) keep gating. Passing any other value still writes a JSON report to that file path, so `-o results.json` is unaffected; to write a file literally named `json`, qualify it as `--output ./json`.
   - Schema: `{ passed, failed, total, durationMs, results: [{ name, status, durationMs, error }] }`.
   - `workflow` emits one result per **iteration** — matching `--output junit` so both formats agree on `total` — with the individual steps preserved under an additive `steps` array.
