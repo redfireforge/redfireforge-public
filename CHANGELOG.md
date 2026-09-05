@@ -8,7 +8,7 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
-## [0.8.4-beta.1] — 2026-09-04
+## [0.8.4] — 2026-09-04
 
 ### Added
 - **Social preview card (L-16)** — README hero plus Open Graph / Twitter large-image tags on the demo and app shells, using the same 1200×630 art as [redfireforge.com/og-image.png](https://redfireforge.com/og-image.png). GitHub Settings social preview is uploaded.
