@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { isTauri } from '@shared/utils/platform';
+import { isDesktopRuntimeAvailable } from '@shared/utils/platform';
 
 interface Props {
   onCreate: () => void;
@@ -122,11 +122,11 @@ const FEATURES: Feature[] = [
  * offers the same "create server" action as the sidebar's + New button.
  */
 export function ApiMockLibraryLanding({ onCreate }: Props) {
-  const webMode = !isTauri();
+  const hostedWeb = !isDesktopRuntimeAvailable();
 
   return (
     <div className="am-library-landing" data-testid="api-mock-library-landing">
-      {webMode && (
+      {hostedWeb && (
         <div className="am-landing-desktop-notice" data-testid="api-mock-landing-desktop-notice" role="status">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <rect x="2" y="3" width="20" height="14" rx="2" />

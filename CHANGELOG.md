@@ -8,6 +8,11 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Fixed
+- **Local clone desktop gates** — Hosted/remote web still requires the desktop app for API Mock Start, GraphQL Mock, and Demo Hub desktop-only lessons. A local `npm run dev` clone (`localhost`, `*.localhost`, loopback) now unlocks those features the same way the desktop app does, via the companion on `:3001`.
+- **Live demo tab-exit confirm** — Demo Hub `ctx.click` / `ctx.selectOption` no longer trip “Leave the live demo?” when the player itself switches tabs (for example Kafka Quick Start → Protocols). A human click on the activity bar during a lesson still prompts.
+- **Demo Hub health-probe DevTools spam** — GraphQL (`:4010`), GraphQL TLS (`:4444` / `:4446`), gRPC echo (`:50052`), and Kafka Console (`:18080`) prerequisite checks now go through `/health/demo-http`. Chrome no longer logs `ERR_CONNECTION_REFUSED` every few seconds while those Docker stacks are stopped.
+
 ## [0.8.4] — 2026-09-04
 
 ### Added

@@ -128,7 +128,7 @@ describe('findAncestorSubCollection', () => {
   it('finds a folder with baseUrls even when isSubCollection is unset', () => {
     const sub = {
       id: 'sub',
-      name: 'onstar',
+      name: 'profiles',
       requests: [makeReq('r1')],
       baseUrls: { e1: 'https://ons.example.com/' },
     };

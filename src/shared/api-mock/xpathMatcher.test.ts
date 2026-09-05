@@ -7,23 +7,23 @@ const VIN_XPATH = "//*[local-name() = 'vehicleIdentificationNumber']/text()";
 const soap = (vin: string, extra = '') => `<?xml version="1.0"?>
 <SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/">
   <SOAP-ENV:Body>
-    <ns3:ActivateSubscriberRequest
-        xmlns:ns2="http://csi.att.com/CDM.xsd"
-        xmlns:ns3="http://csi.cingular.com/Request.xsd">
+    <ns3:ActivateAccountRequest
+        xmlns:ns2="http://example.com/schema/CDM.xsd"
+        xmlns:ns3="http://example.com/schema/Request.xsd">
       <ns3:VehicleDetails>
         <ns3:vehicleIdentificationNumber>${vin}</ns3:vehicleIdentificationNumber>
-        <ns3:make>Chevrolet</ns3:make>
+        <ns3:make>ExampleMake</ns3:make>
       </ns3:VehicleDetails>
       ${extra}
-    </ns3:ActivateSubscriberRequest>
+    </ns3:ActivateAccountRequest>
   </SOAP-ENV:Body>
 </SOAP-ENV:Envelope>`;
 
 describe('evaluateXPath', () => {
   it('resolves a namespaced element via local-name()', () => {
-    const res = evaluateXPath(soap('1GN1RK114R1FaultCode200'), VIN_XPATH);
+    const res = evaluateXPath(soap('1HGCM82633AFaultCode200'), VIN_XPATH);
     expect(res.ok).toBe(true);
-    expect(res.values).toEqual(['1GN1RK114R1FaultCode200']);
+    expect(res.values).toEqual(['1HGCM82633AFaultCode200']);
   });
 
   it('reports no match when the element is absent', () => {
@@ -74,14 +74,14 @@ describe('matchXPathEquals', () => {
     matchXPathEquals(body, [VIN_XPATH, needle], 'subset');
 
   it('matches a substring of the selected node (WireMock "contains")', () => {
-    expect(contains(soap('1GN1RK114R1FaultCode200'), 'FaultCode200')).toBe(true);
-    expect(contains(soap('1GN1RK114R1SUCCESS'), 'FaultCode200')).toBe(false);
-    expect(contains(soap('1GN1RK114R1FaultCode200'), '')).toBe(false);
+    expect(contains(soap('1HGCM82633AFaultCode200'), 'FaultCode200')).toBe(true);
+    expect(contains(soap('1HGCM82633ASUCCESS'), 'FaultCode200')).toBe(false);
+    expect(contains(soap('1HGCM82633AFaultCode200'), '')).toBe(false);
   });
 
   it('is scoped to the element — the whole-body approximation was not', () => {
     // The marker appears elsewhere in the document but NOT in the VIN.
-    const decoy = soap('1GN1RK114R1PLAIN', '<ns3:note>FaultCode200 seen previously</ns3:note>');
+    const decoy = soap('1HGCM82633APLAIN', '<ns3:note>FaultCode200 seen previously</ns3:note>');
     expect(decoy).toContain('FaultCode200');
     expect(contains(decoy, 'FaultCode200')).toBe(false);
   });

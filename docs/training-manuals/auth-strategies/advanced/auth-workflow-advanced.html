@@ -229,7 +229,7 @@
   <div class="flow-diagram">
     <strong>Microservice Auth Chain</strong><br /><br />
     WorkflowService (microserviceId: "ms-1")<br />
-    <span class="arrow">→</span> Microservice (authProfileIds: { "t01": "gap-1", "p01": "gap-2" })<br />
+    <span class="arrow">→</span> Microservice (authProfileIds: { "test": "gap-1", "prod": "gap-2" })<br />
     <span class="arrow">→</span> GlobalAuthProfile (id: "gap-1", auth: { type: "bearer", token: "test-token" })<br />
     <span class="arrow">→</span> AuthConfig applied to HTTP node
   </div>
@@ -414,8 +414,8 @@ useEffect(() => {
     <li>Open the Service Registry panel in a workflow.</li>
     <li>Create a service "Payment API" with two endpoint rows:
       <ul>
-        <li>t01 (test): URL = <code>https://api.test.stripe.com</code>, authMode = <code>custom</code>, auth = Bearer <code>sk_test_...</code></li>
-        <li>p01 (prod): URL = <code>https://api.stripe.com</code>, authMode = <code>custom</code>, auth = Bearer <code>sk_live_...</code></li>
+        <li>test: URL = <code>https://api.test.stripe.com</code>, authMode = <code>custom</code>, auth = Bearer <code>sk_test_...</code></li>
+        <li>prod: URL = <code>https://api.stripe.com</code>, authMode = <code>custom</code>, auth = Bearer <code>sk_live_...</code></li>
       </ul>
     </li>
     <li>Add an HTTP node and bind it to "Payment API" (<code>serviceId</code>).</li>
@@ -437,9 +437,9 @@ useEffect(() => {
   <p><strong>Goal:</strong> Trace the full microservice → global auth profile chain.</p>
   <ol>
     <li>Create a Global Auth Profile: name "Warehouse Bearer", token "wh-tok".</li>
-    <li>Create a Microservice: name "Warehouse", set <code>authProfileIds.t01</code> to the profile ID.</li>
+    <li>Create a Microservice: name "Warehouse", set <code>authProfileIds.test</code> to the profile ID.</li>
     <li>Create a Workflow Service linked to this microservice (<code>microserviceId</code>).</li>
-    <li>Add an endpoint row: envId <code>t01</code>, authMode <code>inherit</code>.</li>
+    <li>Add an endpoint row: envId <code>test</code>, authMode <code>inherit</code>.</li>
     <li>Bind an HTTP node to this service.</li>
     <li>Run Quick Test — verify the "Warehouse Bearer" token is applied via the chain.</li>
   </ol>

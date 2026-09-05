@@ -255,7 +255,7 @@ test.describe('Shared Data Sources Modal', () => {
 
     await page.locator('.shared-ds-fetch-actions .btn', { hasText: 'cURL Import' }).click();
     await page.locator('.shared-ds-curl-input').fill(
-      "curl -X POST 'https://api.example.com/v1/users?env=t01' -H 'Authorization: Bearer {{token}}' -H 'Content-Type: application/json' -d '{\"name\":\"A\"}'"
+      "curl -X POST 'https://api.example.com/v1/users?env=test' -H 'Authorization: Bearer {{token}}' -H 'Content-Type: application/json' -d '{\"name\":\"A\"}'"
     );
     await page.locator('.shared-ds-curl-actions .btn', { hasText: 'Import & Apply' }).click();
 
@@ -266,7 +266,7 @@ test.describe('Shared Data Sources Modal', () => {
     }
 
     await expectCustomSelectValue(page.locator('.shared-ds-fetch-method'), 'POST');
-    await expect(page.locator('.shared-ds-fetch-url')).toHaveValue('https://api.example.com/v1/users?env=t01');
+    await expect(page.locator('.shared-ds-fetch-url')).toHaveValue('https://api.example.com/v1/users?env=test');
 
     // Check headers tab
     await clickFetchTab(page, 'Headers');
@@ -371,7 +371,7 @@ test.describe('Shared Data Sources Modal', () => {
 
     await page.locator('.shared-ds-fetch-actions .btn', { hasText: 'cURL Import' }).click();
     await page.locator('.shared-ds-curl-input').fill(
-      "curl -X GET 'https://api.example.com/sales/product/autoassign/v1/vehicles/1GTPU91D6R107995A/onboarding/vehiclePurchaseOffers?channel=MC_WEBRNW&country=MX'"
+      "curl -X GET 'https://api.example.com/v1/orders/ORD-1001/items?channel=WEB&country=US'"
     );
     await page.locator('.shared-ds-curl-actions .btn', { hasText: 'Import & Apply' }).click();
 
@@ -382,11 +382,11 @@ test.describe('Shared Data Sources Modal', () => {
     await expect(page.locator('.ds-section-label', { hasText: 'Query Variables' })).toBeVisible();
     await expect(page.locator('.ds-section-label', { hasText: 'URL Template Preview' })).toBeVisible();
 
-    const vinSeg = page.locator('.path-seg').filter({ hasText: '/1GTPU91D6R107995A' }).first();
-    await vinSeg.locator('input[type="checkbox"]').check();
-    await vinSeg.locator('.path-var-input').fill('vin');
+    const orderSeg = page.locator('.path-seg').filter({ hasText: '/ORD-1001' }).first();
+    await orderSeg.locator('input[type="checkbox"]').check();
+    await orderSeg.locator('.path-var-input').fill('orderId');
 
-    await expect(page.locator('.url-pattern-box')).toContainText('{{vin}}');
+    await expect(page.locator('.url-pattern-box')).toContainText('{{orderId}}');
     await expect(page.locator('.url-pattern-box')).toContainText('channel={{channel}}');
     await expect(page.locator('.url-pattern-box')).toContainText('country={{country}}');
 

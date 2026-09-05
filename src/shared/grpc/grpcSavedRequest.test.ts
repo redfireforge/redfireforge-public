@@ -194,11 +194,11 @@ describe('grpcSavedRequest (Phase 4H)', () => {
       method: 'Echo',
       descriptorKey: 'desc-1',
       body: {},
-      metadata: { authorization: 'Bearer secret-token-value', 'x-tenant': 't01' },
+      metadata: { authorization: 'Bearer secret-token-value', 'x-tenant': 'test' },
       timeoutMs: 30000,
       auth: { type: 'bearer', bearerToken: 'secret-token-value' },
     });
     expect(saved.metadata.authorization).toBe(GRPC_REDACTED_PLACEHOLDER);
-    expect(saved.metadata['x-tenant']).toBe('t01');
+    expect(saved.metadata['x-tenant']).toBe('test');
   });
 });

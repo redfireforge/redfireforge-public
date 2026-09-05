@@ -44,11 +44,11 @@ describe('Phase 5F — grpcurl import parser', () => {
   it('imports repeated -H headers including -bin base64 values', () => {
     const payload = Buffer.from('hello-bin').toString('base64');
     const parsed = parseGrpcurlCommand(
-      `grpcurl -H 'x-tenant: t01' -H 'payload-bin: ${payload}' localhost:50051 echo.EchoService/Echo`,
+      `grpcurl -H 'x-tenant: test' -H 'payload-bin: ${payload}' localhost:50051 echo.EchoService/Echo`,
     );
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
-    expect(parsed.metadata['x-tenant']).toBe('t01');
+    expect(parsed.metadata['x-tenant']).toBe('test');
     expect(parsed.metadata['payload-bin']).toBe(payload);
   });
 
@@ -141,13 +141,13 @@ describe('Phase 5F — grpcurl import parser', () => {
       serviceFullName: 'echo.EchoService',
       methodName: 'Echo',
       tlsMode: 'disabled',
-      metadata: { 'X-Tenant': 't01' },
+      metadata: { 'X-Tenant': 'test' },
     });
-    expect(exported).toContain('x-tenant: t01');
+    expect(exported).toContain('x-tenant: test');
     const parsed = parseGrpcurlCommand(exported);
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
-    expect(parsed.metadata['x-tenant']).toBe('t01');
+    expect(parsed.metadata['x-tenant']).toBe('test');
   });
 });
 
@@ -168,7 +168,7 @@ describe('Phase 5G — grpcurl export builder', () => {
         protoPaths: ['echo/echo.proto'],
         protosetPath: './bundle.protoset',
       },
-      metadata: { 'x-tenant': 't01' },
+      metadata: { 'x-tenant': 'test' },
       body: { message: 'hi' },
     });
     expect(command).toMatch(/^grpcurl -import-path \.\/proto -proto echo\/echo\.proto -protoset \.\/bundle\.protoset -cacert \.\/ca\.pem -cert \.\/client\.pem -key \.\/client\.key/);
@@ -191,7 +191,7 @@ describe('Phase 5G — grpcurl export builder', () => {
         body: { message: 'hello' },
         metadata: {
           authorization: 'Bearer raw-secret-token-value',
-          'x-tenant': 't01',
+          'x-tenant': 'test',
         },
         timeoutMs: 30_000,
         descriptorKey: 'desc-1',
@@ -254,7 +254,7 @@ describe('Phase 5F+5G — import → export → import parity', () => {
     methodName: 'Echo',
     tlsMode: 'mtls' as const,
     body: { message: 'parity' },
-    metadata: { 'x-tenant': 't01', 'payload-bin': Buffer.from('bin').toString('base64') },
+    metadata: { 'x-tenant': 'test', 'payload-bin': Buffer.from('bin').toString('base64') },
     serverNameOverride: 'grpc.internal.example.com',
     tlsFilePaths: {
       caCertPath: './ca.pem',

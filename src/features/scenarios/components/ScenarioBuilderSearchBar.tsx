@@ -44,7 +44,7 @@ export function ScenarioBuilderSearchBar({
           <table className="search-help-table">
             <tbody>
               <tr><td><code>trial</code></td><td>Substring match (case-insensitive)</td></tr>
-              <tr><td><code>"OnStar One"</code></td><td>Exact phrase (word boundary)</td></tr>
+              <tr><td><code>"Connected Trial"</code></td><td>Exact phrase (word boundary)</td></tr>
               <tr><td><code>trial AND US</code></td><td>Both terms must match</td></tr>
               <tr><td><code>trial OR spike</code></td><td>Either term matches</td></tr>
               <tr><td><code>NOT CA</code> or <code>-CA</code></td><td>Exclude term</td></tr>

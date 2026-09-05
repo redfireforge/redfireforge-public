@@ -2,11 +2,16 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { DemoLesson } from '../types';
 import { isLessonDesktopOnlyBlocked, isDockerLessonBlockedOnWeb, isLocalDemoWebHost } from './lessonPlatform';
 
-vi.mock('@shared/utils/platform', () => ({
-  isTauri: vi.fn(() => false),
-}));
+vi.mock('@shared/utils/platform', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@shared/utils/platform')>();
+  return {
+    ...actual,
+    isTauri: vi.fn(() => false),
+    isDesktopRuntimeAvailable: vi.fn(() => false),
+  };
+});
 
-import { isTauri } from '@shared/utils/platform';
+import { isTauri, isDesktopRuntimeAvailable } from '@shared/utils/platform';
 
 const desktopLesson: DemoLesson = {
   id: 'gql-mock-server',
@@ -34,6 +39,11 @@ const dockerLesson: DemoLesson = {
 describe('isLessonDesktopOnlyBlocked', () => {
   beforeEach(() => {
     vi.mocked(isTauri).mockReturnValue(false);
+    vi.mocked(isDesktopRuntimeAvailable).mockReturnValue(false);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('returns false for lessons without desktopOnly', () => {
@@ -41,12 +51,17 @@ describe('isLessonDesktopOnlyBlocked', () => {
   });
 
   it('returns false on desktop when lesson is desktop-only', () => {
-    vi.mocked(isTauri).mockReturnValue(true);
+    vi.mocked(isDesktopRuntimeAvailable).mockReturnValue(true);
     expect(isLessonDesktopOnlyBlocked(desktopLesson)).toBe(false);
   });
 
-  it('returns true on web when lesson is desktop-only', () => {
+  it('returns true on hosted web when lesson is desktop-only', () => {
     expect(isLessonDesktopOnlyBlocked(desktopLesson)).toBe(true);
+  });
+
+  it('returns false on a local clone when lesson is desktop-only', () => {
+    vi.mocked(isDesktopRuntimeAvailable).mockReturnValue(true);
+    expect(isLessonDesktopOnlyBlocked(desktopLesson)).toBe(false);
   });
 
   it('returns false on web when GQL-13 E2E desktop shim is active', () => {

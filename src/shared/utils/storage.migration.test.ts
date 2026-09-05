@@ -147,7 +147,7 @@ describe('storage — migration', () => {
   it('migrates v2 project data to flat', async () => {
     const project = {
       id: 'p1', name: 'Test Project', createdAt: Date.now(),
-      environments: [{ id: 'e1', name: 't01' }],
+      environments: [{ id: 'e1', name: 'test' }],
       microservices: [{ id: 's1', name: 'svc', baseUrls: { e1: 'http://api' } }],
       globalAuthProfiles: [{ id: 'a1', name: 'Auth', auth: { type: 'basic' } }],
       featureGroups: [{ id: 'f1', name: 'Feature', scenarios: [] }],
@@ -168,11 +168,11 @@ describe('storage — migration', () => {
 
     const envs = await loadEnvironments();
     expect(envs).toHaveLength(1);
-    expect(envs[0].name).toBe('t01');
+    expect(envs[0].name).toBe('test');
   });
 
   it('migrates v1 legacy keys to flat', async () => {
-    localStorage.setItem('perf-test-environments', JSON.stringify([{ id: 'e1', name: 't01' }]));
+    localStorage.setItem('perf-test-environments', JSON.stringify([{ id: 'e1', name: 'test' }]));
     localStorage.setItem('perf-test-microservices', JSON.stringify([{ id: 's1', name: 'svc', baseUrls: {} }]));
     localStorage.setItem('perf-test-global-auth', JSON.stringify([{ id: 'g1', name: 'Auth', auth: { type: 'basic' } }]));
     localStorage.setItem('perf-test-features', JSON.stringify([{ id: 'f1', name: 'Feature', scenarios: [] }]));
@@ -186,9 +186,9 @@ describe('storage — migration', () => {
   });
 
   it('does not re-migrate after first migration', async () => {
-    localStorage.setItem('perf-test-environments', JSON.stringify([{ id: 'e1', name: 't01' }]));
+    localStorage.setItem('perf-test-environments', JSON.stringify([{ id: 'e1', name: 'test' }]));
     await migrateToFlat();
-    localStorage.setItem('perf-test-environments', JSON.stringify([{ id: 'e2', name: 'p01' }]));
+    localStorage.setItem('perf-test-environments', JSON.stringify([{ id: 'e2', name: 'prod' }]));
     const result = await migrateToFlat();
     expect(result).toBeNull();
   });
@@ -259,7 +259,7 @@ describe('storage — migration edge cases', () => {
       id: 'p2',
       name: 'Second',
       createdAt: 2,
-      environments: [{ id: 'e2', name: 't02' }],
+      environments: [{ id: 'e2', name: 'staging' }],
       microservices: [{ id: 's2', name: 'svc', baseUrls: { e2: 'http://x' } }],
       featureGroups: [],
       selectedEnvId: 'e2',
@@ -330,7 +330,7 @@ describe('storage — migration edge cases', () => {
       'perf-test-global-auth-profiles',
       JSON.stringify([{ id: 'app-g', name: 'Already saved', auth: { type: 'basic', username: 'u', password: 'p' } }]),
     );
-    localStorage.setItem('perf-test-environments', JSON.stringify([{ id: 'e1', name: 't01' }]));
+    localStorage.setItem('perf-test-environments', JSON.stringify([{ id: 'e1', name: 'test' }]));
     localStorage.setItem('perf-test-microservices', '[]');
     localStorage.setItem(
       'perf-test-global-auth',
@@ -347,7 +347,7 @@ describe('storage — migration edge cases', () => {
       'perf-test-global-auth-profiles',
       JSON.stringify([{ id: 'same-id', name: 'Kept', auth: { type: 'basic', username: 'u', password: 'p' } }]),
     );
-    localStorage.setItem('perf-test-environments', JSON.stringify([{ id: 'e1', name: 't01' }]));
+    localStorage.setItem('perf-test-environments', JSON.stringify([{ id: 'e1', name: 'test' }]));
     localStorage.setItem('perf-test-microservices', '[]');
     localStorage.setItem(
       'perf-test-global-auth',
@@ -401,7 +401,7 @@ describe('storage — migration edge cases', () => {
       id: 'p1',
       name: 'P',
       createdAt: 1,
-      environments: [{ id: 'e1', name: 't01' }],
+      environments: [{ id: 'e1', name: 'test' }],
       microservices: [{ id: 's1', name: 'svc', baseUrls: {} }],
       globalAuthProfiles: [{ id: 'from-proj', name: 'Proj', auth: { type: 'basic', username: 'x', password: 'y' } }],
       featureGroups: [{ id: 'f1', name: 'FG', scenarios: [] }],
@@ -453,7 +453,7 @@ describe('storage — migration edge cases', () => {
       id: 'p1',
       name: 'P',
       createdAt: 1,
-      environments: [{ id: 'e1', name: 't01' }],
+      environments: [{ id: 'e1', name: 'test' }],
       microservices: [{ id: 's1', name: 'svc', baseUrls: {} }],
       globalAuthProfiles: [{ id: 'shared', name: 'Dup', auth: { type: 'basic', username: 'x', password: 'y' } }],
       featureGroups: [],

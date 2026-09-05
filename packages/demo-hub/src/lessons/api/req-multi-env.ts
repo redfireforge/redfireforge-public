@@ -100,7 +100,7 @@ async function closeOpenOverlays(ctx: DemoActionContext): Promise<void> {
 
 /**
  * Base URL rows are keyed by env id and ordered by existing RequestEnvs
- * (e.g. d01, t01 first). Never use baseInputs[0]/[1] — fill by env name label.
+ * (e.g. dev, test first). Never use baseInputs[0]/[1] — fill by env name label.
  */
 function findBaseUrlInputByEnvName(envName: string): HTMLInputElement | null {
   const rows = document.querySelectorAll<HTMLElement>('.req-base-url-row');
@@ -212,7 +212,7 @@ function envBaseUrlLooksCorrect(envName: string, expectedUrl: string): boolean {
 
 /**
  * Quietly ensure DummyJSON exists with production + staging base URLs filled
- * on the correct env rows (not the first workspace envs like d01/t01).
+ * on the correct env rows (not the first workspace envs like dev/test).
  */
 async function ensureMultiEnvCollection(ctx: DemoActionContext): Promise<void> {
   // Guarantee the envs exist in Settings before touching the collection modal.
@@ -381,7 +381,7 @@ export const reqMultiEnvLesson: DemoLesson = {
       },
       action: async (ctx) => {
         if (document.querySelector(REQ.colByName(COLLECTION_NAME))) {
-          // Repair prior bad runs (URLs written onto d01/t01 instead of production/staging).
+          // Repair prior bad runs (URLs written onto dev/test instead of production/staging).
           await ensureMultiEnvCollection(ctx);
           await spotlight(ctx, REQ.colByName(COLLECTION_NAME), 900);
           return;
@@ -438,7 +438,7 @@ export const reqMultiEnvLesson: DemoLesson = {
         const baseMap = firstVisible(REQ.BASE_URL_MAP);
         if (baseMap) await spotlightEl(ctx, baseMap, 1000);
 
-        // Fill by env NAME — workspace may already have d01/t01 rows before these.
+        // Fill by env NAME — workspace may already have dev/test rows before these.
         await ensureEnvWithBaseUrl(ctx, ENV_PROD, BASE_URL_PROD, { visible: true });
         await ensureEnvWithBaseUrl(ctx, ENV_STAGING, BASE_URL_STAGING, { visible: true });
 
@@ -504,7 +504,7 @@ export const reqMultiEnvLesson: DemoLesson = {
         await spotlight(ctx, REQ.RESOLVED_URL, 1200);
         await spotlight(ctx, REQ.ENV_BAR, 1100);
 
-        // Leave production selected (workspace may also show d01/t01 with empty hosts).
+        // Leave production selected (workspace may also show dev/test with empty hosts).
         const prodPill = firstVisible(REQ.envPillByName(ENV_PROD));
         if (prodPill) {
           prodPill.click();

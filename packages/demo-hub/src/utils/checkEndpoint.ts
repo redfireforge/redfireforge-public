@@ -10,6 +10,7 @@
 import { isTauri } from '@shared/utils/platform';
 import { httpFetch, resolveCompanionServerUrl, type HttpResponse } from '@shared/utils/httpClient';
 import { GRPC_SPRING_FIXTURE_HTTP_PORT } from '@shared/grpc/grpcSpringFixturePorts';
+import { isDemoHttpHealthUrl } from '@shared/utils/demoHttpHealthPorts';
 function loopbackProbeCandidates(url: string): string[] {
   try {
     const parsed = new URL(url);
@@ -254,6 +255,16 @@ export async function checkEndpoint(url: string, timeoutMs = 3000): Promise<bool
     // corporate proxy cannot intercept 127.0.0.1 loopback candidates.
     if (isApiMockEchoHealthUrl(url)) {
       return checkProxyHealth('/health/api-mock-echo', timeoutMs);
+    }
+    // GraphQL / gRPC / Kafka Console demo HTTP — same-origin proxy so a
+    // stopped Docker stack does not flood Chrome with ERR_CONNECTION_REFUSED.
+    if (isDemoHttpHealthUrl(url)) {
+      const parsed = new URL(url);
+      const path = parsed.pathname === '/' || parsed.pathname === '' ? '/' : '/health';
+      return checkProxyHealth(
+        `/health/demo-http?port=${parsed.port}&path=${encodeURIComponent(path)}`,
+        timeoutMs,
+      );
     }
     // Redpanda Admin API probes are routed through the server proxy for the same reason.
     if (isRedpandaAdminUrl(url)) {

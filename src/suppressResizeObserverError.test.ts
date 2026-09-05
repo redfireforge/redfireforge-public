@@ -184,6 +184,17 @@ describe('suppressResizeObserverError', () => {
     expect(native).not.toHaveBeenCalled();
   });
 
+  it('swallows console.error when an argument is a Canceled Error', async () => {
+    vi.resetModules();
+    const native = vi.fn();
+    console.error = native;
+    await import('./suppressResizeObserverError');
+    const err = new Error('Canceled');
+    err.name = 'Canceled';
+    console.error(err);
+    expect(native).not.toHaveBeenCalled();
+  });
+
   it('swallows console.error when an argument is a Monaco cancelation object', async () => {
     vi.resetModules();
     const native = vi.fn();

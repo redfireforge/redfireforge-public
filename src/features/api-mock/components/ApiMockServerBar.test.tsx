@@ -7,12 +7,14 @@ import '@testing-library/jest-dom';
 import { ApiMockServerBar } from './ApiMockServerBar';
 import { DEFAULT_SETTINGS } from '@shared/api-mock/defaults';
 import type { ApiMockServerDefinitionV1 } from '@shared/api-mock/contracts';
-import { isE2eDesktopShim, isTauri } from '@shared/utils/platform';
+import { isDesktopRuntimeAvailable, isTauri } from '@shared/utils/platform';
 import { analyzeNativeUnsupported } from '@shared/api-mock/nativeCapabilities';
 
 vi.mock('../../../shared/utils/platform', () => ({
   isTauri: vi.fn(() => false),
   isE2eDesktopShim: vi.fn(() => false),
+  isLocalhost: vi.fn(() => false),
+  isDesktopRuntimeAvailable: vi.fn(() => false),
 }));
 
 vi.mock('../../../shared/api-mock/nativeCapabilities', () => ({
@@ -53,25 +55,22 @@ describe('ApiMockServerBar', () => {
     vi.restoreAllMocks();
   });
 
-  it('renders stopped state with desktop-required gate in web mode (isTauri=false)', () => {
+  it('renders stopped state with desktop-required gate on hosted web', () => {
     const onStart = vi.fn();
     render(<ApiMockServerBar server={makeServer()} onUpdate={vi.fn()} onStart={onStart} />);
 
     expect(screen.getByText('Stopped')).toBeTruthy();
     expect(screen.getByTestId('api-mock-address').textContent).toContain('http://127.0.0.1:4600/api');
-    // Start button disabled + desktop tooltip in web mode
     const startBtn = screen.getByTestId('api-mock-start');
     expect(startBtn).toBeDisabled();
     expect(startBtn).toHaveAttribute('title', 'Starting a mock server requires the RedfireForge desktop app');
-    // Desktop-required notice is visible
     expect(screen.getByTestId('api-mock-desktop-required')).toBeTruthy();
-    // Clicking disabled button does not fire onStart
     fireEvent.click(startBtn);
     expect(onStart).not.toHaveBeenCalled();
   });
 
-  it('enables Start when the Playwright desktop shim is set', () => {
-    vi.mocked(isE2eDesktopShim).mockReturnValue(true);
+  it('enables Start on a local clone (localhost web companion)', () => {
+    vi.mocked(isDesktopRuntimeAvailable).mockReturnValue(true);
     const onStart = vi.fn();
     render(<ApiMockServerBar server={makeServer()} onUpdate={vi.fn()} onStart={onStart} />);
 
@@ -83,6 +82,7 @@ describe('ApiMockServerBar', () => {
   });
 
   it('renders stopped state and starts the server in Tauri (desktop) mode', () => {
+    vi.mocked(isDesktopRuntimeAvailable).mockReturnValue(true);
     vi.mocked(isTauri).mockReturnValue(true);
     const onStart = vi.fn();
     render(<ApiMockServerBar server={makeServer()} onUpdate={vi.fn()} onStart={onStart} />);
@@ -98,6 +98,7 @@ describe('ApiMockServerBar', () => {
   });
 
   it('renders running controls, dirty badge, generation, and error message (Tauri mode)', () => {
+    vi.mocked(isDesktopRuntimeAvailable).mockReturnValue(true);
     vi.mocked(isTauri).mockReturnValue(true);
     const onApply = vi.fn();
     const onRestart = vi.fn();

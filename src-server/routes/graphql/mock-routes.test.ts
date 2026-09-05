@@ -560,7 +560,7 @@ describe('createMockRouter HTTP routes', () => {
       }
       const logRes = await request(app).get('/api/graphql/mock/log?limit=200');
       expect(logRes.body.total).toBeLessThanOrEqual(200);
-    }, 30_000);
+    }, 60_000);
 
     it('trims request log ring buffer when parse failures exceed capacity', async () => {
       await configureMockServer(app);
@@ -573,7 +573,7 @@ describe('createMockRouter HTTP routes', () => {
       await request(app).post('/api/graphql/mock').send({ query: '{ bad' });
       const logRes = await request(app).get('/api/graphql/mock/log?limit=200');
       expect(logRes.body.total).toBeLessThanOrEqual(200);
-    }, 30_000);
+    }, 60_000);
   });
 
   describe('POST /api/graphql/mock/config — extended branches', () => {

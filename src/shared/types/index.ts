@@ -557,7 +557,7 @@ export interface RequestResult {
   };
   /** Data table row ID that produced this result (for parameterized tests) */
   dataRowId?: string;
-  /** Human-readable row label (e.g., "Row 3: VIN=1GY...") for display */
+  /** Human-readable row label (e.g., "Row 3: VIN=1HG...") for display */
   dataRowLabel?: string;
   /** Tags from the parent TestScenario (for result filtering/reporting) */
   scenarioTags?: string[];

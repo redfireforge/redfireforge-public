@@ -60,7 +60,7 @@ describe('grpcGrpcurlExport coverage gaps', () => {
 
   it('compareGrpcGrpcurlSemanticParity normalizes mixed-case expected metadata keys', () => {
     const parsed = parseGrpcurlCommand(
-      'grpcurl -H "x-tenant: t01" localhost:50051 echo.EchoService/Echo',
+      'grpcurl -H "x-tenant: test" localhost:50051 echo.EchoService/Echo',
     );
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
@@ -69,7 +69,7 @@ describe('grpcGrpcurlExport coverage gaps', () => {
       serviceFullName: 'echo.EchoService',
       methodName: 'Echo',
       tlsMode: 'tls',
-      metadata: { 'X-Tenant': 't01' },
+      metadata: { 'X-Tenant': 'test' },
     })).toEqual([]);
   });
 

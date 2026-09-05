@@ -4,9 +4,9 @@ import { resolvePathParamUrl, findUrlPrefix } from './pathParamResolver';
 describe('findUrlPrefix', () => {
   it('finds prefix for absolute URL with server path prefix', () => {
     expect(findUrlPrefix(
-      'https://sales.example.com/sales/product/autoassign/v1/vehicles/management/{vin}/onboarding/offers',
-      '/vehicles/management/{vin}/onboarding/offers',
-    )).toBe('https://sales.example.com/sales/product/autoassign/v1');
+      'https://orders.example.com/api/v1/orders/management/{orderId}/fulfillment/offers',
+      '/orders/management/{orderId}/fulfillment/offers',
+    )).toBe('https://orders.example.com/api/v1');
   });
 
   it('finds prefix for relative URL', () => {
@@ -18,8 +18,8 @@ describe('findUrlPrefix', () => {
 
   it('returns empty when originalPath is the full URL path', () => {
     expect(findUrlPrefix(
-      '/vehicles/management/{vin}/onboarding/offers',
-      '/vehicles/management/{vin}/onboarding/offers',
+      '/orders/management/{orderId}/fulfillment/offers',
+      '/orders/management/{orderId}/fulfillment/offers',
     )).toBe('');
   });
 
@@ -44,99 +44,97 @@ describe('findUrlPrefix', () => {
 });
 
 describe('resolvePathParamUrl', () => {
-  const realOriginalPath = '/vehicles/management/{vin}/onboarding/vehiclePurchaseOffers';
-  const realBaseUrl = 'https://sales-product-autoassign.apps.gmna.test.cvca.atmosdt.gm.com/sales/product/autoassign/v1';
+  const realOriginalPath = '/orders/management/{orderId}/fulfillment/offers';
+  const realBaseUrl = 'https://order-api.example.com/v1';
 
   describe('normal URL with placeholder', () => {
-    const normalUrl = `${realBaseUrl}/vehicles/management/{vin}/onboarding/vehiclePurchaseOffers`;
+    const normalUrl = `${realBaseUrl}/orders/management/{orderId}/fulfillment/offers`;
 
-    it('substitutes vin value', () => {
+    it('substitutes orderId value', () => {
       const result = resolvePathParamUrl(normalUrl, realOriginalPath, [
-        { key: 'vin', value: '1GN1RK114R1079748' },
+        { key: 'orderId', value: 'ORD-1001' },
       ]);
       expect(result).toBe(
-        `${realBaseUrl}/vehicles/management/1GN1RK114R1079748/onboarding/vehiclePurchaseOffers`,
+        `${realBaseUrl}/orders/management/ORD-1001/fulfillment/offers`,
       );
-      expect(result).not.toContain('{vin}');
+      expect(result).not.toContain('{orderId}');
     });
 
     it('leaves placeholder when value is empty', () => {
       const result = resolvePathParamUrl(normalUrl, realOriginalPath, [
-        { key: 'vin', value: '' },
+        { key: 'orderId', value: '' },
       ]);
       expect(result).toBe(normalUrl);
-      expect(result).toContain('{vin}');
+      expect(result).toContain('{orderId}');
     });
   });
 
   describe('URL with previously filled value', () => {
-    const filledUrl = `${realBaseUrl}/vehicles/management/1GN1RK114R1079748/onboarding/vehiclePurchaseOffers`;
+    const filledUrl = `${realBaseUrl}/orders/management/ORD-1001/fulfillment/offers`;
 
     it('restores placeholder when value is cleared', () => {
       const result = resolvePathParamUrl(filledUrl, realOriginalPath, [
-        { key: 'vin', value: '' },
+        { key: 'orderId', value: '' },
       ]);
       expect(result).toBe(
-        `${realBaseUrl}/vehicles/management/{vin}/onboarding/vehiclePurchaseOffers`,
+        `${realBaseUrl}/orders/management/{orderId}/fulfillment/offers`,
       );
     });
 
     it('changes to a different value', () => {
       const result = resolvePathParamUrl(filledUrl, realOriginalPath, [
-        { key: 'vin', value: 'ABC999' },
+        { key: 'orderId', value: 'ABC999' },
       ]);
       expect(result).toBe(
-        `${realBaseUrl}/vehicles/management/ABC999/onboarding/vehiclePurchaseOffers`,
+        `${realBaseUrl}/orders/management/ABC999/fulfillment/offers`,
       );
     });
   });
 
   describe('corrupted URL recovery', () => {
-    const corruptedUrl = `${realBaseUrl}GN1RK114R1079748/vehicles/management/1GN1RK114R1079748/onboarding/vehiclePurchaseOffers`;
+    const corruptedUrl = `${realBaseUrl}ORD-1001/orders/management/ORD-1001/fulfillment/offers`;
 
     it('rebuilds path portion correctly even if prefix is corrupted', () => {
       const result = resolvePathParamUrl(corruptedUrl, realOriginalPath, [
-        { key: 'vin', value: 'NEWVIN' },
+        { key: 'orderId', value: 'NEW-ID' },
       ]);
-      // The path portion after the prefix is rebuilt from the template
-      expect(result).toContain('/vehicles/management/NEWVIN/onboarding/vehiclePurchaseOffers');
-      // The old vin is gone from the path portion (management/OLD is replaced)
-      expect(result).not.toContain('/management/1GN1RK114R1079748/');
+      expect(result).toContain('/orders/management/NEW-ID/fulfillment/offers');
+      expect(result).not.toContain('/management/ORD-1001/');
     });
 
     it('restores placeholder in path portion when value is cleared', () => {
       const result = resolvePathParamUrl(corruptedUrl, realOriginalPath, [
-        { key: 'vin', value: '' },
+        { key: 'orderId', value: '' },
       ]);
-      expect(result).toContain('/vehicles/management/{vin}/onboarding/vehiclePurchaseOffers');
-      expect(result).not.toContain('/management/1GN1RK114R1079748/');
+      expect(result).toContain('/orders/management/{orderId}/fulfillment/offers');
+      expect(result).not.toContain('/management/ORD-1001/');
     });
   });
 
   describe('with query string', () => {
     it('preserves query string when substituting', () => {
-      const url = `${realBaseUrl}/vehicles/management/{vin}/onboarding/vehiclePurchaseOffers?channel=WEB&country=US`;
+      const url = `${realBaseUrl}/orders/management/{orderId}/fulfillment/offers?channel=WEB&country=US`;
       const result = resolvePathParamUrl(url, realOriginalPath, [
-        { key: 'vin', value: 'VIN123' },
+        { key: 'orderId', value: 'ORD-123' },
       ]);
       expect(result).toBe(
-        `${realBaseUrl}/vehicles/management/VIN123/onboarding/vehiclePurchaseOffers?channel=WEB&country=US`,
+        `${realBaseUrl}/orders/management/ORD-123/fulfillment/offers?channel=WEB&country=US`,
       );
     });
 
     it('preserves query string when clearing', () => {
-      const url = `${realBaseUrl}/vehicles/management/VIN123/onboarding/vehiclePurchaseOffers?channel=WEB&country=US`;
+      const url = `${realBaseUrl}/orders/management/ORD-123/fulfillment/offers?channel=WEB&country=US`;
       const result = resolvePathParamUrl(url, realOriginalPath, [
-        { key: 'vin', value: '' },
+        { key: 'orderId', value: '' },
       ]);
-      expect(result).toContain('{vin}');
+      expect(result).toContain('{orderId}');
       expect(result).toContain('?channel=WEB&country=US');
     });
 
     it('handles multiple query question marks conservatively', () => {
-      const url = `${realBaseUrl}/vehicles/management/{vin}/onboarding/vehiclePurchaseOffers?raw=q1?q2=q3`;
-      const result = resolvePathParamUrl(url, realOriginalPath, [{ key: 'vin', value: 'ZZ' }]);
-      expect(result).toContain('/vehicles/management/ZZ/onboarding/vehiclePurchaseOffers');
+      const url = `${realBaseUrl}/orders/management/{orderId}/fulfillment/offers?raw=q1?q2=q3`;
+      const result = resolvePathParamUrl(url, realOriginalPath, [{ key: 'orderId', value: 'ZZ' }]);
+      expect(result).toContain('/orders/management/ZZ/fulfillment/offers');
       expect(result).toContain('?raw=q1?q2=q3');
     });
   });
@@ -197,11 +195,11 @@ describe('resolvePathParamUrl', () => {
   describe('relative URL (no host)', () => {
     it('handles relative URL with prefix', () => {
       const result = resolvePathParamUrl(
-        '/sales/product/autoassign/v1/vehicles/management/{vin}/onboarding/offers',
-        '/vehicles/management/{vin}/onboarding/offers',
-        [{ key: 'vin', value: 'ABC' }],
+        '/api/v1/orders/management/{orderId}/fulfillment/offers',
+        '/orders/management/{orderId}/fulfillment/offers',
+        [{ key: 'orderId', value: 'ABC' }],
       );
-      expect(result).toBe('/sales/product/autoassign/v1/vehicles/management/ABC/onboarding/offers');
+      expect(result).toBe('/api/v1/orders/management/ABC/fulfillment/offers');
     });
   });
 });

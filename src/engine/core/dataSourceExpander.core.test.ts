@@ -13,13 +13,13 @@ describe('buildRowLabel', () => {
   const cols = makeColumns();
 
   it('builds label from non-validate columns', () => {
-    const row = makeRow('r1', '42', 'WEBRNW');
-    expect(buildRowLabel(row, cols, 0)).toBe('Row 1: userId=42, channel=WEBRNW');
+    const row = makeRow('r1', '42', 'WEB');
+    expect(buildRowLabel(row, cols, 0)).toBe('Row 1: userId=42, channel=WEB');
   });
 
   it('uses 1-based index', () => {
-    const row = makeRow('r2', '99', 'DEALER');
-    expect(buildRowLabel(row, cols, 4)).toBe('Row 5: userId=99, channel=DEALER');
+    const row = makeRow('r2', '99', 'APP');
+    expect(buildRowLabel(row, cols, 4)).toBe('Row 5: userId=99, channel=APP');
   });
 
   it('truncates long values to 14 chars + ellipsis', () => {

@@ -238,7 +238,7 @@ describe('DataSourceEditor', () => {
         />,
       );
       expect(screen.getByText('Data Source')).toBeTruthy();
-      expect(screen.getByDisplayValue('1GYVUZ')).toBeTruthy();
+      expect(screen.getByDisplayValue('1HGCM8')).toBeTruthy();
     });
 
     it('forwards tags from promote modal to onPromoteToShared', () => {

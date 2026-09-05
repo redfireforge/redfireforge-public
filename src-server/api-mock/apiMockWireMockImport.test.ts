@@ -9,7 +9,7 @@ import { DEFAULT_SETTINGS } from '../../src/shared/api-mock/defaults';
 import type { ApiMockServerDefinitionV1 } from '../../src/shared/api-mock/contracts';
 
 const ts = '2026-08-12T00:00:00.000Z';
-const URL_PATH = '/api/subscriptions/v1/ActivateSubscriber';
+const URL_PATH = '/api/subscriptions/v1/ActivateAccount';
 
 const stub = (needle: string, status: number, body: string) => JSON.stringify({
   request: {
@@ -28,7 +28,7 @@ const stub = (needle: string, status: number, body: string) => JSON.stringify({
 const soap = (vin: string, extra = '') =>
   `<?xml version="1.0"?>`
   + `<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"`
-  + ` xmlns:ns3="http://csi.cingular.com/Request.xsd">`
+  + ` xmlns:ns3="http://example.com/schema/Request.xsd">`
   + `<SOAP-ENV:Body><ns3:Req>`
   + `<ns3:vehicleIdentificationNumber>${vin}</ns3:vehicleIdentificationNumber>`
   + extra
@@ -71,21 +71,21 @@ describe('WireMock SOAP fault-routing stubs', () => {
       return { status: res.status, body: await res.text() };
     };
 
-    const fault = await post(soap('1GN1RK114R1FaultCode200'));
+    const fault = await post(soap('1HGCM82633AFaultCode200'));
     expect(fault.status).toBe(500);
     expect(fault.body).toBe('<fault>200</fault>');
 
-    const ok = await post(soap('1GN1RK114R1SUCCESS99'));
+    const ok = await post(soap('1HGCM82633ASUCCESS99'));
     expect(ok.status).toBe(200);
     expect(ok.body).toBe('<ok/>');
 
     // A VIN carrying neither marker matches no stub.
-    const miss = await post(soap('1GN1RK114R1PLAINVIN'));
+    const miss = await post(soap('1HGCM82633APLAINVIN'));
     expect(miss.status).toBe(404);
 
     // The marker appears in a different element — XPath is scoped to the VIN,
     // so this must NOT match (a whole-body "contains" would have).
-    const decoy = await post(soap('1GN1RK114R1PLAINVIN', '<ns3:note>FaultCode200</ns3:note>'));
+    const decoy = await post(soap('1HGCM82633APLAINVIN', '<ns3:note>FaultCode200</ns3:note>'));
     expect(decoy.status).toBe(404);
 
     // Malformed XML must degrade to "no match", never crash the listener.
@@ -95,7 +95,7 @@ describe('WireMock SOAP fault-routing stubs', () => {
     expect(notXml.status).toBe(404);
 
     // The listener is still healthy after the malformed requests.
-    const after = await post(soap('1GN1RK114R1SUCCESS99'));
+    const after = await post(soap('1HGCM82633ASUCCESS99'));
     expect(after.status).toBe(200);
   }, 30_000);
 });

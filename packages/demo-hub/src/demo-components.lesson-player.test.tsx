@@ -15,6 +15,9 @@ vi.mock('./utils/checkEndpoint', () => ({
 
 vi.mock('@shared/utils/platform', () => ({
   isTauri: vi.fn(() => false),
+  isDesktopRuntimeAvailable: vi.fn(() => false),
+  isLocalWebHost: (hostname: string) =>
+    hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname.endsWith('.localhost'),
 }));
 
 vi.mock('./adapters', async (importOriginal) => {

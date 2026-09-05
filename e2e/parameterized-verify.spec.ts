@@ -10,7 +10,7 @@ import { test, expect, type Page } from '@playwright/test';
 
 async function _seedWithOAuth2Test(page: Page) {
   await page.addInitScript(() => {
-    localStorage.setItem('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 't01' }]));
+    localStorage.setItem('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 'test' }]));
     localStorage.setItem('perf-test-v3-microservices', JSON.stringify([{
       id: 'svc-1', name: 'test-service',
       baseUrls: { 'env-1': 'https://api.example.com' },
@@ -58,7 +58,7 @@ async function _seedWithOAuth2Test(page: Page) {
 /** Seed with a ready-made parameterized test (skip the copy wizard) */
 async function seedWithParameterizedTest(page: Page) {
   await page.addInitScript(() => {
-    localStorage.setItem('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 't01' }]));
+    localStorage.setItem('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 'test' }]));
     localStorage.setItem('perf-test-v3-microservices', JSON.stringify([{
       id: 'svc-1', name: 'test-service',
       baseUrls: { 'env-1': 'https://api.example.com' },
@@ -227,7 +227,7 @@ test.describe('Parameterized Test — Verify All Auth', () => {
   test('Verify All resolves empty param values without {{placeholder}} leak', async ({ page }) => {
     // Seed with a test that has an empty param column value
     await page.addInitScript(() => {
-      localStorage.setItem('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 't01' }]));
+      localStorage.setItem('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 'test' }]));
       localStorage.setItem('perf-test-v3-microservices', JSON.stringify([{
         id: 'svc-1', name: 'test-service',
         baseUrls: { 'env-1': 'https://api.example.com' },

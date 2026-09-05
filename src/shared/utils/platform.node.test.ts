@@ -4,7 +4,7 @@
  * Covers branches that are unreachable under jsdom (no `window` / no Worker).
  */
 import { describe, it, expect } from 'vitest';
-import { isTauri, isNode, supportsWorkers, isLocalhost } from './platform';
+import { isTauri, isNode, supportsWorkers, isLocalhost, isDesktopRuntimeAvailable } from './platform';
 
 describe('platform (node environment)', () => {
   it('isTauri is false without window', () => {
@@ -14,6 +14,10 @@ describe('platform (node environment)', () => {
 
   it('isLocalhost is false without window', () => {
     expect(isLocalhost()).toBe(false);
+  });
+
+  it('isDesktopRuntimeAvailable is false without window', () => {
+    expect(isDesktopRuntimeAvailable()).toBe(false);
   });
 
   it('isNode is true in Node', () => {

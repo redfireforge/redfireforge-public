@@ -33,8 +33,8 @@ export function makeDataSource(overrides: Partial<DataSource> = {}): DataSource 
     id: 'dt-1',
     columns: makeColumns(),
     rows: [
-      makeRow('r1', '42', 'WEBRNW'),
-      makeRow('r2', '99', 'DEALER'),
+      makeRow('r1', '42', 'WEB'),
+      makeRow('r2', '99', 'APP'),
       makeRow('r3', '7', 'MOBILE', 'pending', false), // disabled
     ],
     source: { type: 'inline' },

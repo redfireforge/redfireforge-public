@@ -244,10 +244,10 @@ beforeEach(() => {
 
 describe('storage — flat data', () => {
   it('saves and loads environments', async () => {
-    await saveEnvironments([{ id: 'e1', name: 't01' }, { id: 'e2', name: 'p01' }]);
+    await saveEnvironments([{ id: 'e1', name: 'test' }, { id: 'e2', name: 'prod' }]);
     const loaded = await loadEnvironments();
     expect(loaded).toHaveLength(2);
-    expect(loaded[0].name).toBe('t01');
+    expect(loaded[0].name).toBe('test');
   });
 
   it('saves and loads microservices', async () => {
@@ -381,7 +381,7 @@ describe('storage — usage', () => {
   });
 
   it('counts bytes for stored data', async () => {
-    await saveEnvironments([{ id: 'e1', name: 't01' }]);
+    await saveEnvironments([{ id: 'e1', name: 'test' }]);
     const { usedBytes, entries } = await getStorageUsage();
     expect(usedBytes).toBeGreaterThan(0);
     expect(entries['environments (IndexedDB)']).toBeGreaterThan(0);

@@ -14,9 +14,9 @@ An **Environment** represents a deployment target where your APIs run.
 
 | Example | Description |
 |---------|-------------|
-| `t01` | Test environment 1 |
+| `test` | Test environment |
 | `staging` | Pre-production staging |
-| `production` | Live production |
+| `prod` | Live production |
 
 Environments let you run the same tests against different deployments without changing test definitions.
 
@@ -34,9 +34,9 @@ Each microservice can have different base URLs per environment:
 
 ```
 user-service:
-  t01:        https://t01.api.example.com/users
+  test:       https://test.api.example.com/users
   staging:    https://staging.api.example.com/users
-  production: https://api.example.com/users
+  prod:       https://api.example.com/users
 ```
 
 ### Feature Groups

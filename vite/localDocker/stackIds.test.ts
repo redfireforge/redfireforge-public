@@ -68,7 +68,7 @@ describe('stackIds', () => {
   });
 
   it('keeps only rff-* compose project names', () => {
-    expect(rffComposeProjectNames('rff-graphql\nsales-product-autoassign-postgres\ngraphql\n')).toEqual([
+    expect(rffComposeProjectNames('rff-graphql\norders-api-postgres\ngraphql\n')).toEqual([
       'rff-graphql',
     ]);
     expect(isRffComposeProject('rff-')).toBe(false);
