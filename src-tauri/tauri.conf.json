@@ -87,7 +87,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQyMDc0NjFCMjY3OEYxQkUKUldTKzhYZ21HMFlIMGd2Sm1iSzZNVTVuQmJPT1FNUFA5K21SWWFUNWxxQXd5c0x3QzB1L1RjSVkK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg2Rjg1NDE2RkQ4NDQ0NzEKUldSeFJJVDlGbFQ0aGdjS1lVSGZlbUFBNE9LbFJyTGJmZXRRNHBLc2kzRTJPcXZPcjZHRTVidWwK",
       "endpoints": [
         "https://github.com/redfireforge/redfireforge-public/releases/latest/download/latest.json"
       ],

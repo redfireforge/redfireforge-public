@@ -15,6 +15,7 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ### Changed
 - **Single GitHub release per version** — Standard and Learning Hub installers now publish to one `vX.Y.Z` tag (`RedfireForge_*` vs `RedfireForge-LearningHub-*`). Do not push `-lh` tags. Learning Hub updater reads `latest-demo.json` so it does not overwrite Standard `latest.json`.
+- **Signed updater artifacts** — Release builds sign `latest.json` / `latest-demo.json` payloads so in-app updates can verify 0.8.4 and later. The matching private key lives in repo Actions secrets (`TAURI_SIGNING_PRIVATE_KEY`).
 
 ### Fixed
 - **Learning Hub macOS / Linux Docker detection** — Finder, Dock, Spotlight, and slim Linux `.desktop` PATH often omit Docker. The app now also looks in `/usr/local/bin`, `Docker.app`, `~/.docker/bin`, Homebrew, `/usr/bin`, and `/snap/bin`. Windows already resolved well-known Docker Desktop paths in 0.8.3.
