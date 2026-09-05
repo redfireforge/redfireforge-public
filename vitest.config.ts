@@ -10,6 +10,8 @@ import {
 import { demoHubRootImportsPlugin } from './vite/demoHubRootImports';
 import { createMonacoAwareLogger, monacoDevNoisePlugin } from './vite/monacoDevNoisePlugin';
 
+// Vitest 4 leaves coverageConfigDefaults.exclude empty; PRODUCT_COVERAGE_EXCLUDE
+// is the full denylist (demo, CSS, test files, test-utils, styles).
 const productCoverageExclude = [
   ...PRODUCT_COVERAGE_EXCLUDE,
   ...coverageConfigDefaults.exclude,

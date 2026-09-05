@@ -7,6 +7,8 @@
 #   bash scripts/run-product-coverage-file.sh <source-file.ts>
 #   bash scripts/run-product-coverage-batch.sh <shared|features|app|server> [paths...]
 set -euo pipefail
+# Skip wall-clock perf benches — V8 coverage instrumentation invalidates them.
+export PRODUCT_COVERAGE=1
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 # shellcheck source=scripts/product-coverage-lib.sh
