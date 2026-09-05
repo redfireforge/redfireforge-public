@@ -690,16 +690,16 @@ describe('useWorkflowNodeActions', () => {
 
   describe('auto-service from request', () => {
     const msEnvs: Environment[] = [
-      { id: 'env-t01', name: 't01' },
-      { id: 'env-p01', name: 'p01' },
+      { id: 'env-test', name: 'test' },
+      { id: 'env-prod', name: 'prod' },
     ];
     const ms: Microservice = {
       id: 'ms-1', name: 'Trial Offer',
-      baseUrls: { 'env-t01': 'https://t01.api.example.com', 'env-p01': 'https://p01.api.example.com' },
-      authProfileIds: { 'env-t01': 'auth-1' },
+      baseUrls: { 'env-test': 'https://test.api.example.com', 'env-prod': 'https://prod.api.example.com' },
+      authProfileIds: { 'env-test': 'auth-1' },
     };
     const authProfiles: GlobalAuthProfile[] = [
-      { id: 'auth-1', name: 'OAuth T01', auth: { type: 'oauth2', clientId: 'x', clientSecret: 's', tokenUrl: 'u' } },
+      { id: 'auth-1', name: 'OAuth TEST', auth: { type: 'oauth2', clientId: 'x', clientSecret: 's', tokenUrl: 'u' } },
     ];
     const colWithMs: RequestCollection = {
       id: 'col-1', name: 'Trial Offer', mode: 'multi-env', microserviceId: 'ms-1',
@@ -740,14 +740,14 @@ describe('useWorkflowNodeActions', () => {
       const opts = defaultOpts();
       const colAbsUrl: RequestCollection = {
         ...colWithMs,
-        requests: [{ id: 'req-abs', name: 'Absolute', url: 'https://t01.api.example.com/sales/offers', method: 'GET' }],
+        requests: [{ id: 'req-abs', name: 'Absolute', url: 'https://test.api.example.com/sales/offers', method: 'GET' }],
       };
       opts.collections = [colAbsUrl];
       opts.environments = msEnvs;
       opts.microservices = [ms];
       opts.globalAuthProfiles = authProfiles;
       opts.workflowServices = [];
-      opts.selectedEnvId = 'env-t01';
+      opts.selectedEnvId = 'env-test';
       const setWfSvc = vi.fn((fn: SetStateAction<WorkflowService[]>) => {
         if (typeof fn === 'function') fn([]);
       });
@@ -814,16 +814,16 @@ describe('useWorkflowNodeActions', () => {
 
 describe('buildServiceFromCollection', () => {
   const envs: Environment[] = [
-    { id: 'env-t01', name: 't01' },
-    { id: 'env-p01', name: 'p01' },
+    { id: 'env-test', name: 'test' },
+    { id: 'env-prod', name: 'prod' },
   ];
   const ms: Microservice = {
     id: 'ms-1', name: 'Trial Offer',
-    baseUrls: { 'env-t01': 'https://t01.example.com', 'env-p01': '' },
-    authProfileIds: { 'env-t01': 'auth-1' },
+    baseUrls: { 'env-test': 'https://test.example.com', 'env-prod': '' },
+    authProfileIds: { 'env-test': 'auth-1' },
   };
   const authProfiles: GlobalAuthProfile[] = [
-    { id: 'auth-1', name: 'OAuth T01', auth: { type: 'oauth2', clientId: 'c', clientSecret: 's', tokenUrl: 'u' } },
+    { id: 'auth-1', name: 'OAuth TEST', auth: { type: 'oauth2', clientId: 'c', clientSecret: 's', tokenUrl: 'u' } },
   ];
 
   it('returns undefined when collection has no microserviceId', () => {
@@ -855,13 +855,13 @@ describe('buildServiceFromCollection', () => {
     expect(result!.microserviceId).toBe('ms-1');
     expect(result!.endpoints).toHaveLength(2);
 
-    const t01Ep = result!.endpoints.find(ep => ep.envId === 'env-t01')!;
-    expect(t01Ep.url).toBe('https://t01.example.com');
+    const t01Ep = result!.endpoints.find(ep => ep.envId === 'env-test')!;
+    expect(t01Ep.url).toBe('https://test.example.com');
     expect(t01Ep.enabled).toBe(true);
     expect(t01Ep.authMode).toBe('custom');
     expect(t01Ep.source).toBe('microservice');
 
-    const p01Ep = result!.endpoints.find(ep => ep.envId === 'env-p01')!;
+    const p01Ep = result!.endpoints.find(ep => ep.envId === 'env-prod')!;
     expect(p01Ep.url).toBe('');
     expect(p01Ep.enabled).toBe(false);
     expect(p01Ep.authMode).toBe('inherit');

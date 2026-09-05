@@ -382,8 +382,8 @@ describe('env-manager-lesson-helpers', () => {
         <button data-testid="em-protocol-tab-websocket">WebSocket</button>
         <table>
           <tr>
-            <td><input type="checkbox" checked aria-label="Deploy d01" /></td>
-            <td><span class="em-env-chip">d01</span></td>
+            <td><input type="checkbox" checked aria-label="Deploy dev" /></td>
+            <td><span class="em-env-chip">dev</span></td>
           </tr>
           <tr>
             <td><input type="checkbox" aria-label="Deploy WebSocket Demo" /></td>
@@ -395,7 +395,7 @@ describe('env-manager-lesson-helpers', () => {
         <input data-testid="em-endpoint-edit-input" />
         <button data-testid="em-endpoint-save-btn">Save</button>
       </div>`;
-    const d01Checkbox = document.querySelector<HTMLInputElement>('[aria-label="Deploy d01"]')!;
+    const d01Checkbox = document.querySelector<HTMLInputElement>('[aria-label="Deploy dev"]')!;
     const d01Click = vi.spyOn(d01Checkbox, 'click');
     const removeHttpBtn = document.querySelector<HTMLButtonElement>(
       '[data-testid="em-remove-protocol-http"]',
@@ -417,8 +417,8 @@ describe('env-manager-lesson-helpers', () => {
         <button data-testid="em-protocol-tab-websocket">WebSocket</button>
         <table>
           <tr>
-            <td><input type="checkbox" checked aria-label="Deploy d01" /></td>
-            <td><span class="em-env-chip">d01</span></td>
+            <td><input type="checkbox" checked aria-label="Deploy dev" /></td>
+            <td><span class="em-env-chip">dev</span></td>
           </tr>
           <tr>
             <td><input type="checkbox" aria-label="Deploy WebSocket Demo" /></td>
@@ -426,7 +426,7 @@ describe('env-manager-lesson-helpers', () => {
           </tr>
         </table>
       </div>`;
-    const d01Checkbox = document.querySelector<HTMLInputElement>('[aria-label="Deploy d01"]')!;
+    const d01Checkbox = document.querySelector<HTMLInputElement>('[aria-label="Deploy dev"]')!;
     const d01Click = vi.spyOn(d01Checkbox, 'click');
     const ctx = makeCtx();
     await ensureWsDemoProtocolReady(ctx);
@@ -486,8 +486,8 @@ describe('env-manager-lesson-helpers', () => {
         <button data-testid="em-protocol-tab-graphql">GraphQL</button>
         <table>
           <tr>
-            <td><input type="checkbox" checked aria-label="Deploy d01" /></td>
-            <td><span class="em-env-chip">d01</span></td>
+            <td><input type="checkbox" checked aria-label="Deploy dev" /></td>
+            <td><span class="em-env-chip">dev</span></td>
           </tr>
           <tr>
             <td><input type="checkbox" aria-label="Deploy GraphQL Demo" /></td>
@@ -495,7 +495,7 @@ describe('env-manager-lesson-helpers', () => {
           </tr>
         </table>
       </div>`;
-    const d01Checkbox = document.querySelector<HTMLInputElement>('[aria-label="Deploy d01"]')!;
+    const d01Checkbox = document.querySelector<HTMLInputElement>('[aria-label="Deploy dev"]')!;
     const d01Click = vi.spyOn(d01Checkbox, 'click');
     const removeHttpBtn = document.querySelector<HTMLButtonElement>(
       '[data-testid="em-remove-protocol-http"]',
@@ -581,8 +581,8 @@ describe('env-manager-lesson-helpers', () => {
       <div data-testid="microservice-protocol-panel">
         <table>
           <tr>
-            <td><span class="em-env-chip">d01</span></td>
-            <td><button data-testid="em-endpoint-edit-btn">Edit d01</button></td>
+            <td><span class="em-env-chip">dev</span></td>
+            <td><button data-testid="em-endpoint-edit-btn">Edit dev</button></td>
           </tr>
           <tr>
             <td><span class="em-env-chip">SSE Demo</span></td>

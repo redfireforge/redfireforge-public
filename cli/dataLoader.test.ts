@@ -25,7 +25,7 @@ describe('dataLoader', () => {
     describe('CSV files', () => {
       it('parses a simple CSV file', () => {
         const csvContent = `userId,channel,status
-42,WEBRNW,200
+42,WEB,200
 99,MOBILE,201`;
         vi.mocked(readFileSync).mockReturnValue(csvContent);
 
@@ -67,7 +67,7 @@ describe('dataLoader', () => {
 
       it('trims column header whitespace', () => {
         const csvContent = `  userId  ,  channel  
-42,WEBRNW`;
+42,WEB`;
         vi.mocked(readFileSync).mockReturnValue(csvContent);
 
         const result = loadDataFile('/path/to/data.csv');
@@ -93,7 +93,7 @@ describe('dataLoader', () => {
 
       it('handles CSV with uppercase extension', () => {
         const csvContent = `userId,channel
-42,WEBRNW`;
+42,WEB`;
         vi.mocked(readFileSync).mockReturnValue(csvContent);
 
         const result = loadDataFile('/path/to/DATA.CSV');
@@ -183,7 +183,7 @@ describe('dataLoader', () => {
     describe('JSON files', () => {
       it('parses a simple JSON array', () => {
         const jsonContent = JSON.stringify([
-          { userId: 42, channel: 'WEBRNW' },
+          { userId: 42, channel: 'WEB' },
           { userId: 99, channel: 'MOBILE' },
         ]);
         vi.mocked(readFileSync).mockReturnValue(jsonContent);
@@ -274,7 +274,7 @@ describe('dataLoader', () => {
     describe('row structure', () => {
       it('creates rows with correct structure', () => {
         const csvContent = `userId,channel
-42,WEBRNW`;
+42,WEB`;
         vi.mocked(readFileSync).mockReturnValue(csvContent);
 
         const result = loadDataFile('/path/to/data.csv');
@@ -288,7 +288,7 @@ describe('dataLoader', () => {
 
       it('handles missing values as empty strings', () => {
         const csvContent = `userId,channel,optional
-42,WEBRNW,`;
+42,WEB,`;
         vi.mocked(readFileSync).mockReturnValue(csvContent);
 
         const result = loadDataFile('/path/to/data.csv');
@@ -305,7 +305,7 @@ describe('dataLoader', () => {
       it('builds DataSource from object rows', () => {
         const data = {
           rows: [
-            { userId: 42, channel: 'WEBRNW' },
+            { userId: 42, channel: 'WEB' },
             { userId: 99, channel: 'MOBILE' },
           ],
         };
@@ -373,7 +373,7 @@ describe('dataLoader', () => {
         const data = {
           columns: ['userId', 'channel', 'validate:status'],
           rows: [
-            ['42', 'WEBRNW', '200'],
+            ['42', 'WEB', '200'],
             ['99', 'MOBILE', '201'],
           ],
         };
@@ -391,7 +391,7 @@ describe('dataLoader', () => {
       it('throws if array rows have no columns definition', () => {
         const data = {
           rows: [
-            ['42', 'WEBRNW'],
+            ['42', 'WEB'],
           ],
         };
 

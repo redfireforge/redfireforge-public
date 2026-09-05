@@ -66,7 +66,7 @@ describe('grpcGrpcurl import v1 (Phase 4H)', () => {
       metadata: {
         authorization: 'Bearer super-secret-token-value',
         'x-api-token': 'also-secret',
-        'x-tenant': 't01',
+        'x-tenant': 'test',
       },
     });
     expect(cmd).not.toContain('super-secret');
@@ -82,7 +82,7 @@ describe('grpcGrpcurl import v1 (Phase 4H)', () => {
       tlsMode: 'disabled',
       metadata: {
         'x-custom': 'Bearer smuggled-token-value',
-        'x-tenant': 't01',
+        'x-tenant': 'test',
       },
     });
     expect(cmd).not.toContain('smuggled-token');
@@ -113,7 +113,7 @@ describe('grpcGrpcurl import v1 (Phase 4H)', () => {
       methodName: 'Check',
       tlsMode: 'disabled',
       body: { service: '' },
-      metadata: { 'x-tenant': 't01' },
+      metadata: { 'x-tenant': 'test' },
     });
     const parsed = parseGrpcurlCommand(exported);
     expect(parsed.ok).toBe(true);
@@ -124,6 +124,6 @@ describe('grpcGrpcurl import v1 (Phase 4H)', () => {
     expect(patch.method).toBe('Check');
     expect(patch.tlsMode).toBe('disabled');
     expect(patch.body).toEqual({ service: '' });
-    expect(patch.metadata['x-tenant']).toBe('t01');
+    expect(patch.metadata['x-tenant']).toBe('test');
   });
 });

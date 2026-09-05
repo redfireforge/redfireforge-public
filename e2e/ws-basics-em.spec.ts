@@ -4,7 +4,7 @@
  * Validates the EM-first lesson flow:
  *  - Step 1 combines WebSocket protocol + endpoint on Environments
  *  - WebSocket-only ws-demo microservice (no HTTP tab)
- *  - WebSocket Demo environment deployed (not d01)
+ *  - WebSocket Demo environment deployed (not dev)
  *  - Connect tab uses {{wsBaseUrl}} after EM + header setup
  *
  * Run:
@@ -50,7 +50,7 @@ test.describe('WebSocket Basics — Environment Manager', () => {
     await expect(wsDemoRow.locator('input[type="checkbox"]')).toBeChecked();
     await expect(wsDemoRow.locator('code.em-url-text')).toContainText('ws://localhost:9876');
 
-    const d01Row = page.locator('tr').filter({ hasText: /^d01$/ });
+    const d01Row = page.locator('tr').filter({ hasText: /^dev$/ });
     if (await d01Row.count()) {
       await expect(d01Row.locator('input[type="checkbox"]')).not.toBeChecked();
     }

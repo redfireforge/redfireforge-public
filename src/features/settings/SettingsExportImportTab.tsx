@@ -27,9 +27,6 @@ interface Props {
 }
 
 export default function SettingsExportImportTab({ environments, microservices, featureGroups, appGlobalAuthProfiles, onImport }: Props) {
-  // ── Tab state ──
-  const [activeTab, setActiveTab] = useState<'export' | 'import'>('export');
-
   // ── Export state ──
   const [exportEnvs, setExportEnvs] = useState<Set<string>>(() => new Set(environments.map(e => e.id)));
   const [exportAuth, setExportAuth] = useState<Set<string>>(() => new Set(appGlobalAuthProfiles.map(a => a.id)));
@@ -189,44 +186,38 @@ export default function SettingsExportImportTab({ environments, microservices, f
   }, [parsed, environments, microservices]);
 
   return (
-    <div className="settings-section exi-inline">
-      <h4>EXPORT &amp; IMPORT</h4>
+    <div className="settings-section storage-tab exi-inline">
+      <h4>Export &amp; Import</h4>
       <p className="settings-section-desc">Export all environments and auth profiles to a JSON file, or import from one.</p>
 
-      <div className="exi-card">
-        {/* ── Tab bar ── */}
-        <div className="exi-tabs">
-          <button
-            className={`exi-tab${activeTab === 'export' ? ' active' : ''}`}
-            onClick={() => setActiveTab('export')}
-          >
-            <span className="exi-tab-icon">↓</span>
-            Export
-          </button>
-          <button
-            className={`exi-tab${activeTab === 'import' ? ' active' : ''}`}
-            onClick={() => setActiveTab('import')}
-          >
-            <span className="exi-tab-icon">↑</span>
-            Import
-          </button>
-        </div>
+      <div className="storage-grid">
+        <section className="storage-card">
+          <header className="storage-card-header">
+            <div>
+              <h5 className="storage-card-title">Export</h5>
+              <p className="storage-card-desc">Choose what to include in the JSON file.</p>
+            </div>
+            <div className="storage-usage-summary">
+              <span className="storage-usage-value">{totalSelected}</span>
+              <span className="storage-stat-hint">selected</span>
+            </div>
+          </header>
 
-        {/* ── Export pane ── */}
-        {activeTab === 'export' && (
-          <div className="exi-pane">
-            <p className="exi-hint">Select items to include in the export file.</p>
-
-            <div className="exi-checklist">
-              <label className="exi-group-header">
-                <input
-                  type="checkbox"
-                  checked={environments.length > 0 && environments.every(e => exportEnvs.has(e.id))}
-                  onChange={() => toggleAll(environments.map(e => e.id), exportEnvs, setExportEnvs)}
-                />
-                <strong>Environments</strong>
-                <span className="exi-count">({exportEnvs.size}/{environments.length})</span>
-              </label>
+          <div className="exi-group">
+            <label className="exi-group-header">
+              <input
+                type="checkbox"
+                checked={environments.length > 0 && environments.every(e => exportEnvs.has(e.id))}
+                disabled={environments.length === 0}
+                onChange={() => toggleAll(environments.map(e => e.id), exportEnvs, setExportEnvs)}
+                aria-label="Select all environments"
+              />
+              <strong>Environments</strong>
+              <span className="exi-count">({exportEnvs.size}/{environments.length})</span>
+            </label>
+            {environments.length === 0 ? (
+              <p className="empty-hint">No environments to export yet. Add one on the Environments tab.</p>
+            ) : (
               <div className="exi-items">
                 {environments.map(e => (
                   <label key={e.id} className="exi-item">
@@ -235,32 +226,40 @@ export default function SettingsExportImportTab({ environments, microservices, f
                   </label>
                 ))}
               </div>
+            )}
+          </div>
 
-              {appGlobalAuthProfiles.length > 0 && (
-                <>
-                  <label className="exi-group-header">
-                    <input
-                      type="checkbox"
-                      checked={appGlobalAuthProfiles.every(a => exportAuth.has(a.id))}
-                      onChange={() => toggleAll(appGlobalAuthProfiles.map(a => a.id), exportAuth, setExportAuth)}
-                    />
-                    <strong>Global Auth Profiles</strong>
-                    <span className="exi-count">({exportAuth.size}/{appGlobalAuthProfiles.length})</span>
+          <div className="exi-group">
+            <label className="exi-group-header">
+              <input
+                type="checkbox"
+                checked={appGlobalAuthProfiles.length > 0 && appGlobalAuthProfiles.every(a => exportAuth.has(a.id))}
+                disabled={appGlobalAuthProfiles.length === 0}
+                onChange={() => toggleAll(appGlobalAuthProfiles.map(a => a.id), exportAuth, setExportAuth)}
+                aria-label="Select all global auth profiles"
+              />
+              <strong>Global Auth Profiles</strong>
+              <span className="exi-count">({exportAuth.size}/{appGlobalAuthProfiles.length})</span>
+            </label>
+            {appGlobalAuthProfiles.length === 0 ? (
+              <p className="empty-hint">No global auth profiles to include.</p>
+            ) : (
+              <div className="exi-items">
+                {appGlobalAuthProfiles.map(a => (
+                  <label key={a.id} className="exi-item">
+                    <input type="checkbox" checked={exportAuth.has(a.id)} onChange={() => toggle(a.id, exportAuth, setExportAuth)} />
+                    <span className="exi-item-name">{a.name}</span>
+                    <span className={`auth-badge ${a.auth.type === 'none' ? 'auth-badge-none' : `auth-badge-type-${a.auth.type}`}`}>
+                      {a.auth.type === 'none' ? 'No Auth' : a.auth.type.toUpperCase()}
+                    </span>
                   </label>
-                  <div className="exi-items">
-                    {appGlobalAuthProfiles.map(a => (
-                      <label key={a.id} className="exi-item">
-                        <input type="checkbox" checked={exportAuth.has(a.id)} onChange={() => toggle(a.id, exportAuth, setExportAuth)} />
-                        <span className="exi-item-name">{a.name}</span>
-                        <span className="exi-tag">{a.auth.type.toUpperCase()}</span>
-                      </label>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
+                ))}
+              </div>
+            )}
+          </div>
 
-            <div className="exi-pane-footer">
+          <div className="storage-danger-row">
+            <div className="exi-footer-opts">
               <label className="exi-item exi-mask">
                 <input type="checkbox" checked={maskSecrets} onChange={(e) => setMaskSecrets(e.target.checked)} />
                 Mask secrets on export
@@ -281,100 +280,110 @@ export default function SettingsExportImportTab({ environments, microservices, f
                   )}
                 </div>
               )}
-              <button className="btn btn-primary exi-action-btn" onClick={handleExport} disabled={totalSelected === 0}>
-                ↓ Export ({totalSelected} selected)
-              </button>
             </div>
+            <button type="button" className="btn btn-primary btn-sm" onClick={handleExport} disabled={totalSelected === 0}>
+              Export ({totalSelected} selected)
+            </button>
           </div>
-        )}
+        </section>
 
-        {/* ── Import pane ── */}
-        {activeTab === 'import' && (
-          <div className="exi-pane">
-            <p className="exi-hint">Drop a JSON file or click to browse.</p>
+        <section className="storage-card">
+          <header className="storage-card-header">
+            <div>
+              <h5 className="storage-card-title">Import</h5>
+              <p className="storage-card-desc">Drop a JSON file or browse to merge new items. Existing IDs are skipped.</p>
+            </div>
+          </header>
 
-            {!parsed ? (
-              <div
-                className={`exi-dropzone${dragging ? ' dragging' : ''}`}
-                onClick={isTauri() ? handleTauriOpen : () => fileRef.current?.click()}
-                onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-                onDragLeave={() => setDragging(false)}
-                onDrop={handleDrop}
-              >
-                <div className="exi-dropzone-visual">
-                  <span className="exi-dropzone-icon">⇧</span>
-                  <span className="exi-dropzone-label">Drop file here</span>
-                  <span className="exi-dropzone-or">or</span>
-                  <span className="exi-dropzone-browse">Browse files</span>
+          {!parsed ? (
+            <div
+              className={`exi-dropzone${dragging ? ' dragging' : ''}`}
+              role="button"
+              tabIndex={0}
+              onClick={isTauri() ? handleTauriOpen : () => fileRef.current?.click()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  if (isTauri()) void handleTauriOpen();
+                  else fileRef.current?.click();
+                }
+              }}
+              onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={handleDrop}
+            >
+              <span className="exi-dropzone-label">Drop file here</span>
+              <span className="exi-dropzone-or">or</span>
+              <span className="btn btn-secondary btn-sm">Browse files</span>
+              <span className="exi-dropzone-formats">.json</span>
+              {!isTauri() && <input ref={fileRef} type="file" accept=".json" style={{ display: 'none' }} onChange={handleFileSelect} />}
+            </div>
+          ) : (
+            <div className="exi-import-preview">
+              <div className="exi-import-file">
+                <div className="exi-import-file-info">
+                  <span className="exi-import-file-name">{fileName}</span>
+                  {parsed.version && <span className="exi-import-file-meta">v{parsed.version}{parsed.exportedAt ? ` · ${new Date(parsed.exportedAt).toLocaleDateString()}` : ''}</span>}
                 </div>
-                <span className="exi-dropzone-formats">.json</span>
-                {!isTauri() && <input ref={fileRef} type="file" accept=".json" style={{ display: 'none' }} onChange={handleFileSelect} />}
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => { setParsed(null); setFileName(''); }}>✕</button>
               </div>
-            ) : (
-              <div className="exi-import-preview">
-                <div className="exi-import-file">
-                  <span className="exi-import-file-icon">📄</span>
-                  <div className="exi-import-file-info">
-                    <span className="exi-import-file-name">{fileName}</span>
-                    {parsed.version && <span className="exi-import-file-meta">v{parsed.version}{parsed.exportedAt ? ` · ${new Date(parsed.exportedAt).toLocaleDateString()}` : ''}</span>}
-                  </div>
-                  <button className="btn btn-xs btn-ghost" onClick={() => { setParsed(null); setFileName(''); }}>✕</button>
+
+              {importSummary && (
+                <div className="exi-import-summary">
+                  <span className="storage-cleanup-label">Contents</span>
+                  {importSummary.totalEnvs > 0 && (
+                    <div className="exi-import-row">
+                      <span>{importSummary.newEnvs} new environment{importSummary.newEnvs !== 1 ? 's' : ''}</span>
+                      {importSummary.totalEnvs !== importSummary.newEnvs && <span className="exi-skip">{importSummary.totalEnvs - importSummary.newEnvs} exist</span>}
+                    </div>
+                  )}
+                  {importSummary.totalSvcs > 0 && (
+                    <div className="exi-import-row">
+                      <span>{importSummary.newSvcs} new microservice{importSummary.newSvcs !== 1 ? 's' : ''}</span>
+                    </div>
+                  )}
+                  {importSummary.fgs > 0 && (
+                    <div className="exi-import-row">
+                      <span>{importSummary.fgs} feature group{importSummary.fgs !== 1 ? 's' : ''}</span>
+                    </div>
+                  )}
                 </div>
+              )}
 
-                {importSummary && (
-                  <div className="exi-import-summary">
-                    <div className="exi-import-summary-title">Contents</div>
-                    {importSummary.totalEnvs > 0 && (
-                      <div className="exi-import-row">
-                        <span>{importSummary.newEnvs} new environment{importSummary.newEnvs !== 1 ? 's' : ''}</span>
-                        {importSummary.totalEnvs !== importSummary.newEnvs && <span className="exi-skip">{importSummary.totalEnvs - importSummary.newEnvs} exist</span>}
-                      </div>
-                    )}
-                    {importSummary.totalSvcs > 0 && (
-                      <div className="exi-import-row">
-                        <span>{importSummary.newSvcs} new microservice{importSummary.newSvcs !== 1 ? 's' : ''}</span>
-                      </div>
-                    )}
-                    {importSummary.fgs > 0 && (
-                      <div className="exi-import-row">
-                        <span>{importSummary.fgs} feature group{importSummary.fgs !== 1 ? 's' : ''}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
+              {parsed.globalAuthProfiles.length > 0 && (
+                <label className="exi-item">
+                  <input type="checkbox" checked={importAuth} onChange={(e) => setImportAuth(e.target.checked)} />
+                  Include {parsed.globalAuthProfiles.length} auth profile{parsed.globalAuthProfiles.length !== 1 ? 's' : ''}
+                </label>
+              )}
 
-                {parsed.globalAuthProfiles.length > 0 && (
-                  <label className="exi-item">
-                    <input type="checkbox" checked={importAuth} onChange={(e) => setImportAuth(e.target.checked)} />
-                    Include {parsed.globalAuthProfiles.length} auth profile{parsed.globalAuthProfiles.length !== 1 ? 's' : ''}
-                  </label>
-                )}
+              {importSummary && hasVersionData(parsed?.featureGroups) && (
+                <div className="exi-version-opts">
+                  {importSummary.responseVersionCount > 0 && (
+                    <label className="exi-item">
+                      <input type="checkbox" checked={importResponseVersions} onChange={(e) => setImportResponseVersions(e.target.checked)} />
+                      Include response versions ({importSummary.responseVersionCount})
+                    </label>
+                  )}
+                  {importSummary.rulesVersionCount > 0 && (
+                    <label className="exi-item">
+                      <input type="checkbox" checked={importRulesVersions} onChange={(e) => setImportRulesVersions(e.target.checked)} />
+                      Include rules versions ({importSummary.rulesVersionCount})
+                    </label>
+                  )}
+                </div>
+              )}
 
-                {importSummary && hasVersionData(parsed?.featureGroups) && (
-                  <div className="exi-version-opts">
-                    {importSummary.responseVersionCount > 0 && (
-                      <label className="exi-item">
-                        <input type="checkbox" checked={importResponseVersions} onChange={(e) => setImportResponseVersions(e.target.checked)} />
-                        Include response versions ({importSummary.responseVersionCount})
-                      </label>
-                    )}
-                    {importSummary.rulesVersionCount > 0 && (
-                      <label className="exi-item">
-                        <input type="checkbox" checked={importRulesVersions} onChange={(e) => setImportRulesVersions(e.target.checked)} />
-                        Include rules versions ({importSummary.rulesVersionCount})
-                      </label>
-                    )}
-                  </div>
-                )}
-
-                <button className="btn btn-primary exi-action-btn" onClick={handleImport}>
+              <div className="storage-danger-row">
+                <p className="storage-card-desc">Merges new IDs only. Existing environments and profiles are left unchanged.</p>
+                <button type="button" className="btn btn-primary btn-sm" onClick={handleImport}>
                   ↑ Import
                 </button>
               </div>
-            )}
-            {parseError && <div className="exi-error">{parseError}</div>}
-          </div>
-        )}
+            </div>
+          )}
+          {parseError && <div className="exi-error">{parseError}</div>}
+        </section>
       </div>
     </div>
   );

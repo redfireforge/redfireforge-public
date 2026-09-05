@@ -14,7 +14,7 @@ async function seedWithBearerAuth(page: Page) {
       localStorage.setItem(key, value);
     };
 
-    setValue('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 't01' }]));
+    setValue('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 'test' }]));
     setValue('perf-test-v3-microservices', JSON.stringify([{
       id: 'svc-1', name: 'test-service',
       baseUrls: { 'env-1': 'https://api.example.com' },
@@ -45,7 +45,7 @@ async function seedWithBearerAuth(page: Page) {
               { id: 'col-ch', name: 'channel', type: 'param', mapping: 'channel' },
             ],
             rows: [
-              { id: 'row-1', values: { 'col-vin': 'VIN123', 'col-ch': 'WEBRNW' }, enabled: true },
+              { id: 'row-1', values: { 'col-vin': 'VIN123', 'col-ch': 'WEB' }, enabled: true },
             ],
             source: { type: 'inline' },
             distribution: 'sequential',
@@ -389,7 +389,7 @@ test.describe('Data Source Auth Inherit Persistence', () => {
   test('Inherit persists in Shared Data Source auth tab', async ({ page }) => {
     // Seed shared data sources with bearer auth
     await page.addInitScript(() => {
-      localStorage.setItem('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 't01' }]));
+      localStorage.setItem('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 'test' }]));
       localStorage.setItem('perf-test-v3-microservices', JSON.stringify([{
         id: 'svc-1', name: 'test-service',
         baseUrls: { 'env-1': 'https://api.example.com' },
@@ -468,7 +468,7 @@ test.describe('Data Source Auth Inherit Persistence', () => {
     // This tests the exact bug path: DataSourceEditor inside SharedDataSourceModal
     // uses handleEditorDraftChange which previously dropped auth changes.
     await page.addInitScript(() => {
-      localStorage.setItem('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 't01' }]));
+      localStorage.setItem('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 'test' }]));
       localStorage.setItem('perf-test-v3-microservices', JSON.stringify([{
         id: 'svc-1', name: 'test-service',
         baseUrls: { 'env-1': 'https://api.example.com' },
@@ -547,7 +547,7 @@ test.describe('Data Source Auth Inherit Persistence', () => {
   test('Shared DS auth Inherit survives page reload', async ({ page }) => {
     test.slow(); // Involves page reload
     await page.addInitScript(() => {
-      localStorage.setItem('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 't01' }]));
+      localStorage.setItem('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 'test' }]));
       localStorage.setItem('perf-test-v3-microservices', JSON.stringify([{
         id: 'svc-1', name: 'test-service',
         baseUrls: { 'env-1': 'https://api.example.com' },
@@ -618,7 +618,7 @@ test.describe('Data Source Auth Inherit Persistence', () => {
   test('Inherit persists when test had inherit auth initially', async ({ page }) => {
     // Seed a test that already has auth: { type: 'inherit' }
     await page.addInitScript(() => {
-      localStorage.setItem('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 't01' }]));
+      localStorage.setItem('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 'test' }]));
       localStorage.setItem('perf-test-v3-microservices', JSON.stringify([{
         id: 'svc-1', name: 'test-service',
         baseUrls: { 'env-1': 'https://api.example.com' },
@@ -647,7 +647,7 @@ test.describe('Data Source Auth Inherit Persistence', () => {
                 { id: 'col-ch', name: 'channel', type: 'param', mapping: 'channel' },
               ],
               rows: [
-                { id: 'row-1', values: { 'col-vin': 'VIN123', 'col-ch': 'WEBRNW' }, enabled: true },
+                { id: 'row-1', values: { 'col-vin': 'VIN123', 'col-ch': 'WEB' }, enabled: true },
               ],
               source: { type: 'inline' },
               distribution: 'sequential',

@@ -989,6 +989,15 @@
 .btn-primary:hover { background: var(--primary-hover); }
 .btn-danger { background: transparent; border-color: #f87171; color: #f87171; }
 .btn-danger:hover { background: rgba(239, 68, 68, 0.15); border-color: #ef4444; color: #ef4444; }
+.btn-danger-outline {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--text);
+}
+.btn-danger-outline:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
 .btn-sm { padding: 4px 10px; font-size: 0.8rem; }
 .btn-lg { padding: 12px 32px; font-size: 1rem; }
 

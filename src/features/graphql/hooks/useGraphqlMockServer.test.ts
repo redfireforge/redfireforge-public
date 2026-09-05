@@ -22,6 +22,7 @@ vi.mock('../../../shared/utils/storage', () => ({
 
 vi.mock('../../../shared/utils/platform', () => ({
   isTauri: vi.fn().mockReturnValue(true),
+  isDesktopRuntimeAvailable: vi.fn().mockReturnValue(true),
 }));
 
 vi.mock('../utils/graphqlSchemaCache', () => ({
@@ -36,7 +37,7 @@ vi.stubGlobal('fetch', mockFetch);
 
 import { useGraphqlMockServer, resolveMockSyncSdl } from './useGraphqlMockServer';
 import type { MockResolver, MockScenario } from '@shared/types/graphql';
-import { isTauri } from '@shared/utils/platform';
+import { isDesktopRuntimeAvailable, isTauri } from '@shared/utils/platform';
 import { loadCachedGraphqlSchemaSdl } from '../utils/graphqlSchemaCache';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -924,6 +925,7 @@ describe('useGraphqlMockServer', () => {
     });
 
     it('skips proxy disable fetch on connection switch when not in Tauri', async () => {
+      vi.mocked(isDesktopRuntimeAvailable).mockReturnValue(false);
       vi.mocked(isTauri).mockReturnValue(false);
       const { rerender } = renderHook(
         ({ id }: { id: string }) => useGraphqlMockServer(id, null),
@@ -936,10 +938,12 @@ describe('useGraphqlMockServer', () => {
         await Promise.resolve();
       });
       expect(mockFetch.mock.calls.length).toBe(callsBefore);
+      vi.mocked(isDesktopRuntimeAvailable).mockReturnValue(true);
       vi.mocked(isTauri).mockReturnValue(true);
     });
 
     it('skips proxy disable fetch during importConfig when not in Tauri', async () => {
+      vi.mocked(isDesktopRuntimeAvailable).mockReturnValue(false);
       vi.mocked(isTauri).mockReturnValue(false);
       const { result } = await renderMockHook();
       const callsBefore = mockFetch.mock.calls.length;
@@ -948,6 +952,7 @@ describe('useGraphqlMockServer', () => {
         await Promise.resolve();
       });
       expect(mockFetch.mock.calls.length).toBe(callsBefore);
+      vi.mocked(isDesktopRuntimeAvailable).mockReturnValue(true);
       vi.mocked(isTauri).mockReturnValue(true);
     });
   });

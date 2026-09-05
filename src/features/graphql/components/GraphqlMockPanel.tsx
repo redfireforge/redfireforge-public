@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { CustomSelect } from '@shared/components/CustomSelect';
-import { isTauri } from '@shared/utils/platform';
+import { isDesktopRuntimeAvailable } from '@shared/utils/platform';
 import type {
   GraphqlMockConfig,
   GraphqlSchemaInfo,
@@ -76,7 +76,7 @@ export function GraphqlMockPanel({ mockServer, schemaInfo }: GraphqlMockPanelPro
     return () => window.removeEventListener('rf-gql-mock-reconcile', reconcile);
   }, [mockServer]);
 
-  if (!isTauri()) {
+  if (!isDesktopRuntimeAvailable()) {
     return (
       <div className="gql-mock-guard" data-testid="gql-mock-guard">
         <div className="gql-mock-guard-icon" aria-hidden="true">

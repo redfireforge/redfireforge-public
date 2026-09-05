@@ -6,7 +6,7 @@ import { parseWireMockMappings, batchToRoutes } from './importParsers';
 const SINGLE_STUB = JSON.stringify({
   request: {
     method: 'POST',
-    url: '/api/subscriptions/v1/ActivateSubscriber',
+    url: '/api/subscriptions/v1/ActivateAccount',
     bodyPatterns: [{
       matchesXPath: {
         contains: 'FaultCode200',
@@ -27,7 +27,7 @@ describe('parseWireMockMappings — single stub file', () => {
     expect(batch.diagnostics.some(d => d.severity === 'error')).toBe(false);
     expect(batch.sources).toHaveLength(1);
     expect(batch.sources[0].method).toBe('POST');
-    expect(batch.sources[0].path).toBe('/api/subscriptions/v1/ActivateSubscriber');
+    expect(batch.sources[0].path).toBe('/api/subscriptions/v1/ActivateAccount');
     expect(batch.sources[0].status).toBe(500);
   });
 

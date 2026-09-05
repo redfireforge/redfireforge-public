@@ -163,7 +163,7 @@ describe('protocol vars modals coverage gaps', () => {
       <EnvVarsModal
         svc={{ ...svc, globalVars: {}, envVars: {} }}
         envId="e1"
-        envName="t01"
+        envName="test"
         onClose={onClose}
         onSetEnvVar={onSetEnvVar}
         onDeleteEnvVar={onDeleteEnvVar}
@@ -171,7 +171,7 @@ describe('protocol vars modals coverage gaps', () => {
     );
 
     const emptyState = document.querySelector('.em-vars-modal-empty');
-    expect(emptyState?.textContent?.replace(/\s+/g, ' ').trim()).toContain('No overrides for t01');
+    expect(emptyState?.textContent?.replace(/\s+/g, ' ').trim()).toContain('No overrides for test');
 
     const keyInput = screen.getByTestId('env-vars-key-input');
     const valInput = screen.getByTestId('env-vars-val-input');
@@ -203,7 +203,7 @@ describe('protocol vars modals coverage gaps', () => {
       <EnvVarsModal
         svc={svc}
         envId="e1"
-        envName="t01"
+        envName="test"
         onClose={onClose}
         onSetEnvVar={onSetEnvVar}
         onDeleteEnvVar={onDeleteEnvVar}
@@ -228,7 +228,7 @@ describe('protocol vars modals coverage gaps', () => {
       <EnvVarsModal
         svc={svc}
         envId="e1"
-        envName="t01"
+        envName="test"
         onClose={vi.fn()}
         onSetEnvVar={onSetEnvVar}
         onDeleteEnvVar={vi.fn()}

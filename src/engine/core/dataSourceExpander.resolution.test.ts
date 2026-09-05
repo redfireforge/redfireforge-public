@@ -12,7 +12,7 @@ describe('resolveScenarioFromDataRow', () => {
   it('substitutes path variables in URL', () => {
     const base = makeScenario();
     const cols = makeColumns();
-    const row = makeRow('r1', '42', 'WEBRNW');
+    const row = makeRow('r1', '42', 'WEB');
     const resolved = resolveScenarioFromDataRow(base, cols, row, 0);
     expect(resolved.url).toContain('/users/42/');
   });
@@ -20,10 +20,10 @@ describe('resolveScenarioFromDataRow', () => {
   it('sets query parameters from param columns', () => {
     const base = makeScenario();
     const cols = makeColumns();
-    const row = makeRow('r1', '42', 'WEBRNW');
+    const row = makeRow('r1', '42', 'WEB');
     const resolved = resolveScenarioFromDataRow(base, cols, row, 0);
     const url = new URL(resolved.url);
-    expect(url.searchParams.get('channel')).toBe('WEBRNW');
+    expect(url.searchParams.get('channel')).toBe('WEB');
   });
 
   it('replaces {{placeholder}} with empty string when param column value is empty', () => {
@@ -98,7 +98,7 @@ describe('resolveScenarioFromDataRow', () => {
   it('clears dataSource on expanded scenarios', () => {
     const base = makeScenario({ dataSource: makeDataSource() });
     const cols = makeColumns();
-    const row = makeRow('r1', '42', 'WEBRNW');
+    const row = makeRow('r1', '42', 'WEB');
     const resolved = resolveScenarioFromDataRow(base, cols, row, 0);
     expect(resolved.dataSource).toBeUndefined();
   });
@@ -106,16 +106,16 @@ describe('resolveScenarioFromDataRow', () => {
   it('sets dataRowId and dataRowLabel', () => {
     const base = makeScenario();
     const cols = makeColumns();
-    const row = makeRow('r1', '42', 'WEBRNW');
+    const row = makeRow('r1', '42', 'WEB');
     const resolved = resolveScenarioFromDataRow(base, cols, row, 0);
     expect(resolved.dataRowId).toBe('r1');
-    expect(resolved.dataRowLabel).toBe('Row 1: userId=42, channel=WEBRNW');
+    expect(resolved.dataRowLabel).toBe('Row 1: userId=42, channel=WEB');
   });
 
   it('preserves featureGroupName and groupName', () => {
     const base = makeScenario({ featureGroupName: 'FG', groupName: 'GRP' });
     const cols = makeColumns();
-    const row = makeRow('r1', '42', 'WEBRNW');
+    const row = makeRow('r1', '42', 'WEB');
     const resolved = resolveScenarioFromDataRow(base, cols, row, 0);
     expect(resolved.featureGroupName).toBe('FG');
     expect(resolved.groupName).toBe('GRP');

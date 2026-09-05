@@ -3,9 +3,12 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-vi.mock('../../../shared/utils/platform', () => ({ isTauri: vi.fn().mockReturnValue(false) }));
+vi.mock('../../../shared/utils/platform', () => ({
+  isTauri: vi.fn().mockReturnValue(false),
+  isDesktopRuntimeAvailable: vi.fn().mockReturnValue(false),
+}));
 
-import { isTauri } from '@shared/utils/platform';
+import { isDesktopRuntimeAvailable } from '@shared/utils/platform';
 import { loadPersistedActivityTab, persistActivityTab } from './gqlActivityBarUtils';
 
 const STORAGE_KEY = 'gql-studio-activity-tab';
@@ -28,14 +31,14 @@ describe('loadPersistedActivityTab', () => {
     expect(loadPersistedActivityTab()).toBe('collections');
   });
 
-  it('returns "mock" when stored and isTauri() is true', () => {
-    vi.mocked(isTauri).mockReturnValue(true);
+  it('returns "mock" when stored and desktop runtime is available', () => {
+    vi.mocked(isDesktopRuntimeAvailable).mockReturnValue(true);
     localStorage.setItem(STORAGE_KEY, 'mock');
     expect(loadPersistedActivityTab()).toBe('mock');
   });
 
-  it('returns null for "mock" when not in Tauri (web mode)', () => {
-    vi.mocked(isTauri).mockReturnValue(false);
+  it('returns null for "mock" on hosted web', () => {
+    vi.mocked(isDesktopRuntimeAvailable).mockReturnValue(false);
     localStorage.setItem(STORAGE_KEY, 'mock');
     expect(loadPersistedActivityTab()).toBeNull();
   });

@@ -12,7 +12,7 @@ test.describe('Settings and navigation', () => {
   test('sidebar shows environment items', async ({ page }) => {
     // Use the sidebar-specific locator
     const sidebar = page.locator('.config-sidebar-inner');
-    await expect(sidebar.getByText('t01')).toBeVisible({ timeout: 5000 });
+    await expect(sidebar.getByText('test')).toBeVisible({ timeout: 5000 });
   });
 
   test('can switch between tabs', async ({ page }) => {
@@ -53,6 +53,6 @@ test.describe('Settings and navigation', () => {
   test('context tags show service and environment', async ({ page }) => {
     // Context tags are in the builder header at the top
     await expect(page.locator('.context-tag:has-text("test-service")').first()).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('.context-tag:has-text("t01")').first()).toBeVisible();
+    await expect(page.locator('.context-tag:has-text("test")').first()).toBeVisible();
   });
 });

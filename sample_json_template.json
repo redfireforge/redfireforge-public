@@ -16,22 +16,22 @@
   "data": [
     {
       "name": "US - Standard VIN lookup",
-      "path:vin": "LRBAZN111R1079862",
-      "param:channel": "MC_WEBRNW",
+      "path:vin": "3FAHP0HA8CR123456",
+      "param:channel": "WEB",
       "param:country": "US",
       "validate:$.data.status": "active"
     },
     {
       "name": "MX - Web channel VIN lookup",
-      "path:vin": "1G1Y92145T1079842",
+      "path:vin": "2HGES16575H512842",
       "param:channel": "WEB",
       "param:country": "MX",
       "validate:$.data.status": "active"
     },
     {
       "name": "CA - Renewal VIN lookup",
-      "path:vin": "1GYKPW1KXR107983C",
-      "param:channel": "MC_WEBRNW",
+      "path:vin": "1HGCM82633A004983",
+      "param:channel": "WEB",
       "param:country": "CA",
       "validate:$.data.status": "active"
     }

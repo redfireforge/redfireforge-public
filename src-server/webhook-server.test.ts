@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import { GRPC_SPRING_FIXTURE_ACTUATOR_HEALTH_LOOPBACK_URL } from '../src/shared/grpc/grpcSpringFixturePorts.js';
 import { probeApiMockEcho } from '../src/shared/api-mock/echoHealthProbe.js';
+import { probeDemoHttpHealth } from '../src/shared/utils/demoHttpHealthProbe.js';
 import { app } from './webhook-server.js';
 import type { Workflow } from '../src/features/workflow/types/workflow';
 
@@ -27,6 +28,14 @@ vi.mock('../src/shared/api-mock/echoHealthProbe.js', () => ({
   API_MOCK_ECHO_PORT: 4017,
   API_MOCK_ECHO_HEALTH_PATH: '/health',
 }));
+
+vi.mock('../src/shared/utils/demoHttpHealthProbe.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/shared/utils/demoHttpHealthProbe.js')>();
+  return {
+    ...actual,
+    probeDemoHttpHealth: vi.fn(),
+  };
+});
 
 vi.mock('./executeWorkflow.js', () => ({
   executeWorkflow: vi.fn(),
@@ -344,6 +353,48 @@ describe('webhook-server', { timeout: 30_000 }, () => {
       expect(res.status).toBe(200);
       expect(res.body.status).toBe('down');
       expect(String(res.body.reason)).toContain('aborted');
+    });
+  });
+
+  describe('GET /health/demo-http', () => {
+    it('returns ok when the demo listener answers', async () => {
+      vi.mocked(probeDemoHttpHealth).mockResolvedValueOnce({ ok: true, statusCode: 200 });
+      const res = await request(app).get('/health/demo-http?port=4444');
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ status: 'ok', source: 'demo-http', port: 4444, httpStatus: 200 });
+      expect(probeDemoHttpHealth).toHaveBeenCalledWith(4444, 2500, '/health');
+    });
+
+    it('returns down when the demo listener is unreachable', async () => {
+      vi.mocked(probeDemoHttpHealth).mockResolvedValueOnce({ ok: false, reason: 'connect ECONNREFUSED' });
+      const res = await request(app).get('/health/demo-http?port=4444');
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('down');
+      expect(res.body.source).toBe('demo-http');
+      expect(res.body.port).toBe(4444);
+      expect(res.body.reason).toContain('ECONNREFUSED');
+    });
+
+    it('returns down with a fallback reason when the probe is empty', async () => {
+      vi.mocked(probeDemoHttpHealth).mockResolvedValueOnce({ ok: false });
+      const res = await request(app).get('/health/demo-http?port=4010');
+      expect(res.status).toBe(200);
+      expect(res.body.reason).toBe('unreachable');
+    });
+
+    it('forwards Console root path / to the probe', async () => {
+      vi.mocked(probeDemoHttpHealth).mockResolvedValueOnce({ ok: true, statusCode: 200 });
+      const res = await request(app).get('/health/demo-http?port=18080&path=%2F');
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('ok');
+      expect(probeDemoHttpHealth).toHaveBeenCalledWith(18080, 2500, '/');
+    });
+
+    it('returns down without probing an unsupported port', async () => {
+      const res = await request(app).get('/health/demo-http?port=9999');
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ status: 'down', source: 'demo-http', reason: 'unsupported_port' });
+      expect(probeDemoHttpHealth).not.toHaveBeenCalled();
     });
   });
 

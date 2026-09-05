@@ -25,7 +25,7 @@ export function makeScenario(overrides: Partial<Scenario> = {}): Scenario {
   return {
     id: 's1',
     name: 'Test',
-    url: 'https://api.example.com/api?channel=WEBRNW',
+    url: 'https://api.example.com/api?channel=WEB',
     method: 'GET',
     headers: [],
     body: '',
@@ -43,8 +43,8 @@ export function makeDataSource(): DataSource {
       { id: 'c2', name: 'channel', type: 'param', mapping: 'channel' },
     ],
     rows: [
-      { id: 'r1', values: { c1: '1GYVUZ', c2: 'WEBRNW' }, enabled: true },
-      { id: 'r2', values: { c1: '2GYVUZ', c2: 'DEALER' }, enabled: true },
+      { id: 'r1', values: { c1: '1HGCM8', c2: 'WEB' }, enabled: true },
+      { id: 'r2', values: { c1: '2HGES1', c2: 'APP' }, enabled: true },
     ],
     source: { type: 'inline' },
   };

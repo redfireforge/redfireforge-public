@@ -192,7 +192,7 @@ describe('grpcReplayResolver (Phase 4H)', () => {
         service: 'echo.EchoService',
         method: 'Echo',
         body: { message: 'replay-me' },
-        metadata: { 'x-tenant': 't01', authorization: 'Bearer stale' },
+        metadata: { 'x-tenant': 'test', authorization: 'Bearer stale' },
         timeoutMs: 30000,
         descriptorKey: 'desc-1',
         auth: { type: 'bearer', bearerToken: 'saved-redacted' },
@@ -209,7 +209,7 @@ describe('grpcReplayResolver (Phase 4H)', () => {
       pageDefaults: { target: 'localhost:50051', tlsMode: 'disabled' },
     });
 
-    expect(snapshot.metadata?.['x-tenant']).toBe('t01');
+    expect(snapshot.metadata?.['x-tenant']).toBe('test');
     expect(snapshot.metadata?.authorization).toBe('Bearer runtime-token');
   });
 

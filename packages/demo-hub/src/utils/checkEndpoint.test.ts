@@ -205,6 +205,65 @@ describe('checkEndpoint', () => {
     expect(spy).not.toHaveBeenCalledWith('http://127.0.0.1:50055/', expect.any(Object));
   });
 
+  it('routes GraphQL TLS :4444 probes through Express /health/demo-http', async () => {
+    const spy = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ status: 'ok' }), { status: 200 }));
+
+    const promise = checkEndpoint('http://127.0.0.1:4444/health');
+    await vi.advanceTimersByTimeAsync(100);
+    expect(await promise).toBe(true);
+    expect(spy).toHaveBeenCalledWith('/health/demo-http?port=4444&path=%2Fhealth', expect.any(Object));
+    expect(spy).not.toHaveBeenCalledWith('http://127.0.0.1:4444/health', expect.any(Object));
+    expect(spy).not.toHaveBeenCalledWith('http://localhost:4444/health', expect.any(Object));
+  });
+
+  it('routes GraphQL mTLS :4446 and plain :4010 probes through the same proxy', async () => {
+    const spy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
+      new Response(JSON.stringify({ status: 'ok' }), { status: 200 }),
+    );
+
+    expect(await checkEndpoint('http://127.0.0.1:4446/health')).toBe(true);
+    expect(await checkEndpoint('http://localhost:4010/graphql')).toBe(true);
+    expect(spy).toHaveBeenCalledWith('/health/demo-http?port=4446&path=%2Fhealth', expect.any(Object));
+    expect(spy).toHaveBeenCalledWith('/health/demo-http?port=4010&path=%2Fhealth', expect.any(Object));
+  });
+
+  it('treats /health/demo-http status:down as unreachable without a browser fetch', async () => {
+    const spy = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ status: 'down' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }));
+
+    const promise = checkEndpoint('http://127.0.0.1:4444/health');
+    await vi.advanceTimersByTimeAsync(100);
+    expect(await promise).toBe(false);
+    expect(spy).toHaveBeenCalledWith('/health/demo-http?port=4444&path=%2Fhealth', expect.any(Object));
+    expect(spy).not.toHaveBeenCalledWith('http://127.0.0.1:4444/health', expect.any(Object));
+  });
+
+  it('routes gRPC echo :50052 probes through Express /health/demo-http', async () => {
+    const spy = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ status: 'ok' }), { status: 200 }));
+
+    const promise = checkEndpoint('http://localhost:50052/health');
+    await vi.advanceTimersByTimeAsync(100);
+    expect(await promise).toBe(true);
+    expect(spy).toHaveBeenCalledWith('/health/demo-http?port=50052&path=%2Fhealth', expect.any(Object));
+  });
+
+  it('routes Kafka Console :18080 root probes through Express /health/demo-http', async () => {
+    const spy = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ status: 'ok' }), { status: 200 }));
+
+    const promise = checkEndpoint('http://localhost:18080');
+    await vi.advanceTimersByTimeAsync(100);
+    expect(await promise).toBe(true);
+    expect(spy).toHaveBeenCalledWith('/health/demo-http?port=18080&path=%2F', expect.any(Object));
+    expect(spy).not.toHaveBeenCalledWith('http://localhost:18080', expect.any(Object));
+    expect(spy).not.toHaveBeenCalledWith('http://127.0.0.1:18080/', expect.any(Object));
+  });
+
   it('routes AM-17 echo :4017 probes through Express /health/api-mock-echo', async () => {
     const spy = vi.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(new Response(JSON.stringify({ status: 'ok' }), { status: 200 }));

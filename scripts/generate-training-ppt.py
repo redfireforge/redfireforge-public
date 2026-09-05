@@ -226,8 +226,8 @@ def generate(version: str, output_dir: str):
     s = prs.slides.add_slide(blank)
     add_slide_title(s, "Test Hierarchy", "How tests are organized")
     items = [
-        "Environment  →  d01, t01, t02, p01, etc.",
-        "Microservice  →  sales-product-autoassign, etc.",
+        "Environment  →  dev, test, staging, prod, etc.",
+        "Microservice  →  order-api, user-service, etc.",
         "Feature Group  →  A collection of related test scenarios",
         "    └─ Scenario  →  A specific test flow (e.g., \"Onboarding Flow\")",
         "        └─ Test  →  An individual HTTP request with assertions",
@@ -240,7 +240,7 @@ def generate(version: str, output_dir: str):
     add_slide_title(s, "Environments & Microservices",
                     "Configure in Settings → Sidebar")
     items = [
-        "Settings → manage Environments (d01, t01, p01, ...)",
+        "Settings → manage Environments (dev, test, staging, prod, ...)",
         "Settings → manage Microservices",
         "Sidebar filters Feature Groups by selected Environment + Microservice",
         "Each Feature Group is tagged with an Environment and Microservice",

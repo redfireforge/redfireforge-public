@@ -145,11 +145,11 @@ describe('mergeWorkflowNodeData', () => {
         auth: { type: 'none' },
         validation: { mode: 'none' },
       },
-      initialVariables: { vin: '1GN1RK114R1079748' },
+      initialVariables: { vin: '1HGCM82633A004748' },
     };
     const cloned = cloneWorkflowNodeDataForStorage(data) as HttpNodeData;
     const roundTrip = JSON.parse(JSON.stringify(cloned)) as HttpNodeData;
-    expect(roundTrip.initialVariables).toEqual({ vin: '1GN1RK114R1079748' });
+    expect(roundTrip.initialVariables).toEqual({ vin: '1HGCM82633A004748' });
   });
 
   it('cloneWorkflowNodeDataForStorage strips default Kafka node fields before persistence', () => {

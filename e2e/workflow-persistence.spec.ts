@@ -49,7 +49,7 @@ async function setupPersistenceTest(page: Page, context: BrowserContext): Promis
   // Init script 2: Data seeding (runs on every navigation — idempotent).
   await page.addInitScript(() => {
     localStorage.setItem('perf-test-v3-environments', JSON.stringify([
-      { id: 'env-1', name: 't01' },
+      { id: 'env-1', name: 'test' },
     ]));
     localStorage.setItem('perf-test-v3-microservices', JSON.stringify([
       {

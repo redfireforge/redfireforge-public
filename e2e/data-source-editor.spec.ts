@@ -6,7 +6,7 @@ import { test, expect, type Page } from '@playwright/test';
  */
 async function seedWithParamTest(page: Page) {
   await page.addInitScript(() => {
-    localStorage.setItem('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 't01' }]));
+    localStorage.setItem('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 'test' }]));
     localStorage.setItem('perf-test-v3-microservices', JSON.stringify([{
       id: 'svc-1', name: 'test-service',
       baseUrls: { 'env-1': 'https://api.example.com' },
@@ -23,7 +23,7 @@ async function seedWithParamTest(page: Page) {
         tests: [{
           id: 'test-1',
           name: 'Vehicle Offers',
-          url: 'https://api.example.com/vehicles/1GTPU91D6R107995A/offers?channel=WEBRNW&enrollmentType=ONBOARD&country=MX',
+          url: 'https://api.example.com/vehicles/1HGCM82633A004995/offers?channel=WEB&enrollmentType=ENROLL&country=MX',
           method: 'GET',
           headers: [{ key: 'X-Api-Key', value: 'test123' }],
           body: '',
@@ -45,7 +45,7 @@ async function seedWithParamTest(page: Page) {
  */
 async function seedWithDataSource(page: Page) {
   await page.addInitScript(() => {
-    localStorage.setItem('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 't01' }]));
+    localStorage.setItem('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 'test' }]));
     localStorage.setItem('perf-test-v3-microservices', JSON.stringify([{
       id: 'svc-1', name: 'test-service',
       baseUrls: { 'env-1': 'https://api.example.com' },
@@ -76,7 +76,7 @@ async function seedWithDataSource(page: Page) {
               { id: 'col-co', name: 'country', type: 'param', mapping: 'country' },
             ],
             rows: [
-              { id: 'row-1', values: { 'col-vin': '1GTPU91D6R107995A', 'col-ch': 'WEBRNW', 'col-et': 'ONBOARD', 'col-co': 'MX' }, enabled: true },
+              { id: 'row-1', values: { 'col-vin': '1HGCM82633A004995', 'col-ch': 'WEB', 'col-et': 'ENROLL', 'col-co': 'MX' }, enabled: true },
             ],
             distribution: 'sequential',
             urlTemplate: 'https://api.example.com/vehicles/{{vin}}/offers?channel={{channel}}&enrollmentType={{enrollmentType}}&country={{country}}',
@@ -160,8 +160,8 @@ test.describe('Data Source Editor (Phase 2A)', () => {
     await expect(page.locator('.data-source-col-name', { hasText: 'country' })).toBeVisible();
 
     // Row should have pre-filled values
-    await expect(page.locator('.data-source-cell-input[value="1GTPU91D6R107995A"]')).toBeVisible();
-    await expect(page.locator('.data-source-cell-input[value="WEBRNW"]')).toBeVisible();
+    await expect(page.locator('.data-source-cell-input[value="1HGCM82633A004995"]')).toBeVisible();
+    await expect(page.locator('.data-source-cell-input[value="WEB"]')).toBeVisible();
   });
 
   test('Add and edit rows in data table', async ({ page }) => {
@@ -450,7 +450,7 @@ test.describe('Data Source Setup Modal', () => {
     await expect(page.locator('.full-panel-modal')).toBeVisible({ timeout: 10000 });
 
     // The VIN segment should be visible; check it
-    const vinSegment = page.locator('.path-seg', { hasText: '1GTPU91D6R107995A' });
+    const vinSegment = page.locator('.path-seg', { hasText: '1HGCM82633A004995' });
     await vinSegment.locator('input[type="checkbox"]').check();
 
     // Name it "vin"
@@ -489,14 +489,14 @@ test.describe('Import from URL fix', () => {
 
     // Verify we have params
     await expect(page.locator('.params-input[value="channel"]')).toBeVisible();
-    await expect(page.locator('.params-input[value="WEBRNW"]')).toBeVisible();
+    await expect(page.locator('.params-input[value="WEB"]')).toBeVisible();
 
     // Click Import from URL
     await page.getByText('Import from URL').click();
 
     // Params should still be present (re-parsed from URL, not wiped)
     await expect(page.locator('.params-input[value="channel"]')).toBeVisible();
-    await expect(page.locator('.params-input[value="WEBRNW"]')).toBeVisible();
+    await expect(page.locator('.params-input[value="WEB"]')).toBeVisible();
     await expect(page.locator('.params-input[value="enrollmentType"]')).toBeVisible();
   });
 
@@ -505,7 +505,7 @@ test.describe('Import from URL fix', () => {
 
     // Verify initial params are present
     await expect(page.locator('.params-input[value="channel"]')).toBeVisible();
-    await expect(page.locator('.params-input[value="WEBRNW"]')).toBeVisible();
+    await expect(page.locator('.params-input[value="WEB"]')).toBeVisible();
 
     // Manually add a new param row
     await page.locator('.params-actions button', { hasText: '+ Add' }).click();
@@ -519,7 +519,7 @@ test.describe('Import from URL fix', () => {
 
     // All params should be present
     await expect(page.locator('.params-input[value="channel"]')).toBeVisible();
-    await expect(page.locator('.params-input[value="WEBRNW"]')).toBeVisible();
+    await expect(page.locator('.params-input[value="WEB"]')).toBeVisible();
     await expect(page.locator('.params-input[value="enrollmentType"]')).toBeVisible();
     await expect(page.locator('.params-input[value="country"]')).toBeVisible();
     await expect(page.locator('.params-input[value="extraParam"]')).toBeVisible();
@@ -531,10 +531,10 @@ test.describe('Import from URL fix', () => {
 test.describe('History restore fix', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
-      const currentUrl = 'https://api.example.com/vehicles/VIN123/offers?channel=WEBRNW&enrollmentType=ONBOARD&country=MX';
+      const currentUrl = 'https://api.example.com/vehicles/VIN123/offers?channel=WEB&enrollmentType=ENROLL&country=MX';
       const previousUrl = 'https://api.example.com/vehicles/VIN999/offers?channel=MOBILE&region=US';
 
-      localStorage.setItem('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 't01' }]));
+      localStorage.setItem('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 'test' }]));
       localStorage.setItem('perf-test-v3-microservices', JSON.stringify([{
         id: 'svc-1', name: 'test-service',
         baseUrls: { 'env-1': 'https://api.example.com' },
@@ -587,7 +587,7 @@ test.describe('History restore fix', () => {
 
     // Verify current params
     await expect(page.locator('.params-input[value="channel"]')).toBeVisible();
-    await expect(page.locator('.params-input[value="WEBRNW"]')).toBeVisible();
+    await expect(page.locator('.params-input[value="WEB"]')).toBeVisible();
     await expect(page.locator('.params-input[value="enrollmentType"]')).toBeVisible();
 
     // Go to History tab
@@ -607,7 +607,7 @@ test.describe('History restore fix', () => {
     await expect(page.locator('.params-input[value="US"]')).toBeVisible();
 
     // Old params should be gone
-    await expect(page.locator('.params-input[value="WEBRNW"]')).not.toBeVisible();
+    await expect(page.locator('.params-input[value="WEB"]')).not.toBeVisible();
     await expect(page.locator('.params-input[value="enrollmentType"]')).not.toBeVisible();
   });
 });

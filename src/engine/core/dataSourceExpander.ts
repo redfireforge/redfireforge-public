@@ -43,7 +43,7 @@ export function resolveSharedDataSources(
 
 // ─── Helpers ──────────────────────────────────────────────────
 
-/** Build a human-readable label for a data row (e.g., "Row 1: vin=1GY..338, channel=WEBRNW"). */
+/** Build a human-readable label for a data row (e.g., "Row 1: vin=1HG..338, channel=WEB"). */
 export function buildRowLabel(row: DataSourceRow, columns: DataSourceColumn[], index: number): string {
   const parts = columns
     .filter(c => c.type !== 'validate')

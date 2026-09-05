@@ -113,14 +113,14 @@ export function loadDataFile(filePath: string): DataSource {
  * data:
  *   columns: [userId, channel, "validate:status"]
  *   rows:
- *     - [42, WEBRNW, 200]
+ *     - [42, WEB, 200]
  *     - [99, MOBILE, 200]
  * ```
  * Or object-style rows:
  * ```yaml
  * data:
  *   rows:
- *     - { userId: 42, channel: WEBRNW }
+ *     - { userId: 42, channel: WEB }
  *     - { userId: 99, channel: MOBILE }
  * ```
  */

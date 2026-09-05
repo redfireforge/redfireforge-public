@@ -298,6 +298,7 @@ const h = vi.hoisted(() => {
     },
 
     exportModalProps: {} as Record<string, unknown>,
+    workbenchModalsProps: {} as Record<string, unknown>,
   };
 });
 
@@ -387,7 +388,10 @@ vi.mock('./ThemeCustomizer', () => ({
   ),
 }));
 vi.mock('./components/AppWorkbenchModals', () => ({
-  default: () => <div data-testid="workbench-modals" />,
+  default: (props: Record<string, unknown>) => {
+    h.workbenchModalsProps = props;
+    return <div data-testid="workbench-modals" />;
+  },
 }));
 vi.mock('../features/scenarios/ScenarioBuilder', () => ({
   default: (props: Record<string, unknown>) => (
@@ -1145,21 +1149,23 @@ describe('App — ApiCatalog page handlers', () => {
     });
   });
 
-  it('opens export-to-api-mock modal from catalog endpoint export', () => {
+  // AppWorkbenchModals renders the modal itself and is mocked here, so this
+  // asserts the state App owns and hands down. Modal rendering is covered by
+  // AppWorkbenchModals.test.tsx.
+  it('feeds export-to-api-mock items down from catalog endpoint export', () => {
     render(<App />);
     fireEvent.click(screen.getByTestId('ac-export-mock-summary'));
-    expect(screen.getByTestId('export-to-mock-modal')).toBeTruthy();
-    expect(h.exportModalProps.items).toEqual([{
+    expect(h.workbenchModalsProps.exportToMockItems).toEqual([{
       method: 'GET',
       path: '/pets',
       label: 'List pets',
     }]);
-    expect(h.exportModalProps.sourceKind).toBe('catalog');
-    act(() => { h.call(h.exportModalProps, 'onClose'); });
-    expect(screen.queryByTestId('export-to-mock-modal')).toBeNull();
+    expect(h.workbenchModalsProps.exportToMockSourceKind).toBe('catalog');
+    act(() => { h.call(h.workbenchModalsProps, 'onClearExportToMock'); });
+    expect(h.workbenchModalsProps.exportToMockItems).toBeNull();
 
     fireEvent.click(screen.getByTestId('ac-export-mock-opid'));
-    expect(h.exportModalProps.items).toEqual([{
+    expect(h.workbenchModalsProps.exportToMockItems).toEqual([{
       method: 'POST',
       path: '/pets',
       label: 'createPet',

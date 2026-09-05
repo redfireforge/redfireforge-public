@@ -5,7 +5,7 @@ import { test, expect, type Page } from '@playwright/test';
  */
 async function seedWithTaggedDataSource(page: Page) {
   await page.addInitScript(() => {
-    localStorage.setItem('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 't01' }]));
+    localStorage.setItem('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 'test' }]));
     localStorage.setItem('perf-test-v3-microservices', JSON.stringify([{
       id: 'svc-1', name: 'test-service',
       baseUrls: { 'env-1': 'https://api.example.com' },
@@ -36,7 +36,7 @@ async function seedWithTaggedDataSource(page: Page) {
             rows: [
               { id: 'r1', values: { 'col-vin': 'VIN001', 'col-ch': 'WEB' }, enabled: true, tags: ['smoke'] },
               { id: 'r2', values: { 'col-vin': 'VIN002', 'col-ch': 'APP' }, enabled: true, tags: ['smoke', 'regression'] },
-              { id: 'r3', values: { 'col-vin': 'VIN003', 'col-ch': 'DEALER' }, enabled: true, tags: ['edge-case'] },
+              { id: 'r3', values: { 'col-vin': 'VIN003', 'col-ch': 'APP' }, enabled: true, tags: ['edge-case'] },
               { id: 'r4', values: { 'col-vin': 'VIN004', 'col-ch': 'WEB' }, enabled: true },
             ],
             source: { type: 'inline' },

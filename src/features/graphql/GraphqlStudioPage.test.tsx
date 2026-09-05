@@ -458,6 +458,7 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('../../shared/utils/platform', () => ({
   isTauri: mocks.isTauri,
+  isDesktopRuntimeAvailable: mocks.isTauri,
 }));
 
 vi.mock('./utils/gqlActivityBarUtils', () => ({

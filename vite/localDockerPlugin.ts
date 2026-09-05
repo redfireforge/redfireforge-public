@@ -1,11 +1,8 @@
 import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { Plugin, ViteDevServer } from 'vite';
-import { checkDockerState, createDaemonStateReader } from './localDocker/daemon.ts';
-import { LOCAL_DOCKER_PREFIX, handleLocalDockerRequest } from './localDocker/http.ts';
-import { createLocalDockerLifecycle } from './localDocker/lifecycle.ts';
-import { createLogBus } from './localDocker/logs.ts';
-import { openDockerDesktopApp } from './localDocker/openDesktop.ts';
+import { LOCAL_DOCKER_PREFIX } from './localDocker/prefix.ts';
 
 export function shouldAttachLocalDocker(
   env: NodeJS.ProcessEnv,
@@ -15,36 +12,30 @@ export function shouldAttachLocalDocker(
   return dockerRootExists;
 }
 
-export function attachLocalDockerMiddleware(server: ViteDevServer, repoRoot: string): void {
-  const logs = createLogBus();
-  const lifecycle = createLocalDockerLifecycle(repoRoot, { logs });
-  const daemon = createDaemonStateReader(() => checkDockerState());
+function attachModuleHref(): string {
+  return pathToFileURL(
+    join(dirname(fileURLToPath(import.meta.url)), 'localDocker', 'attach.ts'),
+  ).href;
+}
 
-  server.middlewares.use(LOCAL_DOCKER_PREFIX, (req, res) => {
-    void handleLocalDockerRequest(req, res, {
-      lifecycle,
-      checkState: daemon.refresh,
-      peekDocker: daemon.peek,
-      logs,
-      openDesktop: () => openDockerDesktopApp(),
-    }).catch(() => {
-      if (!res.writableEnded && !res.destroyed) {
-        res.writeHead(500);
-        res.end();
-      }
-    });
-  });
+/** Loaded at request time so edits under `vite/localDocker/` do not restart Vite (EADDRINUSE → 504 Outdated Request). */
+export async function attachLocalDockerMiddleware(
+  server: ViteDevServer,
+  repoRoot: string,
+): Promise<void> {
+  const { attachLocalDockerMiddleware: attach } = await import(attachModuleHref());
+  attach(server, repoRoot);
 }
 
 export function localDockerPlugin(): Plugin {
   return {
     name: 'local-docker',
     apply: 'serve',
-    configureServer(server) {
+    async configureServer(server) {
       if (!shouldAttachLocalDocker(process.env, existsSync(resolve(server.config.root, 'docker')))) {
         return;
       }
-      attachLocalDockerMiddleware(server, server.config.root);
+      await attachLocalDockerMiddleware(server, server.config.root);
     },
   };
 }

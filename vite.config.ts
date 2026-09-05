@@ -6,6 +6,8 @@ import { resolve, join } from 'path'
 import { isLoopbackUrl, preferLocalhostHostname, resolveLoopbackUrl } from './src/shared/utils/loopbackUrl'
 import { withKeepAliveConnection } from './src/shared/utils/outboundRequestHeaders'
 import { probeApiMockEcho } from './src/shared/api-mock/echoHealthProbe'
+import { isDemoHttpHealthPort, normalizeDemoHttpHealthPath } from './src/shared/utils/demoHttpHealthPorts'
+import { probeDemoHttpHealth } from './src/shared/utils/demoHttpHealthProbe'
 import { demoHubRootImportsPlugin } from './vite/demoHubRootImports'
 import { demoLiveGuardPlugin } from './vite/demoLiveGuardPlugin'
 import { localDockerPlugin } from './vite/localDockerPlugin'
@@ -175,6 +177,31 @@ function proxyPlugin(): Plugin {
       res.end(JSON.stringify(probe.ok
         ? { status: 'ok', source: 'api-mock-echo', httpStatus: probe.statusCode }
         : { status: 'down', source: 'api-mock-echo', reason: probe.reason ?? 'unreachable' }));
+    });
+
+    // GraphQL / gRPC demo /health — intercept before the /health → :3001 proxy
+    // so a stale desktop companion (or a stopped stack) cannot 404 / refuse
+    // and Chrome never fetches :4444 / :4446 / :4010 / :50052 directly.
+    server.middlewares.use('/health/demo-http', async (req, res) => {
+      let port = NaN;
+      let rawPath: string | undefined;
+      try {
+        const parsed = new URL(req.url ?? '', 'http://localhost');
+        port = parseInt(parsed.searchParams.get('port') ?? '', 10);
+        rawPath = parsed.searchParams.get('path') ?? undefined;
+      } catch { /* ignore malformed URL */ }
+      const json = (body: unknown) => {
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(body));
+      };
+      if (!isDemoHttpHealthPort(port)) {
+        json({ status: 'down', source: 'demo-http', reason: 'unsupported_port' });
+        return;
+      }
+      const probe = await probeDemoHttpHealth(port, 2500, normalizeDemoHttpHealthPath(rawPath));
+      json(probe.ok
+        ? { status: 'ok', source: 'demo-http', port, httpStatus: probe.statusCode }
+        : { status: 'down', source: 'demo-http', port, reason: probe.reason ?? 'unreachable' });
     });
 
     server.middlewares.use('/__proxy', async (req, res) => {
@@ -505,6 +532,9 @@ export default defineConfig({
         // Windows: watching cargo output DLLs under src-tauri/target races
         // MSVC (`EBUSY` on `tauri_plugin_mcp_bridge-*.dll`) and kills Vite.
         '**/src-tauri/target/**',
+        // Editing these must not restart Vite: a failed restart leaves the
+        // HTTP server up with a closed plugin container (504 Outdated Request).
+        '**/vite/localDocker/**',
       ],
     },
     proxy: {

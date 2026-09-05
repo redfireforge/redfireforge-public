@@ -366,8 +366,8 @@ Open **Settings** (⚙ button in the sidebar) or click **Environments** in the t
 
 | Concept | Purpose |
 |---|---|
-| **Environment** | A deployment target (e.g., `t01`, `d01`, `p01`) |
-| **Microservice** | A service you test (e.g., `sales-product-autoassign`) |
+| **Environment** | A deployment target (e.g., `dev`, `test`, `staging`, `prod`) |
+| **Microservice** | A service you test (e.g., `order-api`) |
 | **Base URL** | Per-environment URL for each microservice |
 
 **How to configure:**
@@ -1184,7 +1184,7 @@ This launches the native desktop window with **hot-reload** — any changes to R
 | `npm run test:e2e:headed` | Run E2E tests with visible browser |
 | `npm run lint` | Run ESLint |
 | `./scripts/version.sh` | Bump version across all config files |
-| `ENV=t01 COUNT=100 node scripts/generate-csv-from-db.cjs` | Generate CSV test template from PostgreSQL data dump |
+| `ENV=test COUNT=100 node scripts/generate-csv-from-db.cjs` | Generate CSV test template from a JSON query dump |
 
 ---
 

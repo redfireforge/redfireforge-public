@@ -9,7 +9,7 @@ async function selectCustomOption(page: import('@playwright/test').Page, select:
 test.describe('Results Dashboard — Failed Only filter', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
-      localStorage.setItem('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 't01' }]));
+      localStorage.setItem('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 'test' }]));
       localStorage.setItem('perf-test-v3-microservices', JSON.stringify([{
         id: 'svc-1', name: 'test-service',
         baseUrls: { 'env-1': 'http://localhost:5173' },
@@ -29,7 +29,7 @@ test.describe('Results Dashboard — Failed Only filter', () => {
       const testRun = {
         id: 'run-filter-test',
         timestamp: now,
-        envName: 't01',
+        envName: 'test',
         svcName: 'test-service',
         baseUrl: 'http://localhost:5173',
         config: { concurrency: 1, iterations: 6, scenarioWeights: [], executionMode: 'sequential' },

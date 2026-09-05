@@ -64,7 +64,7 @@ describe('purgeGqlDemoLessonEnvironmentsFromStorage', () => {
     vi.mocked(purgeGqlStudioEnvironmentsByName).mockResolvedValue(true);
     vi.mocked(loadEnvironments).mockResolvedValue([
       { id: 'e-demo', name: GQL_DEMO_ENV_NAME },
-      { id: 'e-user', name: 't01' },
+      { id: 'e-user', name: 'test' },
     ] as never);
     vi.mocked(loadMicroservices).mockResolvedValue([
       { id: 's-demo', name: GQL_DEMO_SVC_NAME, baseUrls: {} },
@@ -82,7 +82,7 @@ describe('purgeGqlDemoLessonEnvironmentsFromStorage', () => {
     expect(result.removedEmSvcId).toBe('s-demo');
     expect(result.resetEnvSelection).toBe(true);
     expect(result.resetSvcSelection).toBe(true);
-    expect(saveEnvironments).toHaveBeenCalledWith([{ id: 'e-user', name: 't01' }]);
+    expect(saveEnvironments).toHaveBeenCalledWith([{ id: 'e-user', name: 'test' }]);
     expect(saveMicroservices).toHaveBeenCalledWith([{ id: 's-user', name: 'api', baseUrls: {} }]);
     expect(saveSelectedEnvId).toHaveBeenCalledWith('e-user');
     expect(saveSelectedSvcId).toHaveBeenCalledWith('s-user');

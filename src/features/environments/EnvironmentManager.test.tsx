@@ -98,21 +98,21 @@ describe('EnvironmentManager', () => {
   // ── Add environment ──
   it('adds an environment via the Add button and disables Add when empty', () => {
     render(<Harness />);
-    const input = screen.getByPlaceholderText('e.g. t01, p01, staging');
+    const input = screen.getByPlaceholderText('e.g. dev, test, staging, prod');
     const addBtn = screen.getAllByRole('button', { name: 'Add' })[0];
     expect(addBtn).toBeDisabled();
-    fireEvent.change(input, { target: { value: 't01' } });
+    fireEvent.change(input, { target: { value: 'test' } });
     expect(screen.getAllByRole('button', { name: 'Add' })[0]).not.toBeDisabled();
     fireEvent.click(screen.getAllByRole('button', { name: 'Add' })[0]);
-    expect(screen.getByText('t01')).toBeInTheDocument();
-    expect(mockedEnvCreated).toHaveBeenCalledWith('t01', 'uuid-1');
+    expect(screen.getByText('test')).toBeInTheDocument();
+    expect(mockedEnvCreated).toHaveBeenCalledWith('test', 'uuid-1');
     // Input cleared
     expect((input as HTMLInputElement).value).toBe('');
   });
 
   it('adds an environment via the Enter key and ignores Enter when blank', () => {
     render(<Harness />);
-    const input = screen.getByPlaceholderText('e.g. t01, p01, staging');
+    const input = screen.getByPlaceholderText('e.g. dev, test, staging, prod');
     // Blank Enter → no-op
     fireEvent.keyDown(input, { key: 'Enter' });
     expect(mockedEnvCreated).not.toHaveBeenCalled();
@@ -124,7 +124,7 @@ describe('EnvironmentManager', () => {
 
   it('does nothing when clicking Add with only whitespace', () => {
     render(<Harness />);
-    const input = screen.getByPlaceholderText('e.g. t01, p01, staging');
+    const input = screen.getByPlaceholderText('e.g. dev, test, staging, prod');
     fireEvent.change(input, { target: { value: '   ' } });
     fireEvent.click(screen.getAllByRole('button', { name: 'Add' })[0]);
     expect(mockedEnvCreated).not.toHaveBeenCalled();
@@ -135,27 +135,27 @@ describe('EnvironmentManager', () => {
     const confirmSpy = vi.fn((_msg: string, onConfirm: () => void) => onConfirm());
     render(
       <Harness
-        environments={[env('e1', 't01')]}
+        environments={[env('e1', 'test')]}
         microservices={[svc({ baseUrls: { e1: 'http://x' } })]}
         featureGroups={[fgWith({ environmentId: 'e1' })]}
         selectedEnvId="e1"
         confirm={confirmSpy}
       />
     );
-    const chip = screen.getByText('t01').closest('.settings-chip')!;
+    const chip = screen.getByText('test').closest('.settings-chip')!;
     fireEvent.click(within(chip as HTMLElement).getByTitle('Delete'));
     expect(confirmSpy).toHaveBeenCalled();
     const detail = confirmSpy.mock.calls[0][2] as string;
     expect(detail).toContain('microservice');
     expect(detail).toContain('feature group');
-    expect(mockedEnvDeleted).toHaveBeenCalledWith('t01', 'e1');
-    expect(screen.queryByText('t01')).not.toBeInTheDocument();
+    expect(mockedEnvDeleted).toHaveBeenCalledWith('test', 'e1');
+    expect(screen.queryByText('test')).not.toBeInTheDocument();
   });
 
   it('omits the warning detail when deleting an unused environment', () => {
     const confirmSpy = vi.fn((_msg: string, onConfirm: () => void) => onConfirm());
-    render(<Harness environments={[env('e1', 't01')]} confirm={confirmSpy} />);
-    const chip = screen.getByText('t01').closest('.settings-chip')!;
+    render(<Harness environments={[env('e1', 'test')]} confirm={confirmSpy} />);
+    const chip = screen.getByText('test').closest('.settings-chip')!;
     fireEvent.click(within(chip as HTMLElement).getByTitle('Delete'));
     expect(confirmSpy.mock.calls[0][2]).toBeUndefined();
     expect(mockedEnvDeleted).toHaveBeenCalled();
@@ -164,7 +164,7 @@ describe('EnvironmentManager', () => {
   // ── Add / delete microservice ──
   it('adds a microservice via button and Enter, ignoring blank input', () => {
     render(<Harness />);
-    const input = screen.getByPlaceholderText('e.g. sales-product-autoassign');
+    const input = screen.getByPlaceholderText('e.g. order-api');
     fireEvent.keyDown(input, { key: 'Enter' }); // blank → no-op
     expect(mockedSvcCreated).not.toHaveBeenCalled();
     fireEvent.change(input, { target: { value: 'orders-svc' } });
@@ -179,7 +179,7 @@ describe('EnvironmentManager', () => {
 
   it('does nothing when clicking Add microservice with only whitespace', () => {
     render(<Harness />);
-    const input = screen.getByPlaceholderText('e.g. sales-product-autoassign');
+    const input = screen.getByPlaceholderText('e.g. order-api');
     fireEvent.change(input, { target: { value: '  ' } });
     // The microservice Add button is the second one
     const addButtons = screen.getAllByRole('button', { name: 'Add' });
@@ -221,7 +221,7 @@ describe('EnvironmentManager', () => {
   });
 
   it('shows the env table with deployed counts when environments exist', () => {
-    render(<Harness environments={[env('e1', 't01'), env('e2', 'p01')]} microservices={[svc({ baseUrls: { e1: 'http://x' } })]} />);
+    render(<Harness environments={[env('e1', 'test'), env('e2', 'prod')]} microservices={[svc({ baseUrls: { e1: 'http://x' } })]} />);
     expect(screen.getByText('1/2 envs')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Configure' }));
     expect(screen.getByText('Base URL')).toBeInTheDocument();
@@ -230,7 +230,7 @@ describe('EnvironmentManager', () => {
 
   // ── Deploy checkbox toggle ──
   it('toggles a base environment deployment checkbox on and off', () => {
-    render(<Harness environments={[env('e1', 't01')]} microservices={[svc({ enabledProtocols: ['http'] })]} />);
+    render(<Harness environments={[env('e1', 'test')]} microservices={[svc({ enabledProtocols: ['http'] })]} />);
     fireEvent.click(screen.getByRole('button', { name: 'Configure' }));
     const checkbox = screen.getByRole('checkbox');
     expect(checkbox).not.toBeChecked();
@@ -242,29 +242,29 @@ describe('EnvironmentManager', () => {
 
   // ── Edit base URL ──
   it('edits a base URL via Save button and logs the change', () => {
-    render(<Harness environments={[env('e1', 't01')]} microservices={[svc({ baseUrls: { e1: '' } })]} />);
+    render(<Harness environments={[env('e1', 'test')]} microservices={[svc({ baseUrls: { e1: '' } })]} />);
     fireEvent.click(screen.getByRole('button', { name: 'Configure' }));
     expect(screen.getByText('No URL configured')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
-    const urlInput = screen.getByPlaceholderText('https://svc-one.t01.example.com');
-    fireEvent.change(urlInput, { target: { value: 'http://orders.t01' } });
+    const urlInput = screen.getByPlaceholderText('https://svc-one.test.example.com');
+    fireEvent.change(urlInput, { target: { value: 'http://orders.test' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-    expect(screen.getAllByText('http://orders.t01').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('http://orders.test').length).toBeGreaterThan(0);
     expect(mockedSvcUpdated).toHaveBeenCalled();
   });
 
   it('saves a base URL via the Enter key', () => {
-    render(<Harness environments={[env('e1', 't01')]} microservices={[svc({ baseUrls: { e1: '' } })]} />);
+    render(<Harness environments={[env('e1', 'test')]} microservices={[svc({ baseUrls: { e1: '' } })]} />);
     fireEvent.click(screen.getByRole('button', { name: 'Configure' }));
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
-    const urlInput = screen.getByPlaceholderText('https://svc-one.t01.example.com');
-    fireEvent.change(urlInput, { target: { value: 'http://orders.t01' } });
+    const urlInput = screen.getByPlaceholderText('https://svc-one.test.example.com');
+    fireEvent.change(urlInput, { target: { value: 'http://orders.test' } });
     fireEvent.keyDown(urlInput, { key: 'Enter' });
-    expect(screen.getAllByText('http://orders.t01').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('http://orders.test').length).toBeGreaterThan(0);
   });
 
   it('does not log an audit change when the base URL is unchanged', () => {
-    render(<Harness environments={[env('e1', 't01')]} microservices={[svc({ baseUrls: { e1: 'http://same' } })]} />);
+    render(<Harness environments={[env('e1', 'test')]} microservices={[svc({ baseUrls: { e1: 'http://same' } })]} />);
     fireEvent.click(screen.getByRole('button', { name: 'Configure' }));
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
@@ -272,7 +272,7 @@ describe('EnvironmentManager', () => {
   });
 
   it('cancels base URL editing via the Cancel button and the Escape key', () => {
-    render(<Harness environments={[env('e1', 't01')]} microservices={[svc({ baseUrls: { e1: 'http://x' } })]} />);
+    render(<Harness environments={[env('e1', 'test')]} microservices={[svc({ baseUrls: { e1: 'http://x' } })]} />);
     fireEvent.click(screen.getByRole('button', { name: 'Configure' }));
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
@@ -289,7 +289,7 @@ describe('EnvironmentManager', () => {
     const profiles: GlobalAuthProfile[] = [{ id: 'p1', name: 'Bearer Profile', auth: { type: 'bearer' } }];
     render(
       <Harness
-        environments={[env('e1', 't01')]}
+        environments={[env('e1', 'test')]}
         microservices={[svc({ baseUrls: { e1: 'http://x' } })]}
         appGlobalAuthProfiles={profiles}
       />
@@ -304,7 +304,7 @@ describe('EnvironmentManager', () => {
 
   // ── Additional (custom) environments ──
   it('adds an additional environment, prevents duplicates and ignores blank submits', () => {
-    render(<Harness environments={[env('e1', 't01')]} microservices={[svc({ enabledProtocols: ['http'] })]} />);
+    render(<Harness environments={[env('e1', 'test')]} microservices={[svc({ enabledProtocols: ['http'] })]} />);
     fireEvent.click(screen.getByRole('button', { name: 'Configure' }));
     const addInput = screen.getByPlaceholderText('+ Add additional environment (e.g. staging-2)');
     // Blank submit → no-op
@@ -325,7 +325,7 @@ describe('EnvironmentManager', () => {
     const profiles: GlobalAuthProfile[] = [{ id: 'p1', name: 'Bearer', auth: { type: 'bearer' } }];
     render(
       <Harness
-        environments={[env('e1', 't01')]}
+        environments={[env('e1', 'test')]}
         microservices={[svc({ customEnvs: [{ id: 'c1', name: 'staging-2' }], baseUrls: { c1: '' } })]}
         appGlobalAuthProfiles={profiles}
       />
@@ -361,7 +361,7 @@ describe('EnvironmentManager', () => {
   it('toggles deployment for a custom environment that starts undeployed', () => {
     render(
       <Harness
-        environments={[env('e1', 't01')]}
+        environments={[env('e1', 'test')]}
         microservices={[svc({ customEnvs: [{ id: 'c1', name: 'staging-2' }], baseUrls: {}, enabledProtocols: ['http'] })]}
       />
     );
@@ -418,7 +418,7 @@ describe('EnvironmentManager', () => {
     const confirmSpy = vi.fn((_msg: string, onConfirm: () => void) => onConfirm());
     render(
       <Harness
-        environments={[env('e1', 't01')]}
+        environments={[env('e1', 'test')]}
         microservices={[
           svc({ id: 's1', baseUrls: { e1: 'http://a' } }),
           svc({ id: 's2', baseUrls: { e1: 'http://b' } }),
@@ -430,7 +430,7 @@ describe('EnvironmentManager', () => {
         confirm={confirmSpy}
       />,
     );
-    const chip = screen.getByText('t01').closest('.settings-chip')!;
+    const chip = screen.getByText('test').closest('.settings-chip')!;
     fireEvent.click(within(chip as HTMLElement).getByTitle('Delete'));
     const detail = confirmSpy.mock.calls[0][2] as string;
     expect(detail).toContain('2 microservices');
@@ -468,7 +468,7 @@ describe('EnvironmentManager', () => {
     const profiles: GlobalAuthProfile[] = [{ id: 'p1', name: 'Bearer Profile', auth: { type: 'bearer' } }];
     render(
       <Harness
-        environments={[env('e1', 't01')]}
+        environments={[env('e1', 'test')]}
         microservices={[svc({ baseUrls: { e1: 'http://x' }, authProfileIds: { e1: 'p1' } })]}
         appGlobalAuthProfiles={profiles}
       />,
@@ -479,18 +479,18 @@ describe('EnvironmentManager', () => {
   });
 
   it('prevents duplicate additional env names against global environments', () => {
-    render(<Harness environments={[env('e1', 't01')]} microservices={[svc({ enabledProtocols: ['http'] })]} />);
+    render(<Harness environments={[env('e1', 'test')]} microservices={[svc({ enabledProtocols: ['http'] })]} />);
     fireEvent.click(screen.getByRole('button', { name: 'Configure' }));
     const addInput = screen.getByPlaceholderText('+ Add additional environment (e.g. staging-2)');
-    fireEvent.change(addInput, { target: { value: 'T01' } });
+    fireEvent.change(addInput, { target: { value: 'TEST' } });
     fireEvent.submit(addInput.closest('form')!);
-    expect(screen.queryByText('T01')).not.toBeInTheDocument();
+    expect(screen.queryByText('TEST')).not.toBeInTheDocument();
   });
 
   it('logs base URL audit using custom environment name', () => {
     render(
       <Harness
-        environments={[env('e1', 't01')]}
+        environments={[env('e1', 'test')]}
         microservices={[svc({ customEnvs: [{ id: 'c1', name: 'staging-2' }], baseUrls: { c1: '' } })]}
       />,
     );
@@ -508,7 +508,7 @@ describe('EnvironmentManager', () => {
   // ── Phase 2: Protocol tabs & per-protocol endpoints ──
   const ALL_PROTOCOLS: Microservice['enabledProtocols'] = ['http', 'websocket', 'sse', 'graphql', 'grpc'];
 
-  function expandConfiguredSvc(overrides: Partial<Microservice> = {}, envs = [env('e1', 't01'), env('e2', 'p01')]) {
+  function expandConfiguredSvc(overrides: Partial<Microservice> = {}, envs = [env('e1', 'test'), env('e2', 'prod')]) {
     render(
       <Harness
         environments={envs}
@@ -586,7 +586,7 @@ describe('EnvironmentManager', () => {
     fireEvent.click(screen.getByRole('tab', { name: /WebSocket/i }));
     const editButtons = screen.getAllByRole('button', { name: 'Edit' });
     fireEvent.click(editButtons[0]);
-    const input = screen.getByPlaceholderText('https://svc-one.t01.example.com');
+    const input = screen.getByPlaceholderText('https://svc-one.test.example.com');
     fireEvent.change(input, { target: { value: 'http://bad-scheme' } });
     expect(screen.getByText(/Use ws:\/\//)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
@@ -596,7 +596,7 @@ describe('EnvironmentManager', () => {
     expect(mockedSvcUpdated).toHaveBeenCalledWith(
       'svc-one',
       'svc-1',
-      expect.arrayContaining([expect.objectContaining({ field: 'websocket[t01]' })]),
+      expect.arrayContaining([expect.objectContaining({ field: 'websocket[test]' })]),
     );
   });
 
@@ -615,12 +615,12 @@ describe('EnvironmentManager', () => {
   it('persists GraphQL default path and shows derived variables panel (AC-EM-07, AC-EM-13)', () => {
     expandConfiguredSvc();
     fireEvent.click(screen.getByRole('tab', { name: /GraphQL/i }));
-    const pathInput = screen.getByLabelText('Default path for t01');
+    const pathInput = screen.getByLabelText('Default path for test');
     fireEvent.change(pathInput, { target: { value: '/v1/graphql' } });
     expect(mockedSvcUpdated).toHaveBeenCalledWith(
       'svc-one',
       'svc-1',
-      expect.arrayContaining([expect.objectContaining({ field: 'graphql.path[t01]' })]),
+      expect.arrayContaining([expect.objectContaining({ field: 'graphql.path[test]' })]),
     );
     expect(screen.getByTestId('derived-vars-graphql')).toBeInTheDocument();
     expect(screen.getByText('{{graphqlUrl}}')).toBeInTheDocument();
@@ -631,12 +631,12 @@ describe('EnvironmentManager', () => {
       protocolEndpoints: { grpc: { e1: { baseUrl: 'grpc.example.com:50051', tls: false } } },
     });
     fireEvent.click(screen.getByRole('tab', { name: /gRPC/i }));
-    const tlsCheckbox = screen.getByLabelText('TLS for t01');
+    const tlsCheckbox = screen.getByLabelText('TLS for test');
     fireEvent.click(tlsCheckbox);
     expect(mockedSvcUpdated).toHaveBeenCalledWith(
       'svc-one',
       'svc-1',
-      expect.arrayContaining([expect.objectContaining({ field: 'grpc.tls[t01]', newValue: 'true' })]),
+      expect.arrayContaining([expect.objectContaining({ field: 'grpc.tls[test]', newValue: 'true' })]),
     );
   });
 
@@ -652,7 +652,7 @@ describe('EnvironmentManager', () => {
 
   it('add button disabled when name field is empty/whitespace (AC-EM-01)', () => {
     render(<Harness />);
-    const inputField = screen.getByPlaceholderText(/e\.g\. sales-product/i);
+    const inputField = screen.getByPlaceholderText(/e\.g\. order-api/i);
     const addButtons = screen.getAllByRole('button', { name: /Add/i });
     const svcAddBtn = addButtons[addButtons.length - 1];
     // Button should be disabled when empty
@@ -663,7 +663,7 @@ describe('EnvironmentManager', () => {
 
   it('keydown Enter on empty name input does not add microservice (AC-EM-01)', () => {
     render(<Harness />);
-    const inputField = screen.getByPlaceholderText(/e\.g\. sales-product/i);
+    const inputField = screen.getByPlaceholderText(/e\.g\. order-api/i);
     fireEvent.keyDown(inputField, { key: 'Enter' });
     expect(screen.getByText('No microservices defined.')).toBeInTheDocument();
   });
@@ -783,7 +783,7 @@ describe('EnvironmentManager', () => {
   it('removing the last active protocol falls back activeProtocol to HTTP', () => {
     render(
       <Harness
-        environments={[env('e1', 't01')]}
+        environments={[env('e1', 'test')]}
         microservices={[svc({ id: 'svc-1', name: 'solo-proto', baseUrls: { e1: 'https://api' }, enabledProtocols: ['websocket'] })]}
       />,
     );
@@ -805,7 +805,7 @@ describe('EnvironmentManager', () => {
   it('add protocol menu hides protocols that are already enabled', () => {
     render(
       <Harness
-        environments={[env('e1', 't01')]}
+        environments={[env('e1', 'test')]}
         microservices={[svc({ baseUrls: { e1: 'https://api' }, enabledProtocols: ['http', 'websocket'] })]}
       />,
     );
@@ -819,7 +819,7 @@ describe('EnvironmentManager', () => {
   it('new microservice has no protocol tabs until added via + Add protocol menu', () => {
     render(
       <Harness
-        environments={[env('e1', 't01')]}
+        environments={[env('e1', 'test')]}
         microservices={[svc({ id: 'svc-new', name: 'fresh-svc', baseUrls: {} })]}
       />,
     );
@@ -837,7 +837,7 @@ describe('EnvironmentManager', () => {
   it('persists protocol and env vars through EnvironmentManager handlers', () => {
     render(
       <Harness
-        environments={[env('e1', 't01')]}
+        environments={[env('e1', 'test')]}
         microservices={[svc({
           id: 'svc-1',
           name: 'orders',
@@ -876,7 +876,7 @@ describe('EnvironmentManager', () => {
     const confirmSpy = vi.fn((_msg: string, onConfirm: () => void) => onConfirm());
     render(
       <Harness
-        environments={[env('e1', 't01')]}
+        environments={[env('e1', 'test')]}
         microservices={[svc({
           id: 'svc-1',
           name: 'orders',
@@ -887,16 +887,16 @@ describe('EnvironmentManager', () => {
         confirm={confirmSpy}
       />,
     );
-    const chip = screen.getByText('t01').closest('.settings-chip')!;
+    const chip = screen.getByText('test').closest('.settings-chip')!;
     fireEvent.click(within(chip as HTMLElement).getByTitle('Delete'));
-    expect(screen.queryByText('t01')).not.toBeInTheDocument();
+    expect(screen.queryByText('test')).not.toBeInTheDocument();
   });
 
   it('collapses expanded microservice card when the service is deleted', () => {
     const confirmSpy = vi.fn((_msg: string, onConfirm: () => void) => onConfirm());
     render(
       <Harness
-        environments={[env('e1', 't01')]}
+        environments={[env('e1', 'test')]}
         microservices={[svc({
           id: 'svc-1',
           name: 'orders',
@@ -917,7 +917,7 @@ describe('EnvironmentManager', () => {
   it('ignores addProtocol when the protocol tab is already enabled', () => {
     render(
       <Harness
-        environments={[env('e1', 't01')]}
+        environments={[env('e1', 'test')]}
         microservices={[svc({
           id: 'svc-1',
           name: 'orders',

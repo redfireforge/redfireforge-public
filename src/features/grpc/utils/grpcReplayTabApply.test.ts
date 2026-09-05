@@ -34,7 +34,7 @@ function makeSavedRequest() {
       service: FIXTURE_UNARY_CALL_REQUEST.service,
       method: FIXTURE_UNARY_CALL_REQUEST.method,
       body: { message: 'saved-body' },
-      metadata: { 'x-tenant': 't01' },
+      metadata: { 'x-tenant': 'test' },
       timeoutMs: 30_000,
       descriptorKey: FIXTURE_DESCRIPTOR_KEY,
     },
@@ -57,7 +57,7 @@ describe('grpcReplayTabApply (Phase 5H)', () => {
     expect(patch.service).toBe(saved.service);
     expect(patch.method).toBe(saved.method);
     expect(patch.body).toEqual({ message: 'saved-body' });
-    expect(patch.metadata).toEqual({ 'x-tenant': 't01' });
+    expect(patch.metadata).toEqual({ 'x-tenant': 'test' });
     expect(patch.lifecycle).toBe('idle');
     expect(patch.lastResult).toBeUndefined();
     expect(patch.lastExecuteSnapshot).toBeUndefined();

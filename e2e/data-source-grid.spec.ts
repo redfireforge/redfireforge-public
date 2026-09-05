@@ -6,7 +6,7 @@ import { test, expect, type Page } from '@playwright/test';
  */
 async function seedWithValidateColumns(page: Page) {
   await page.addInitScript(() => {
-    localStorage.setItem('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 't01' }]));
+    localStorage.setItem('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 'test' }]));
     localStorage.setItem('perf-test-v3-microservices', JSON.stringify([{
       id: 'svc-1', name: 'test-service',
       baseUrls: { 'env-1': 'https://api.example.com' },
@@ -56,7 +56,7 @@ async function seedWithValidateColumns(page: Page) {
  */
 async function seedWithMultiColumn(page: Page) {
   await page.addInitScript(() => {
-    localStorage.setItem('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 't01' }]));
+    localStorage.setItem('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 'test' }]));
     localStorage.setItem('perf-test-v3-microservices', JSON.stringify([{
       id: 'svc-1', name: 'test-service',
       baseUrls: { 'env-1': 'https://api.example.com' },

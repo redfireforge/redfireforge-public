@@ -71,7 +71,9 @@ function isCanceledConsoleArg(value: unknown): boolean {
   if (typeof value === 'string') {
     return isCanceledNoise(value) || isViteHmrDisconnectNoise(value);
   }
-  if (value instanceof Error) return isViteHmrDisconnectNoise(value);
+  if (value instanceof Error) {
+    return isViteHmrDisconnectNoise(value) || isMonacoCancelation(value);
+  }
   return isMonacoCancelation(value);
 }
 
