@@ -5,7 +5,9 @@ import {
   DEMO_TEST_GLOBS,
   isDemoCoveragePath,
   isDemoTestFile,
+  isIgnoredProductCoveragePath,
   isProductTestFile,
+  PRODUCT_COVERAGE_EXCLUDE,
   PRODUCT_TEST_EXCLUDE,
 } from '../../vitest.projectPatterns';
 
@@ -152,5 +154,20 @@ describe('vitest project split (Phase 1)', () => {
     expect(isDemoCoveragePath('/repo/src/styles/demo-hub.css')).toBe(true);
     expect(isDemoCoveragePath('C:\\repo\\packages\\demo-hub\\src\\DemoHub.tsx')).toBe(true);
     expect(isDemoCoveragePath('/repo/src/features/graphql/utils/gqlDemoWorkspace.ts')).toBe(false);
+  });
+
+  it('ignores demo, CSS, and test files in the product coverage map', () => {
+    expect(isIgnoredProductCoveragePath('/repo/packages/demo-hub/src/DemoHub.tsx')).toBe(true);
+    expect(isIgnoredProductCoveragePath('/repo/src/styles/data-mapper.css')).toBe(true);
+    expect(isIgnoredProductCoveragePath('/repo/src/shared/foo.test.ts')).toBe(true);
+    expect(isIgnoredProductCoveragePath('/repo/src/test-utils/factories.ts')).toBe(true);
+    expect(isIgnoredProductCoveragePath('/repo/src/shared/utils/platform.ts')).toBe(false);
+    expect(PRODUCT_COVERAGE_EXCLUDE).toEqual(expect.arrayContaining([
+      '**/*.css',
+      '**/*.test.{ts,tsx}',
+      '**/packages/demo-hub/**',
+      '**/src/styles/**',
+      '**/src/test-utils/**',
+    ]));
   });
 });

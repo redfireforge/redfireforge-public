@@ -59,7 +59,7 @@ product_coverage_run_vitest_batch() {
   mkdir -p "$scratch/.tmp" "$store" "$partials_dir"
   trap "rm -rf '${scratch}'" RETURN
   set +e
-  npx vitest run --project product --coverage \
+  PRODUCT_COVERAGE=1 npx vitest run --project product --coverage \
     --maxWorkers=1 --no-file-parallelism \
     --coverage.clean=true \
     --coverage.reportOnFailure=true \
