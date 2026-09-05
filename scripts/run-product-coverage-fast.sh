@@ -191,7 +191,7 @@ if [[ "$FAILURES" -gt 0 ]]; then
     [[ -f "$log" ]] || continue
     # Vitest colorizes FAIL lines; strip ANSI so grep can see them.
     stripped=$(sed $'s/\x1B\\[[0-9;]*[A-Za-z]//g' "$log")
-    matches=$(printf '%s\n' "$stripped" | grep -E 'FAIL |Failed Tests|Test Files.*failed|× |heap out of memory|FATAL|timeout' | head -n 40 || true)
+    matches=$(printf '%s\n' "$stripped" | grep -E 'FAIL |Failed Tests|Unhandled Errors|Uncaught Exception|Test Files.*failed|× |heap out of memory|FATAL' | head -n 40 || true)
     if [[ -n "$matches" ]]; then
       echo "   --- shard $i ---"
       printf '%s\n' "$matches" | sed 's/^/   /'
