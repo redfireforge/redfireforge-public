@@ -123,6 +123,13 @@ jobs:
         run: npm run test:product:coverage:fast
         env:
           COVERAGE_SHARDS: 2
+      - name: Upload product shard logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: product-coverage-shard-logs
+          path: coverage/.tmp/shards/**/*.log
+          if-no-files-found: ignore
       - name: Check coverage thresholds
         run: |
           echo "Product coverage report generated. Review in PR for >90% target."

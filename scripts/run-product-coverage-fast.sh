@@ -185,7 +185,17 @@ if [[ "$FAILURES" -gt 0 ]]; then
   echo ""
   echo "❌ $FAILURES shard(s) exited non-zero — failing tests:"
   for i in $(seq 1 "$SHARDS"); do
-    grep -h '^ FAIL ' "$SHARD_DIR/s$i.log" 2>/dev/null | sort -u | sed 's/^/   /' || true
+    log="$SHARD_DIR/s$i.log"
+    [[ -f "$log" ]] || continue
+    # Vitest colorizes FAIL lines; strip ANSI so grep can see them.
+    stripped=$(sed $'s/\x1B\\[[0-9;]*[A-Za-z]//g' "$log")
+    matches=$(printf '%s\n' "$stripped" | grep -E 'FAIL |Failed Tests|Test Files.*failed|× |heap out of memory|FATAL|timeout' | head -n 40 || true)
+    if [[ -n "$matches" ]]; then
+      echo "   --- shard $i ---"
+      printf '%s\n' "$matches" | sed 's/^/   /'
+    fi
+    echo "   --- last 80 lines of $log ---"
+    printf '%s\n' "$stripped" | tail -n 80 | sed 's/^/   /'
   done
   echo "   logs: $SHARD_DIR/s<N>.log"
   exit 1
