@@ -10,9 +10,10 @@ test.describe('Settings and navigation', () => {
   });
 
   test('sidebar shows environment items', async ({ page }) => {
-    // Use the sidebar-specific locator
+    // exact: the sidebar also lists the "test-service" microservice, which a
+    // substring match would collide with.
     const sidebar = page.locator('.config-sidebar-inner');
-    await expect(sidebar.getByText('test')).toBeVisible({ timeout: 5000 });
+    await expect(sidebar.getByText('test', { exact: true })).toBeVisible({ timeout: 5000 });
   });
 
   test('can switch between tabs', async ({ page }) => {

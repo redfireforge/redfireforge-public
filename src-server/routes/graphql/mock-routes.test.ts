@@ -273,6 +273,19 @@ async function configureMockServer(
     });
 }
 
+/** Overflow the 200-entry ring buffer without 200 sequential round-trips (CI shard load). */
+async function floodMockQueries(app: ReturnType<typeof buildMockApp>, count: number): Promise<void> {
+  const batchSize = 25;
+  for (let i = 0; i < count; i += batchSize) {
+    const n = Math.min(batchSize, count - i);
+    await Promise.all(
+      Array.from({ length: n }, () =>
+        request(app).post('/api/graphql/mock').send({ query: '{ hello }' }),
+      ),
+    );
+  }
+}
+
 describe('createMockRouter HTTP routes', () => {
   let app: ReturnType<typeof buildMockApp>;
 
@@ -555,25 +568,21 @@ describe('createMockRouter HTTP routes', () => {
 
     it('trims request log ring buffer after many successful executions', async () => {
       await configureMockServer(app);
-      for (let i = 0; i < 205; i += 1) {
-        await request(app).post('/api/graphql/mock').send({ query: '{ hello }' });
-      }
+      await floodMockQueries(app, 205);
       const logRes = await request(app).get('/api/graphql/mock/log?limit=200');
       expect(logRes.body.total).toBeLessThanOrEqual(200);
-    }, 60_000);
+    }, 20_000);
 
     it('trims request log ring buffer when parse failures exceed capacity', async () => {
       await configureMockServer(app);
-      for (let i = 0; i < 200; i += 1) {
-        await request(app).post('/api/graphql/mock').send({ query: '{ hello }' });
-      }
+      await floodMockQueries(app, 200);
       mockParse.mockImplementationOnce(() => {
         throw 'overflow-parse';
       });
       await request(app).post('/api/graphql/mock').send({ query: '{ bad' });
       const logRes = await request(app).get('/api/graphql/mock/log?limit=200');
       expect(logRes.body.total).toBeLessThanOrEqual(200);
-    }, 60_000);
+    }, 20_000);
   });
 
   describe('POST /api/graphql/mock/config — extended branches', () => {
