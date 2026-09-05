@@ -25,7 +25,7 @@ export type OSTarget =
 const CACHE_KEY = 'rff-latest-release';
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
-/** True for official stable tags only — rejects alpha/beta/rc/pre and Learning Hub builds. */
+/** True for official stable tags only — rejects alpha/beta/rc/pre and leftover -lh releases. */
 export function isOfficialStableRelease(tagName: string, name = '', prerelease = false, draft = false): boolean {
   if (draft || prerelease) return false;
   if (/Learning\s*Hub/i.test(name)) return false;
@@ -91,6 +91,10 @@ export async function fetchLatestRelease(): Promise<LatestRelease | null> {
   }
 }
 
+function isLearningHubAsset(name: string): boolean {
+  return /LearningHub/i.test(name);
+}
+
 export function getDownloadUrl(assets: ReleaseAsset[], target: OSTarget): string | null {
   const patterns: Record<OSTarget, RegExp> = {
     'macos-arm': /_aarch64\.dmg$/,
@@ -99,7 +103,7 @@ export function getDownloadUrl(assets: ReleaseAsset[], target: OSTarget): string
     'linux-appimage': /\.AppImage$/,
     'linux-deb': /\.deb$/,
   };
-  const asset = assets.find(a => patterns[target].test(a.name));
+  const asset = assets.find(a => patterns[target].test(a.name) && !isLearningHubAsset(a.name));
   return asset?.browser_download_url ?? null;
 }
 

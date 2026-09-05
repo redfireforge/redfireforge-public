@@ -8,6 +8,17 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.8.4-beta.1] — 2026-09-04
+
+### Added
+- **Social preview card (L-16)** — README hero plus Open Graph / Twitter large-image tags on the demo and app shells, using the same 1200×630 art as [redfireforge.com/og-image.png](https://redfireforge.com/og-image.png). GitHub Settings social preview is uploaded.
+
+### Changed
+- **Single GitHub release per version** — Standard and Learning Hub installers now publish to one `vX.Y.Z` tag (`RedfireForge_*` vs `RedfireForge-LearningHub-*`). Do not push `-lh` tags. Learning Hub updater reads `latest-demo.json` so it does not overwrite Standard `latest.json`.
+
+### Fixed
+- **Learning Hub macOS / Linux Docker detection** — Finder, Dock, Spotlight, and slim Linux `.desktop` PATH often omit Docker. The app now also looks in `/usr/local/bin`, `Docker.app`, `~/.docker/bin`, Homebrew, `/usr/bin`, and `/snap/bin`. Windows already resolved well-known Docker Desktop paths in 0.8.3.
+
 ## [0.8.3] — 2026-09-04
 
 ### Added
