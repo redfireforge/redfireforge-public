@@ -8,17 +8,26 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.8.4-beta.1] — 2026-09-04
+
+### Added
+- **Social preview card (L-16)** — README hero plus Open Graph / Twitter large-image tags on the demo and app shells, using the same 1200×630 art as [redfireforge.com/og-image.png](https://redfireforge.com/og-image.png). GitHub Settings social preview is uploaded.
+
+### Changed
+- **Single GitHub release per version** — Standard and Learning Hub installers now publish to one `vX.Y.Z` tag (`RedfireForge_*` vs `RedfireForge-LearningHub-*`). Do not push `-lh` tags. Learning Hub updater reads `latest-demo.json` so it does not overwrite Standard `latest.json`.
+
+### Fixed
+- **Learning Hub macOS / Linux Docker detection** — Finder, Dock, Spotlight, and slim Linux `.desktop` PATH often omit Docker. The app now also looks in `/usr/local/bin`, `Docker.app`, `~/.docker/bin`, Homebrew, `/usr/bin`, and `/snap/bin`. Windows already resolved well-known Docker Desktop paths in 0.8.3.
+
 ## [0.8.3] — 2026-09-04
 
 ### Added
-- **Social preview card (L-16)** — README hero plus Open Graph / Twitter large-image tags on the demo and app shells, using the same 1200×630 art as [redfireforge.com/og-image.png](https://redfireforge.com/og-image.png). GitHub Settings still needs the 1280×640 `docs/assets/social/github-social-preview.png` upload (no public API).
 - **CLI `--output json` / `--output junit`** (#57) — `json` and `junit` are now *format keywords* for `-o/--output`, supported by `run`, `workflow`, and `mock simulate`. They print a flat, CI-shaped report straight to stdout and suppress every other stdout write (progress, console summary, file notices, and the SLA / baseline-comparison reports), so the stream can be piped directly into `jq`. Diagnostics still go to stderr and exit codes are unchanged, so `--fail-on-error` (1), `--fail-on-regression` (2/3) and `--fail-on-sla` (4) keep gating. Passing any other value still writes a JSON report to that file path, so `-o results.json` is unaffected; to write a file literally named `json`, qualify it as `--output ./json`.
   - Schema: `{ passed, failed, total, durationMs, results: [{ name, status, durationMs, error }] }`.
   - `workflow` emits one result per **iteration** — matching `--output junit` so both formats agree on `total` — with the individual steps preserved under an additive `steps` array.
 - **Copy button on the response body toolbar** (#54) — one-click copy of the raw response body, in both the Request Editor preview and the Response Detail modal. Flashes a checkmark for ~1.5 s, is hidden when there is no body, and works for any content type.
 
 ### Changed
-- **Single GitHub release per version** — Standard and Learning Hub installers now publish to one `vX.Y.Z` tag (`RedfireForge_*` vs `RedfireForge-LearningHub-*`). Do not push `-lh` tags. Learning Hub updater reads `latest-demo.json` so it does not overwrite Standard `latest.json`.
 - **Learning Hub prerequisite gate (Phase 1)** — web Docker gate no longer claims the desktop app “includes everything.” Download goes to the GitHub releases list (Learning Hub builds are not `/releases/latest`). The command block includes a repo-clone hint, a Copy button, and an Install Docker Desktop link.
 - **Learning Hub Docker bundle (Phase 2)** — Learning Hub extracts `docker/` compose trees into app data on launch. On desktop the prerequisite command uses that OS path (no repo clone). Web still shows the clone preamble. `tauri:dev` falls back to the repo `docker/` folder.
 - **Learning Hub Start/Stop Stack (Phase 3)** — Desktop prerequisite gate can start and stop the lesson Docker stack (daemon / Compose checks, log stream, port-conflict and OOM errors, cert expiry warning). Web keeps the manual compose command.
@@ -35,7 +44,6 @@ Format follows Keep a Changelog and Semantic Versioning.
 - **Exit-code documentation corrected** — `cli/README.md` and `docs/guides/cli-ci-cd.md` previously listed exit `2` as "invalid file" and omitted `3` and `4` entirely. `2` is a baseline regression, `3` is regression plus test failures, `4` is an SLA violation, and an execution error exits `1`.
 
 ### Fixed
-- **Learning Hub macOS Docker detection** — Finder/Dock launches only have `/usr/bin:/bin:/usr/sbin:/sbin` on PATH, so `docker` was reported as not installed even when Docker Desktop was running. The desktop app now also looks in `/usr/local/bin`, `Docker.app`, `~/.docker/bin`, and Homebrew.
 - **Product coverage `openExternalUrl`** — Branch tests cover a non-string URL and a missing `window` so the waitlist helper stays above the 90% gate.
 - **Demo hub pauseAutoPlay unit flake** — Coverage session test no longer requires `stepPhase === 'pre'` after 100ms of auto-play start. A step without `preAction` can already be in `reading`; the assertion is that a double-toggle did not force `done`.
 - **Nightly E2E Kafka live consume** — Message Studio waits for the header **Connected** badge before Send/Consume. Consume waits for Earliest/topic to commit (so consume-once is not sent as Latest), waits for **Consuming…** to finish, then retries with a fresh group and a reseeded publish when the result table is empty. Live Kafka specs take a companion lock so `--workers=2` cannot swap the singleton broker connection mid-consume. Gallery Quick Tests wait for the same badge and retry once.
