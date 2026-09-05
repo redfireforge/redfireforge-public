@@ -130,7 +130,10 @@ describe('compiled pattern cache', () => {
   });
 });
 
-describe('startup validation budget', () => {
+/** V8 coverage instrumentation invalidates wall-clock budgets on CI shards. */
+const skipTimingBudgets = process.env.PRODUCT_COVERAGE === '1';
+
+describe.skipIf(skipTimingBudgets)('startup validation budget', () => {
   const cases: Array<[number, number]> = [
     [100, API_MOCK_PERF_BUDGETS.startup100.p95Ms],
     [500, API_MOCK_PERF_BUDGETS.startup500.p95Ms],
@@ -148,7 +151,7 @@ describe('startup validation budget', () => {
 });
 
 describe('matching budget (2,000 routes)', () => {
-  it('exact-heavy match within budget', () => {
+  it.skipIf(skipTimingBudgets)('exact-heavy match within budget', () => {
     _clearPatternCache();
     const def = makeDef(2000, 'exact');
     const { captured } = normalizeRequest({ method: 'GET', url: '/api/resource/1000', headers: {} });
@@ -158,7 +161,7 @@ describe('matching budget (2,000 routes)', () => {
     expect(p95).toBeLessThan(API_MOCK_PERF_BUDGETS.matchExact2000.p95Ms * PERF_CI_SLACK);
   });
 
-  it('regex-heavy match within budget', () => {
+  it.skipIf(skipTimingBudgets)('regex-heavy match within budget', () => {
     _clearPatternCache();
     const def = makeDef(2000, 'regex');
     const { captured } = normalizeRequest({ method: 'GET', url: '/api/regex/1000/42', headers: {} });
@@ -168,7 +171,7 @@ describe('matching budget (2,000 routes)', () => {
     expect(p95).toBeLessThan(API_MOCK_PERF_BUDGETS.matchRegex2000.p95Ms * PERF_CI_SLACK);
   });
 
-  it('json_subset match within budget (body parsed once per request)', () => {
+  it.skipIf(skipTimingBudgets)('json_subset match within budget (body parsed once per request)', () => {
     _clearPatternCache();
     const def = makeDef(2000, 'json');
     const body = JSON.stringify({ user: { id: 123, name: 'Alice' }, items: [1, 2, 3], meta: { a: 1, b: 2 } });

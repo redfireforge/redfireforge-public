@@ -42,11 +42,13 @@ export function toSrcPath(file: string): string {
 export function shouldSkipProductGateFile(file: string): boolean {
   if (!isProductGateSourcePath(file)) return true;
   if (file.includes('/src/test-utils/')) return true;
+  if (file.includes('/src/styles/')) return true;
   if (file.includes('__test-utils__')) return true;
   if (file.includes('.test-utils.')) return true;
   if (file.endsWith('shared/types/index.ts')) return true;
   if (file.includes('.test.')) return true;
   if (file.includes('.testHelpers.')) return true;
+  if (file.endsWith('.css') || file.endsWith('.scss') || file.endsWith('.d.ts')) return true;
   return false;
 }
 
