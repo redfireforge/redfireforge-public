@@ -37,6 +37,9 @@ describe('coverageGateUtils', () => {
     expect(shouldSkipProductGateFile('/repo/src/shared/types/index.ts')).toBe(true);
     expect(shouldSkipProductGateFile('/repo/src/shared/foo.test.ts')).toBe(true);
     expect(shouldSkipProductGateFile('/repo/src/shared/foo.testHelpers.ts')).toBe(true);
+    expect(shouldSkipProductGateFile('/repo/src/styles/data-mapper.css')).toBe(true);
+    expect(shouldSkipProductGateFile('/repo/src/features/foo.css')).toBe(true);
+    expect(shouldSkipProductGateFile('/repo/src/test-utils/factories.ts')).toBe(true);
     expect(shouldSkipProductGateFile('/repo/src/shared/foo.ts')).toBe(false);
   });
 

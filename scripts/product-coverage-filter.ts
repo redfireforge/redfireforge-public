@@ -1,12 +1,12 @@
 #!/usr/bin/env tsx
 /**
- * Strips demo-hub sources from the product Vitest coverage map and prints
- * product-only totals. Demo files can appear in raw coverage when product
- * tests import demo helpers (e.g. SettingsStorageTab → gql-demo-storage-cleanup).
+ * Strips demo, CSS, and test/helper paths from the product Vitest coverage map
+ * and prints product-only totals. Those files can appear in the raw V8 report
+ * (Vitest 4 ships an empty default exclude list).
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import libCoverage from 'istanbul-lib-coverage';
-import { isDemoCoveragePath } from '../vitest.projectPatterns';
+import { isDemoCoveragePath, isIgnoredProductCoveragePath } from '../vitest.projectPatterns';
 
 const COVERAGE_DIR = process.env.PRODUCT_COVERAGE_DIR ?? 'coverage';
 const INPUT = `${COVERAGE_DIR}/coverage-final.json`;
@@ -25,7 +25,7 @@ try {
 const map = libCoverage.createCoverageMap(raw);
 const before = map.files().length;
 
-map.filter((file: string) => !isDemoCoveragePath(file) && !file.includes('.testHelpers.'));
+map.filter((file: string) => !isIgnoredProductCoveragePath(file));
 
 const removed = before - map.files().length;
 
