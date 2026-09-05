@@ -31,6 +31,20 @@ function demoBootFitDuration(preferred: number): number {
   return document.body.getAttribute('data-demo-bootstrapping') === '1' ? 0 : preferred;
 }
 
+/** Delay + optional RAF. Always clear on unmount so a pending timeout cannot
+ *  call requestAnimationFrame after jsdom teardown (Vitest unhandled error). */
+function scheduleAfterLayout(delayMs: number, work: () => void): () => void {
+  const timer = setTimeout(() => {
+    const raf = globalThis.requestAnimationFrame;
+    if (typeof raf === 'function') {
+      raf(() => work());
+      return;
+    }
+    work();
+  }, delayMs);
+  return () => clearTimeout(timer);
+}
+
 /** Drop overlay, preview banner, React Flow instance, variable badge, and node context menu. */
 export function WorkflowDesignerFlowCanvas({
   vm,
@@ -129,6 +143,7 @@ export function WorkflowDesignerFlowCanvas({
   useEffect(() => {
     const container = canvasAreaRef.current;
     if (!container) return;
+    let cancelRestore: (() => void) | undefined;
     const observer = new IntersectionObserver(
       ([entry]) => {
         const isVisible = entry.isIntersecting;
@@ -137,9 +152,8 @@ export function WorkflowDesignerFlowCanvas({
         } else if (isVisible && !visibilityRef.current) {
           const vp = lastViewportRef.current ?? selectedRef.current?.savedViewport;
           if (vp) {
-            setTimeout(() => {
-              requestAnimationFrame(() => setViewport(vp, { duration: 0 }));
-            }, 50);
+            cancelRestore?.();
+            cancelRestore = scheduleAfterLayout(50, () => setViewport(vp, { duration: 0 }));
           }
         }
         visibilityRef.current = isVisible;
@@ -147,7 +161,10 @@ export function WorkflowDesignerFlowCanvas({
       { threshold: 0.01 },
     );
     observer.observe(container);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      cancelRestore?.();
+    };
   }, [canvasAreaRef, getViewport, setViewport]);
 
   // Restore saved viewport when switching to a workflow that has one saved,
@@ -160,9 +177,22 @@ export function WorkflowDesignerFlowCanvas({
     if (!selected) return;
     if (prevWorkflowIdRef.current === selected.id) return;
     prevWorkflowIdRef.current = selected.id;
-    setTimeout(() => {
-      requestAnimationFrame(() => {
-        // Always fit on workflow open — never zoom past 100% (small graphs stay regular size).
+    return scheduleAfterLayout(120, () => {
+      // Always fit on workflow open — never zoom past 100% (small graphs stay regular size).
+      fitView({
+        padding: 0.08,
+        maxZoom: 1,
+        minZoom: 0.4,
+        duration: demoBootFitDuration(200),
+      });
+    });
+  }, [selected, previewWorkflow, setViewport, fitView, canvasHasSize]);
+
+  // After the canvas regains size (tab shown / console un-maximized), fit again.
+  useEffect(() => {
+    let cancelFit: (() => void) | undefined;
+    if (canvasHasSize && !wasSizedRef.current && !previewWorkflow) {
+      cancelFit = scheduleAfterLayout(50, () => {
         fitView({
           padding: 0.08,
           maxZoom: 1,
@@ -170,24 +200,9 @@ export function WorkflowDesignerFlowCanvas({
           duration: demoBootFitDuration(200),
         });
       });
-    }, 120);
-  }, [selected, previewWorkflow, setViewport, fitView, canvasHasSize]);
-
-  // After the canvas regains size (tab shown / console un-maximized), fit again.
-  useEffect(() => {
-    if (canvasHasSize && !wasSizedRef.current && !previewWorkflow) {
-      setTimeout(() => {
-        requestAnimationFrame(() => {
-          fitView({
-            padding: 0.08,
-            maxZoom: 1,
-            minZoom: 0.4,
-            duration: demoBootFitDuration(200),
-          });
-        });
-      }, 50);
     }
     wasSizedRef.current = canvasHasSize;
+    return () => cancelFit?.();
   }, [canvasHasSize, previewWorkflow, fitView]);
 
   // Expose demo-player bridge helpers so lesson actions can manipulate the canvas

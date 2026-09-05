@@ -486,6 +486,18 @@ describe('WorkflowDesignerFlowCanvas', () => {
     expect(openNodeConfig).toHaveBeenCalledWith('n1');
   });
 
+  it('clears pending fit timers on unmount so RAF is not required after teardown', () => {
+    vi.useFakeTimers();
+    const { unmount } = render(<WorkflowDesignerFlowCanvas vm={makeVm()} selected={selected} />);
+    unmount();
+    const raf = globalThis.requestAnimationFrame;
+    // @ts-expect-error -- simulate Vitest jsdom teardown after the file ends
+    delete globalThis.requestAnimationFrame;
+    expect(() => { vi.advanceTimersByTime(200); }).not.toThrow();
+    globalThis.requestAnimationFrame = raf;
+    vi.useRealTimers();
+  });
+
   it('cleans up window bridge helpers on unmount', () => {
     const { unmount } = render(<WorkflowDesignerFlowCanvas vm={makeVm()} selected={selected} />);
     const win = window as unknown as Record<string, unknown>;
