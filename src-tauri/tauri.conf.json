@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "RedfireForge",
-  "version": "0.8.4-beta.1",
+  "version": "0.8.4",
   "identifier": "com.redfireforge.desktop",
   "build": {
     "frontendDist": "../dist",
