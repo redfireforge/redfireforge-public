@@ -11,6 +11,10 @@
 
 **A visual API testing & load-testing workbench for HTTP, GraphQL, gRPC, WebSocket, SSE, and Kafka — with a drag-and-drop workflow designer, a CLI for CI/CD, and a companion Learning Hub of interactive lessons.**
 
+<p align="center">
+  <img src="docs/assets/social/og-image.png" alt="RedfireForge — Six protocols. One workbench. Visual API testing and load testing for HTTP, GraphQL, gRPC, WebSocket, SSE, and Kafka." width="800" />
+</p>
+
 ---
 
 ## ☁️ RedfireForge Cloud — Coming Soon
