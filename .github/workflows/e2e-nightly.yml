@@ -33,12 +33,43 @@ on:
 # ── Jobs ──────────────────────────────────────────────────────────────────────
 
 jobs:
+  # actions/checkout turns a bare branch name into refs/heads/<name>* (plus
+  # tags). Git 2.55 on GH runners fails that wildcard fetch, and a deleted
+  # develop branch (GitHub "delete head branch" after a merge) fails it too.
+  prepare:
+    name: Resolve checkout ref
+    runs-on: ubuntu-latest
+    outputs:
+      ref: ${{ steps.pick.outputs.ref }}
+    steps:
+      - id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WANT: ${{ github.event.inputs.ref || 'develop' }}
+        run: |
+          set -euo pipefail
+          if [[ "$WANT" == refs/* || "$WANT" =~ ^[0-9a-fA-F]{7,40}$ ]]; then
+            echo "ref=$WANT" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if gh api --silent "repos/${GITHUB_REPOSITORY}/branches/${WANT}"; then
+            echo "ref=refs/heads/${WANT}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if gh api --silent "repos/${GITHUB_REPOSITORY}/git/ref/tags/${WANT}"; then
+            echo "ref=refs/tags/${WANT}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Requested ref '${WANT}' is missing; falling back to ${GITHUB_REF}"
+          echo "ref=${GITHUB_REF}" >> "$GITHUB_OUTPUT"
+
   # --------------------------------------------------------------------------
   # Core product E2E — 29 spec files, no Docker required
   # Runs nightly, or when project is 'ci', 'chromium', or 'all'.
   # --------------------------------------------------------------------------
   e2e-product:
     name: E2E Product (${{ github.event.inputs.project == 'chromium' && 'chromium — full' || 'ci — core' }})
+    needs: prepare
     runs-on: ubuntu-latest
     if: |
       github.event_name == 'schedule' ||
@@ -48,7 +79,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.inputs.ref || 'develop' }}
+          ref: ${{ needs.prepare.outputs.ref }}
 
       - uses: actions/setup-node@v5
         with:
@@ -81,6 +112,7 @@ jobs:
   # --------------------------------------------------------------------------
   e2e-grpc:
     name: E2E gRPC Studio
+    needs: prepare
     runs-on: ubuntu-latest
     if: |
       github.event_name == 'schedule' ||
@@ -89,7 +121,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.inputs.ref || 'develop' }}
+          ref: ${{ needs.prepare.outputs.ref }}
 
       - uses: actions/setup-node@v5
         with:
@@ -118,6 +150,7 @@ jobs:
   # --------------------------------------------------------------------------
   e2e-demo-gql5:
     name: E2E Demo GQL-5 (Docker — TLS)
+    needs: prepare
     runs-on: ubuntu-latest
     if: |
       github.event_name == 'schedule' ||
@@ -126,7 +159,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.inputs.ref || 'develop' }}
+          ref: ${{ needs.prepare.outputs.ref }}
 
       - uses: actions/setup-node@v5
         with:
@@ -158,6 +191,7 @@ jobs:
   # --------------------------------------------------------------------------
   e2e-demo-hub:
     name: E2E Learning Hub + API Mock
+    needs: prepare
     runs-on: ubuntu-latest
     timeout-minutes: 180
     if: |
@@ -167,7 +201,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.inputs.ref || 'develop' }}
+          ref: ${{ needs.prepare.outputs.ref }}
 
       - uses: actions/setup-node@v5
         with:
@@ -197,6 +231,7 @@ jobs:
   # --------------------------------------------------------------------------
   e2e-docker:
     name: E2E Docker stacks
+    needs: prepare
     runs-on: ubuntu-latest
     timeout-minutes: 90
     if: |
@@ -206,7 +241,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.inputs.ref || 'develop' }}
+          ref: ${{ needs.prepare.outputs.ref }}
 
       - uses: actions/setup-node@v5
         with:
