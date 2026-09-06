@@ -8,9 +8,12 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.8.6] — 2026-09-09
+
 ### Fixed
 - **Linux Learning Hub blank window** — WebKitGTK on VMware (and some Wayland/NVIDIA hosts) created the window but never painted. Set DMA-BUF / compositing workarounds at process start; VMware guests also force X11 + software GL.
-- **Docker command unused-mut warning** — `docker_cmd` only mutates PATH on Windows, so non-Windows builds no longer warn about `let mut cmd`.
+- **Packaged Docker compose path** — Windows NSIS and Linux deb/AppImage Learning Hub builds now find compose files under the installer `_up_/docker` directory, so a fresh extract can start lesson stacks.
+- **CI build warnings** — Silence unused Unix docker helpers on Windows and the Linux postject `.note.100` warning. `docker_cmd` only mutates PATH on Windows, so non-Windows builds no longer warn about `let mut cmd`.
 
 ## [0.8.5] — 2026-09-07
 
