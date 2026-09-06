@@ -25,6 +25,7 @@ import {
 } from '@shared/websocket/types';
 import { loadWsTabState, saveWsTabState } from '@shared/websocket/websocketStorage';
 import ConfirmModal from '@shared/components/ConfirmModal';
+import { resolveWsMockApiUrl } from './useWebSocketMockServer';
 import {
   DEMO_INITIAL_SURFACE_EVENT,
   peekDemoInitialSurface,
@@ -471,7 +472,7 @@ export function WebSocketStudioPage({
         mockPortsRef.current = nextPorts;
         setMockPorts(nextPorts);
         if (closedPort !== undefined) {
-          void fetch('/api/ws/mock/stop', {
+          void fetch(resolveWsMockApiUrl('/api/ws/mock/stop'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ port: closedPort }),
