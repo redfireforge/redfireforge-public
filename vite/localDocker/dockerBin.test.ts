@@ -144,6 +144,12 @@ describe('dockerBin', () => {
     expect(env.Path).toBe(env.PATH);
   });
 
+  it('prepends a Unix docker dir on a posix PATH', () => {
+    const env = envWithDockerBinDir('/usr/local/bin/docker', { PATH: '/usr/bin' }, 'linux');
+    expect(env.PATH).toBe('/usr/local/bin:/usr/bin');
+    expect(env.Path).toBeUndefined();
+  });
+
   it('leaves env alone for bare docker name', () => {
     const env = envWithDockerBinDir('docker', { PATH: '/usr/bin', HOME: '/tmp' }, 'linux');
     expect(env.PATH).toBe('/usr/bin');
