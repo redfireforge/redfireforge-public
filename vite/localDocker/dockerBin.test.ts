@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  envWithDockerBinDir,
   firstExistingFile,
   pathDockerBins,
   resolveDockerBin,
@@ -10,12 +11,12 @@ import {
 
 describe('dockerBin', () => {
   it.skipIf(process.platform === 'win32')('prefers the first PATH hit', () => {
-    const exists = (p: string) => p.endsWith('/opt/bin/docker');
+    const exists = (p: string) => /[/\\]opt[/\\]bin[/\\]docker$/.test(p);
     expect(resolveDockerBin({
       platform: 'darwin',
       pathEnv: '/opt/bin:/usr/bin',
       exists,
-    })).toBe('/opt/bin/docker');
+    })).toMatch(/[/\\]opt[/\\]bin[/\\]docker$/);
   });
 
   it('falls back to well-known Unix paths', () => {
@@ -111,7 +112,7 @@ describe('dockerBin', () => {
       platform: 'darwin',
       env: { Path: '/from-path-env' },
       exists: (p) => p.includes('from-path-env'),
-    })).toBe('/from-path-env/docker');
+    })).toMatch(/[/\\]from-path-env[/\\]docker$/);
   });
 
   it('skips empty and quoted PATH entries', () => {
@@ -131,5 +132,21 @@ describe('dockerBin', () => {
       expect.stringMatching(/docker\.exe$/),
       expect.stringMatching(/docker\.exe$/),
     ]);
+  });
+
+  it('prepends docker bin dir for credential helpers on Windows', () => {
+    const env = envWithDockerBinDir(
+      'C:\\Users\\me\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe',
+      { PATH: 'C:\\Windows\\System32', Path: 'C:\\Windows\\System32' },
+      'win32',
+    );
+    expect(env.PATH).toMatch(/^C:\\Users\\me\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;/);
+    expect(env.Path).toBe(env.PATH);
+  });
+
+  it('leaves env alone for bare docker name', () => {
+    const env = envWithDockerBinDir('docker', { PATH: '/usr/bin', HOME: '/tmp' }, 'linux');
+    expect(env.PATH).toBe('/usr/bin');
+    expect(env.HOME).toBe('/tmp');
   });
 });

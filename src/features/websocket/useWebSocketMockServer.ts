@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toErrorMessage } from '@shared/utils/helpers';
+import { resolveCompanionServerUrl } from '@shared/utils/httpClient';
+import { isTauri } from '@shared/utils/platform';
 import type {
   WsMockRule,
   WsMockFallbackMode,
@@ -35,6 +37,11 @@ function emptyStatus(port: number): WsMockStatus {
   return { running: false, port, clientCount: 0, clients: [] };
 }
 
+/** Tauri has no Vite /api proxy — hit the companion on :3001 directly. */
+export function resolveWsMockApiUrl(path: string): string {
+  return isTauri() ? resolveCompanionServerUrl(path) : path;
+}
+
 async function mockFetch<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
   const init: RequestInit = {
     method,
@@ -44,15 +51,18 @@ async function mockFetch<T>(method: 'GET' | 'POST', path: string, body?: unknown
     (init.headers as Record<string, string>)['Content-Type'] = 'application/json';
     init.body = JSON.stringify(body);
   }
-  const resp = await fetch(path, init);
+  const resp = await fetch(resolveWsMockApiUrl(path), init);
   let parsed: { ok: boolean; data?: T; error?: { message: string } };
+  let rawPreview = '';
 
   try {
-    if (typeof resp.json === 'function') {
-      parsed = await resp.json() as typeof parsed;
-    } else if (typeof resp.text === 'function') {
+    // Prefer text() so HTML SPA shells (Tauri asset origin) can be diagnosed.
+    if (typeof resp.text === 'function') {
       const rawBody = await resp.text();
+      rawPreview = rawBody.slice(0, 120);
       parsed = JSON.parse(rawBody) as typeof parsed;
+    } else if (typeof resp.json === 'function') {
+      parsed = await resp.json() as typeof parsed;
     } else {
       throw new Error('No JSON body parser available');
     }
@@ -60,6 +70,13 @@ async function mockFetch<T>(method: 'GET' | 'POST', path: string, body?: unknown
     if (resp.status === 502) {
       throw new Error(
         'Backend API is unreachable (HTTP 502). Start the local API server on port 3001 and retry.',
+      );
+    }
+    const looksLikeHtml = /<!DOCTYPE|<html/i.test(rawPreview);
+    if (looksLikeHtml || resp.status === 200) {
+      throw new Error(
+        'WebSocket mock API is unreachable (got a non-JSON response). '
+        + 'Ensure the companion server is running on port 3001 and retry.',
       );
     }
     throw new Error(`Server returned ${resp.status} (non-JSON response)`);
