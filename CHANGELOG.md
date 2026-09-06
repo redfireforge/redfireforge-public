@@ -9,6 +9,7 @@ Format follows Keep a Changelog and Semantic Versioning.
 ## [Unreleased]
 
 ### Fixed
+- **WebSocket Studio page coverage** — Tests now cover the mock-port conflict path when the caller has no current port, so `WebSocketStudioPage` stays above 90% branches after the persistence extract.
 - **WebSocket Studio monolith gate** — Persisted-tab restore and serialize now live in `wsStudioTabPersistence`, so `WebSocketStudioPage` stays under the 750-line product CI limit.
 - **WebSocket mock hook coverage** — `mockFetch` now has tests for `json()`-only responses and bodies with no parser, so product CI stays above 90% branches on `useWebSocketMockServer`.
 - **Windows Docker credential PATH in Linux CI** — `envWithDockerBinDir` now splits Windows paths with win32 rules, so the Desktop `resources\\bin` directory is prepended on Ubuntu runners (and locally on macOS).
