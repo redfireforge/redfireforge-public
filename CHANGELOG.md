@@ -9,6 +9,7 @@ Format follows Keep a Changelog and Semantic Versioning.
 ## [Unreleased]
 
 ### Fixed
+- **WebSocket mock hook coverage** — `mockFetch` now has tests for `json()`-only responses and bodies with no parser, so product CI stays above 90% branches on `useWebSocketMockServer`.
 - **Windows Docker credential PATH in Linux CI** — `envWithDockerBinDir` now splits Windows paths with win32 rules, so the Desktop `resources\\bin` directory is prepended on Ubuntu runners (and locally on macOS).
 - **E2E Nightly checkout** — Resolve `develop` (or the dispatch ref) to an exact `refs/heads/…` before checkout, and fall back to the triggering ref if that branch is missing. Stops the scheduled job from failing when `develop` was deleted.
 - **API Mock parked-server reopen** — Clicking a Saved servers item after closing its last tab always reopens the tab. The sidebar no longer keeps a stale “this tab is still open” callback, which also flaked product CI.
