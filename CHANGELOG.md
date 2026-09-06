@@ -9,6 +9,8 @@ Format follows Keep a Changelog and Semantic Versioning.
 ## [Unreleased]
 
 ### Fixed
+- **Windows Docker credential PATH in Linux CI** — `envWithDockerBinDir` now splits Windows paths with win32 rules, so the Desktop `resources\\bin` directory is prepended on Ubuntu runners (and locally on macOS).
+- **E2E Nightly checkout** — Resolve `develop` (or the dispatch ref) to an exact `refs/heads/…` before checkout, and fall back to the triggering ref if that branch is missing. Stops the scheduled job from failing when `develop` was deleted.
 - **API Mock parked-server reopen** — Clicking a Saved servers item after closing its last tab always reopens the tab. The sidebar no longer keeps a stale “this tab is still open” callback, which also flaked product CI.
 - **Local clone desktop gates** — Hosted/remote web still requires the desktop app for API Mock Start, GraphQL Mock, and Demo Hub desktop-only lessons. A local `npm run dev` clone (`localhost`, `*.localhost`, loopback) now unlocks those features the same way the desktop app does, via the companion on `:3001`.
 - **Live demo tab-exit confirm** — Demo Hub `ctx.click` / `ctx.selectOption` no longer trip “Leave the live demo?” when the player itself switches tabs (for example Kafka Quick Start → Protocols). A human click on the activity bar during a lesson still prompts.
