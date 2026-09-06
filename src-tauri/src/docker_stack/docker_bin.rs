@@ -88,6 +88,7 @@ pub fn first_existing_file(paths: &[PathBuf]) -> Option<PathBuf> {
 }
 
 /// Docker Desktop / Homebrew / engine locations used when GUI PATH is empty.
+#[cfg_attr(windows, allow(dead_code))]
 pub fn unix_docker_cli_candidates(home: Option<&str>) -> Vec<PathBuf> {
     let mut out = vec![
         PathBuf::from("/usr/local/bin/docker"),
@@ -106,6 +107,7 @@ pub fn unix_docker_cli_candidates(home: Option<&str>) -> Vec<PathBuf> {
 }
 
 /// First `docker` on a Unix PATH (`:` separated).
+#[cfg_attr(windows, allow(dead_code))]
 pub fn unix_path_docker(path_env: Option<&str>) -> Option<PathBuf> {
     let path_env = path_env.filter(|s| !s.is_empty())?;
     for dir in path_env.split(':') {
