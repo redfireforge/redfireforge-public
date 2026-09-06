@@ -503,4 +503,67 @@ describe('WebSocketStudioPage coverage gaps', () => {
     });
     expect(capturedContentProps[tabId].controlledMode).toBe('saved');
   });
+
+  it('moves a conflicting owner to the next free port when the caller has no current port', async () => {
+    await renderPage({
+      tabs: [
+        { id: 'ws-tab-1', label: 'A', url: '', viewTab: 'connect', mockPort: 9876 },
+        { id: 'ws-tab-2', label: 'B', url: '', viewTab: 'connect', mockPort: 9877 },
+        { id: 'ws-tab-3', label: 'C', url: '', viewTab: 'connect', mockPort: 9878 },
+      ],
+      activeTabId: 'ws-tab-1',
+      renamedTabIds: [],
+    });
+
+    act(() => {
+      (capturedContentProps['ws-tab-1'].onMockPortChange as (tabId: string, port: number) => void)(
+        'ghost-tab',
+        9876,
+      );
+    });
+
+    expect(capturedContentProps['ws-tab-1'].mockPort).toBe(9879);
+    expect(capturedContentProps['ws-tab-2'].mockPort).toBe(9877);
+    expect(capturedContentProps['ws-tab-3'].mockPort).toBe(9878);
+  });
+
+  it('seeds studio location when mode and pane tabs change on a newly added tab', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByTestId('mock-ws-add'));
+    fireEvent.click(screen.getByTestId('mock-ws-add'));
+    fireEvent.click(screen.getByTestId('mock-ws-add'));
+
+    const tabs = capturedTabBarPropsRef.current.tabs as Array<{ id: string }>;
+    const modeId = tabs[1].id;
+    const leftId = tabs[2].id;
+    const rightId = tabs[3].id;
+
+    act(() => {
+      (capturedContentProps[modeId].onModeChange as (mode: string) => void)('saved');
+      (capturedContentProps[leftId].onLeftTabChange as (leftTab: string) => void)('auth');
+      (capturedContentProps[rightId].onRightTabChange as (rightTab: string) => void)('schema');
+    });
+
+    expect(capturedContentProps[modeId].controlledMode).toBe('saved');
+    expect(capturedContentProps[leftId].controlledLeftTab).toBe('auth');
+    expect(capturedContentProps[rightId].controlledRightTab).toBe('schema');
+  });
+
+  it('ignores a demo surface event that repeats the current mode', async () => {
+    setDemoInitialSurface({ wsStudioMode: 'mock' });
+    await renderPage();
+    const tabId = (capturedTabBarPropsRef.current.tabs as Array<{ id: string }>)[0].id;
+    expect(capturedContentProps[tabId].controlledMode).toBe('mock');
+
+    act(() => {
+      window.dispatchEvent(new Event(DEMO_INITIAL_SURFACE_EVENT));
+    });
+    expect(capturedContentProps[tabId].controlledMode).toBe('mock');
+
+    clearDemoInitialSurface();
+    act(() => {
+      window.dispatchEvent(new Event(DEMO_INITIAL_SURFACE_EVENT));
+    });
+    expect(capturedContentProps[tabId].controlledMode).toBe('mock');
+  });
 });
