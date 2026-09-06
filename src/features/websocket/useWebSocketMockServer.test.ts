@@ -551,6 +551,46 @@ describe('useWebSocketMockServer', () => {
     expect(caught?.message).toContain('companion server');
   });
 
+  it('start parses JSON via resp.json when text() is unavailable', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
+      if (typeof url === 'string' && url.includes('/start')) {
+        const envelope = { ok: true, data: makeStatus({ running: true }) };
+        return Promise.resolve({
+          status: 200,
+          json: () => Promise.resolve(envelope),
+        } as Response);
+      }
+      return mockFetchResponse({});
+    }));
+
+    const { result } = renderHook(() => useWebSocketMockServer(9876, false));
+    await act(async () => { await vi.runAllTimersAsync(); });
+    await act(async () => { await result.current.start(); });
+    expect(result.current.status.running).toBe(true);
+  });
+
+  it('start reports a missing JSON parser when text() and json() are absent', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
+      if (typeof url === 'string' && url.includes('/start')) {
+        return Promise.resolve({ status: 418 } as Response);
+      }
+      return mockFetchResponse({});
+    }));
+
+    const { result } = renderHook(() => useWebSocketMockServer(9876, false));
+    await act(async () => { await vi.runAllTimersAsync(); });
+
+    let caught: Error | null = null;
+    await act(async () => {
+      try {
+        await result.current.start();
+      } catch (err) {
+        caught = err as Error;
+      }
+    });
+    expect(caught?.message).toContain('non-JSON response');
+  });
+
   it('start still surfaces generic non-JSON response for non-502 error statuses', async () => {
     vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
       if (typeof url === 'string' && url.includes('/start')) {
