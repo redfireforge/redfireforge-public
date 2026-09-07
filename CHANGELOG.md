@@ -12,7 +12,7 @@ Format follows Keep a Changelog and Semantic Versioning.
 - **Commit message gate** — Husky strips Cursor / Copilot / Claude attribution from the final commit message. CI does the same on feature/hotfix branches (rewrite + force-push) and strips those lines from the PR body, so leftover trailers do not fail the PR. Workspace `git.addAICoAuthor` is off.
 
 ### Changed
-- **Vitest 5** — Bump `vitest` and `@vitest/coverage-v8` together so Dependabot's 5.0.0 bump can `npm ci`. Projects keep `extends: false` and `clearMocks: false` to match the previous runner behavior.
+- **Vitest 5** — Bump `vitest` and `@vitest/coverage-v8` together so Dependabot's 5.0.0 bump can `npm ci`. Keep `istanbul-lib-coverage` as a direct dep because Vitest 5 only ships the ESM `@vitest/istanbul-lib-coverage` fork, and the product coverage merge still `require()`s the old name. Projects keep `extends: false` and `clearMocks: false` to match the previous runner behavior.
 - **Dependabot minor/patch group** — Apply the 18 compatible updates from PR #166 (Tauri plugins, React Flow, monaco-graphql, react-router, TypeScript ESLint, and related types).
 
 ### Fixed
