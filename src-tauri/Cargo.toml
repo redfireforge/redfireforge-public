@@ -21,12 +21,12 @@ serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
 tauri = { version = "2.11.5", features = [] }
 tauri-plugin-log = "2"
-tauri-plugin-fs = "2"
-tauri-plugin-http = "2"
-tauri-plugin-dialog = "2"
-tauri-plugin-shell = "2"
-tauri-plugin-updater = "2"
-tauri-plugin-process = "2"
+tauri-plugin-fs = "2.5"
+tauri-plugin-http = "2.6"
+tauri-plugin-dialog = "2.7"
+tauri-plugin-shell = "2.3"
+tauri-plugin-updater = "2.11"
+tauri-plugin-process = "2.3"
 clap = { version = "4", features = ["derive"] }
 reqwest = { version = "0.13", features = ["json", "gzip", "brotli", "rustls", "multipart", "http2"] }
 tokio = { version = "1", features = ["full"] }
