@@ -16,6 +16,7 @@ Format follows Keep a Changelog and Semantic Versioning.
 - **Dependabot minor/patch group** — Apply the 18 compatible updates from PR #166 (Tauri plugins, React Flow, monaco-graphql, react-router, TypeScript ESLint, and related types).
 
 ### Fixed
+- **Tauri plugin crate/npm mismatch** — Dependabot raised `@tauri-apps/plugin-http` to 2.6 and `plugin-updater` to 2.11, but `Cargo.lock` stayed on 2.5.8 / 2.10.1. `tauri build` now treats that minor mismatch as a hard error. Pin the Rust crates to the same majors/minors and refresh the lockfile.
 - **WebSocket Studio page coverage** — Tests now cover the mock-port conflict path when the caller has no current port, so `WebSocketStudioPage` stays above 90% branches after the persistence extract.
 - **WebSocket Studio monolith gate** — Persisted-tab restore and serialize now live in `wsStudioTabPersistence`, so `WebSocketStudioPage` stays under the 750-line product CI limit.
 - **WebSocket mock hook coverage** — `mockFetch` now has tests for `json()`-only responses and bodies with no parser, so product CI stays above 90% branches on `useWebSocketMockServer`.
