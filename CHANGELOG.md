@@ -9,7 +9,7 @@ Format follows Keep a Changelog and Semantic Versioning.
 ## [Unreleased]
 
 ### Added
-- **Commit message gate** — Husky strips Cursor / Copilot / Claude attribution from the final commit message. CI rejects leftover trailers (and the same lines in a PR body) so `--no-verify` cannot land them. Workspace `git.addAICoAuthor` is off.
+- **Commit message gate** — Husky strips Cursor / Copilot / Claude attribution from the final commit message. CI does the same on feature/hotfix branches (rewrite + force-push) and strips those lines from the PR body, so leftover trailers do not fail the PR. Workspace `git.addAICoAuthor` is off.
 
 ### Changed
 - **Vitest 5** — Bump `vitest` and `@vitest/coverage-v8` together so Dependabot's 5.0.0 bump can `npm ci`. Projects keep `extends: false` and `clearMocks: false` to match the previous runner behavior.

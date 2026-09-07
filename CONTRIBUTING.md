@@ -114,8 +114,8 @@ chore: bump vitest to 2.1.0
 Do **not** add AI-tool attribution to commit messages or PR bodies
 (`Co-authored-by: Cursor`, `Co-authored-by: Copilot`, `Made with Cursor`,
 and similar). Human `Co-authored-by` trailers are fine. The `commit-msg`
-hook strips known AI lines; CI job **Commit message** rejects any that
-remain.
+hook strips known AI lines locally; CI job **Commit message** strips any
+that remain on the feature branch and pushes the cleaned history.
 
 ---
 

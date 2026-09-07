@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# Strip or reject AI-tool attribution in commit messages (and optional PR bodies).
-# Used by .husky/commit-msg (strip) and CI (reject).
+# Strip AI-tool attribution from commit messages (and optional PR bodies).
+# Used by .husky/commit-msg (local strip) and CI (rewrite + push).
 set -euo pipefail
+
+SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
 
 # Line-oriented. Human Co-authored-by trailers are left alone.
 AI_ATTR_GREP='^[[:space:]]*(Co-authored-by:[[:space:]]*(Cursor|GitHub[[:space:]]+Copilot|Copilot|Claude|ChatGPT|Gemini|Codex|Devin|Windsurf|Cline)\b|Co-authored-by:.*<(cursoragent@cursor.com|copilot@github.com)>|Made with[[:space:]]*(\[Cursor\]|Cursor|Copilot)|Made with \[Cursor\]\([^)]*\)|🤖[[:space:]]*Generated)'
@@ -10,14 +12,19 @@ usage() {
   cat <<'EOF'
 Usage:
   scripts/check-commit-messages.sh [--strip FILE]
+  scripts/check-commit-messages.sh [--strip-stdin]
   scripts/check-commit-messages.sh [--self-test]
+  scripts/check-commit-messages.sh [--ci]
   scripts/check-commit-messages.sh [GIT_RANGE]
 
 Environment (CI):
-  EVENT_NAME   pull_request | push | ...
-  BASE_SHA     PR base or push before
-  HEAD_SHA     PR head or push after
-  PR_BODY      optional pull request body to scan
+  EVENT_NAME    pull_request | push | ...
+  BASE_SHA      PR base or push before
+  HEAD_SHA      PR head or push after
+  BRANCH_NAME   feature/hotfix branch to rewrite
+  SAME_REPO     true when CI can push the head branch
+  PR_BODY       optional pull request body to strip
+  PR_NUMBER     pull request number for body edits
 EOF
 }
 
@@ -39,23 +46,108 @@ scan_text() {
   return "$found"
 }
 
-strip_file() {
-  local file="$1"
-  local tmp
-  tmp="$(mktemp)"
-  # Portable: rewrite without matching lines. Keep a trailing newline.
-  if [[ ! -f "$file" ]]; then
-    echo "commit-msg file not found: $file" >&2
-    exit 1
-  fi
-  : > "$tmp"
+strip_stream() {
+  local out="" had=0 line
   while IFS= read -r line || [[ -n "$line" ]]; do
     if line_is_ai_attr "$line"; then
       continue
     fi
-    printf '%s\n' "$line" >> "$tmp"
-  done < "$file"
+    out+="$line"$'\n'
+    had=1
+  done
+  if (( !had )); then
+    printf '%s\n' 'chore: update'
+    return
+  fi
+  printf '%s' "$out"
+}
+
+strip_file() {
+  local file="$1"
+  local tmp
+  tmp="$(mktemp)"
+  if [[ ! -f "$file" ]]; then
+    echo "commit-msg file not found: $file" >&2
+    exit 1
+  fi
+  strip_stream < "$file" > "$tmp"
   mv "$tmp" "$file"
+}
+
+protected_branch() {
+  local name="${1:-}"
+  [[ "$name" == "master" || "$name" == "develop" || "$name" == release/* ]]
+}
+
+rewrite_range() {
+  local range="$1"
+  FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch -f --msg-filter \
+    "bash \"${SCRIPT_PATH}\" --strip-stdin" \
+    -- "$range"
+  git update-ref -d refs/original/refs/heads/"${BRANCH_NAME:-}" 2>/dev/null || true
+  git for-each-ref --format='%(refname)' refs/original | while read -r ref; do
+    git update-ref -d "$ref" || true
+  done
+}
+
+strip_pr_body_if_needed() {
+  local body="${PR_BODY:-}"
+  local stripped
+  if [[ -z "$body" || -z "${PR_NUMBER:-}" ]]; then
+    return 0
+  fi
+  if scan_text "PR body" "$body"; then
+    return 0
+  fi
+  stripped="$(printf '%s\n' "$body" | strip_stream)"
+  if [[ -z "${GH_TOKEN:-}${GITHUB_TOKEN:-}" ]]; then
+    echo "PR body has AI attribution; cannot edit without a GitHub token."
+    return 0
+  fi
+  if gh pr edit "$PR_NUMBER" --body "$stripped"; then
+    echo "Stripped AI attribution from PR #${PR_NUMBER} body."
+  else
+    echo "Could not edit PR #${PR_NUMBER} body; squash merge still uses the PR title only."
+  fi
+}
+
+run_ci() {
+  local range found=0
+  range="$(resolve_range)"
+  echo "Scanning commit messages in $range"
+  if scan_git_range "$range"; then
+    :
+  else
+    found=1
+  fi
+
+  if (( found )); then
+    if [[ "${SAME_REPO:-}" != "true" ]]; then
+      echo
+      echo "This is a fork PR, so CI cannot rewrite the branch."
+      echo "Strip the AI-tool lines locally (the commit-msg hook does this) and push."
+      exit 1
+    fi
+    if protected_branch "${BRANCH_NAME:-}"; then
+      echo
+      echo "Refusing to rewrite protected branch '${BRANCH_NAME}'."
+      echo "Open a feature branch so CI can strip the messages there."
+      exit 1
+    fi
+    if [[ -z "${BRANCH_NAME:-}" ]]; then
+      echo "BRANCH_NAME is required to rewrite commit messages." >&2
+      exit 1
+    fi
+    echo "Stripping AI attribution from commit messages in $range"
+    rewrite_range "$range"
+    git push --force-with-lease="refs/heads/${BRANCH_NAME}:${HEAD_SHA:-}" \
+      origin "HEAD:refs/heads/${BRANCH_NAME}"
+    echo "Pushed stripped commit messages to ${BRANCH_NAME}."
+  else
+    echo "Commit messages are clean."
+  fi
+
+  strip_pr_body_if_needed
 }
 
 zeros_sha() {
@@ -167,7 +259,43 @@ self_test() {
     echo "strip removed human trailer" >&2
     fail=1
   fi
+  stdin_out="$(printf '%s\n' 'feat: stdin' 'Co-authored-by: Copilot <copilot@github.com>' | strip_stream)"
+  if printf '%s\n' "$stdin_out" | grep -q 'Copilot'; then
+    echo "strip-stdin left Copilot trailer" >&2
+    fail=1
+  fi
+  if ! printf '%s\n' "$stdin_out" | grep -q 'feat: stdin'; then
+    echo "strip-stdin dropped subject" >&2
+    fail=1
+  fi
   rm -f "$tmp"
+
+  local repo
+  repo="$(mktemp -d)"
+  git -C "$repo" init -q
+  git -C "$repo" config user.name test
+  git -C "$repo" config user.email test@example.com
+  printf 'a\n' > "$repo/f"
+  git -C "$repo" add f
+  git -C "$repo" commit -q -m 'base'
+  local base
+  base="$(git -C "$repo" rev-parse HEAD)"
+  printf 'b\n' > "$repo/f"
+  git -C "$repo" add f
+  git -C "$repo" commit -q -m "$(printf '%s\n' 'feat: dirty' 'Co-authored-by: Cursor <cursoragent@cursor.com>')"
+  (
+    cd "$repo"
+    BRANCH_NAME=master rewrite_range "${base}..HEAD"
+  )
+  if git -C "$repo" log -1 --format=%B | grep -q 'Cursor'; then
+    echo "rewrite_range left Cursor trailer" >&2
+    fail=1
+  fi
+  if ! git -C "$repo" log -1 --format=%s | grep -q 'feat: dirty'; then
+    echo "rewrite_range dropped subject" >&2
+    fail=1
+  fi
+  rm -rf "$repo"
 
   if (( fail )); then
     echo "self-test failed"
@@ -190,6 +318,12 @@ main() {
         exit 2
       fi
       strip_file "$2"
+      ;;
+    --strip-stdin)
+      strip_stream
+      ;;
+    --ci)
+      run_ci
       ;;
     *)
       local range found=0
