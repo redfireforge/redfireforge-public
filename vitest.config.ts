@@ -10,8 +10,8 @@ import {
 import { demoHubRootImportsPlugin } from './vite/demoHubRootImports';
 import { createMonacoAwareLogger, monacoDevNoisePlugin } from './vite/monacoDevNoisePlugin';
 
-// Vitest 4 leaves coverageConfigDefaults.exclude empty; PRODUCT_COVERAGE_EXCLUDE
-// is the full denylist (demo, CSS, test files, test-utils, styles).
+// PRODUCT_COVERAGE_EXCLUDE is the full denylist (demo, CSS, test files,
+// test-utils, styles). Merge Vitest's default excludes when the version provides them.
 const productCoverageExclude = [
   ...PRODUCT_COVERAGE_EXCLUDE,
   ...coverageConfigDefaults.exclude,
@@ -32,6 +32,8 @@ const sharedTestOptions = {
   hookTimeout: 15000,
   exclude: [...COMMON_TEST_EXCLUDE],
   retry: 2,
+  // Vitest 5 defaults clearMocks to true; keep v4 history so existing tests stay stable.
+  clearMocks: false,
   env: {
     VITE_ENABLE_DEMO_HUB: 'true',
   },
@@ -67,6 +69,8 @@ export default defineConfig({
     ],
     projects: [
       {
+        // Projects already copy root Vite plugins/aliases; don't inherit them again.
+        extends: false,
         ...sharedProjectConfig,
         test: {
           ...sharedTestOptions,
@@ -83,6 +87,7 @@ export default defineConfig({
         },
       },
       {
+        extends: false,
         ...sharedProjectConfig,
         test: {
           ...sharedTestOptions,
