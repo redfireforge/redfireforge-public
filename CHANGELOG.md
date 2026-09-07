@@ -8,6 +8,9 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Changed
+- **Vitest 5** — Bump `vitest` and `@vitest/coverage-v8` together so Dependabot's 5.0.0 bump can `npm ci`. Projects keep `extends: false` and `clearMocks: false` to match the previous runner behavior.
+
 ### Fixed
 - **WebSocket Studio page coverage** — Tests now cover the mock-port conflict path when the caller has no current port, so `WebSocketStudioPage` stays above 90% branches after the persistence extract.
 - **WebSocket Studio monolith gate** — Persisted-tab restore and serialize now live in `wsStudioTabPersistence`, so `WebSocketStudioPage` stays under the 750-line product CI limit.
