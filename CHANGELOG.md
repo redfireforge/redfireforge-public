@@ -8,6 +8,13 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Added
+- **Commit message gate** — Husky strips Cursor / Copilot / Claude attribution from the final commit message. CI does the same on feature/hotfix branches (rewrite + force-push) and strips those lines from the PR body, so leftover trailers do not fail the PR. Workspace `git.addAICoAuthor` is off.
+
+### Changed
+- **Vitest 5** — Bump `vitest` and `@vitest/coverage-v8` together so Dependabot's 5.0.0 bump can `npm ci`. Projects keep `extends: false` and `clearMocks: false` to match the previous runner behavior.
+- **Dependabot minor/patch group** — Apply the 18 compatible updates from PR #166 (Tauri plugins, React Flow, monaco-graphql, react-router, TypeScript ESLint, and related types).
+
 ### Fixed
 - **WebSocket Studio page coverage** — Tests now cover the mock-port conflict path when the caller has no current port, so `WebSocketStudioPage` stays above 90% branches after the persistence extract.
 - **WebSocket Studio monolith gate** — Persisted-tab restore and serialize now live in `wsStudioTabPersistence`, so `WebSocketStudioPage` stays under the 750-line product CI limit.

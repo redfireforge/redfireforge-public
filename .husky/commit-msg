@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Strip AI-tool attribution from the final commit message (Cursor, Copilot, …).
+# prepare-commit-msg runs too early; this hook sees the message Git will write.
+# CI still rejects leftover trailers if someone uses --no-verify.
+file="$1"
+bash "$(dirname "$0")/../scripts/check-commit-messages.sh" --strip "$file"
