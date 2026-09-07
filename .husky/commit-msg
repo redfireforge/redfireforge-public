@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
-# Cursor may append Co-authored-by after prepare-commit-msg. Strip it here,
-# which runs on the final message before the commit object is written.
+# Strip AI-tool attribution from the final commit message (Cursor, Copilot, …).
+# prepare-commit-msg runs too early; this hook sees the message Git will write.
+# CI still rejects leftover trailers if someone uses --no-verify.
 file="$1"
-tmp="$(mktemp)"
-sed -E \
-  '/^Co-authored-by:[[:space:]]*Cursor/d; /^Made with Cursor/d; /^Made with \[Cursor\]/d' \
-  "$file" > "$tmp"
-mv "$tmp" "$file"
+bash "$(dirname "$0")/../scripts/check-commit-messages.sh" --strip "$file"

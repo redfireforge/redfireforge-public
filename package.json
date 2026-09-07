@@ -47,6 +47,7 @@
     "cli": "tsx cli/index.ts",
     "lint": "eslint .",
     "lint:max-lines": "bash scripts/check-max-lines.sh",
+    "lint:commit-messages": "bash scripts/check-commit-messages.sh",
     "lint:max-lines:strict": "MAX_LINES=750 bash scripts/check-max-lines.sh",
     "lint:css": "stylelint \"src/**/*.css\"",
     "preview": "vite preview",

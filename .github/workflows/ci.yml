@@ -64,6 +64,23 @@ jobs:
               - 'e2e/**'
               - 'playwright.config.ts'
 
+  commit-message:
+    name: Commit message
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Reject AI attribution in commit messages
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          bash scripts/check-commit-messages.sh --self-test
+          bash scripts/check-commit-messages.sh
+
   cert-expiry:
     name: Demo TLS cert expiry
     runs-on: ubuntu-latest
