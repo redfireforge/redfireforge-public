@@ -3,7 +3,9 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@shared/utils/platform', () => ({
+// Spread the real module so new platform exports (e.g. isLocalWebHost) stay wired.
+vi.mock('@shared/utils/platform', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@shared/utils/platform')>()),
   isTauri: () => false,
 }));
 

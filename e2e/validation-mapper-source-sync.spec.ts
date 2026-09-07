@@ -14,7 +14,7 @@ const sampleResponse = {
  */
 async function seedWithExistingValidationRules(page: Page) {
   await page.addInitScript(() => {
-    localStorage.setItem('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 't01' }]));
+    localStorage.setItem('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 'test' }]));
     localStorage.setItem('perf-test-v3-microservices', JSON.stringify([{
       id: 'svc-1', name: 'test-service',
       baseUrls: { 'env-1': 'http://localhost:5173' },

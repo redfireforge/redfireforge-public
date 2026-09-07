@@ -19,6 +19,7 @@ import {
   clampDemoPacing,
   isDemoE2EFastMode,
 } from './demoE2EFastMode';
+import { runWithDemoUiAction } from '@shared/utils/demoUiAction';
 
 /** preAction is invisible — scale lesson delay() so Preparing does not linger. */
 export const DEMO_QUIET_DELAY_FACTOR = 0.25;
@@ -296,7 +297,7 @@ export function buildDemoActionContext(
 ): DemoActionContext {
   const sleep = (ms: number) => abortableSleep(scaleVisibleDelay(ms), signal);
   return {
-    navigateToTab,
+    navigateToTab: (tab: string) => runWithDemoUiAction(() => navigateToTab(tab)),
     click: async (selector: string) => {
       if (signal?.aborted) return;
       const el = await resolveActionTarget(selector, signal, { requireEnabled: true });
@@ -304,7 +305,7 @@ export function buildDemoActionContext(
         showClickRipple(el);
         await sleep(DEMO_VISIBLE_RIPPLE_MS);
         if (signal?.aborted) return;
-        el.click();
+        runWithDemoUiAction(() => el.click());
       }
     },
     fill: async (selector: string, value: string) => {
@@ -346,7 +347,7 @@ export function buildDemoActionContext(
       showClickRipple(trigger);
       await sleep(DEMO_VISIBLE_FILL_PAUSE_MS);
       if (signal?.aborted) return;
-      trigger.click();
+      runWithDemoUiAction(() => trigger.click());
       // The CustomSelect menu is rendered via a React portal into document.body,
       // so we must search document — not wrapper — for the option item.
       // Pause so the user can see all available options before we select one.
@@ -358,7 +359,9 @@ export function buildDemoActionContext(
       const item = document.querySelector<HTMLButtonElement>(`.cs-item[data-value="${escValue}"]`);
       if (!item) {
         // Menu failed to open — close stray trigger state and bail (no silent flicker loop).
-        if (trigger.getAttribute('aria-expanded') === 'true') trigger.click();
+        if (trigger.getAttribute('aria-expanded') === 'true') {
+          runWithDemoUiAction(() => trigger.click());
+        }
         return;
       }
       // Highlight the target item so the user can see it before it's selected.
@@ -367,7 +370,7 @@ export function buildDemoActionContext(
       await sleep(500);
       if (signal?.aborted) return;
       item.classList.remove('cs-item--demo-highlight');
-      item.click();
+      runWithDemoUiAction(() => item.click());
     },
     waitFor: async (selector: string, timeout = 5000) => {
       const start = Date.now();
@@ -388,11 +391,11 @@ export function buildQuietDemoActionContext(
 ): DemoActionContext {
   const sleep = (ms: number) => abortableSleep(scaleQuietDelay(ms), signal);
   return {
-    navigateToTab,
+    navigateToTab: (tab: string) => runWithDemoUiAction(() => navigateToTab(tab)),
     click: async (selector: string) => {
       if (signal?.aborted) return;
       const el = firstVisible(selector);
-      if (el) el.click();
+      if (el) runWithDemoUiAction(() => el.click());
     },
     fill: async (selector: string, value: string) => {
       if (signal?.aborted) return;

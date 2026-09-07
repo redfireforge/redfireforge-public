@@ -5,6 +5,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useAppNavigationCallbacks } from './useAppNavigationCallbacks';
 import { demoHubRuntimeRef } from '../demo/demoHubRuntimeRef';
+import { beginDemoUiAction, endDemoUiAction } from '@shared/utils/demoUiAction';
 
 const mockDemoEnabled = vi.hoisted(() => ({ value: false }));
 vi.mock('../../config/features', () => ({ get DEMO_HUB_ENABLED() { return mockDemoEnabled.value; } }));
@@ -53,6 +54,7 @@ describe('useAppNavigationCallbacks', () => {
   });
 
   afterEach(() => {
+    document.body.removeAttribute('data-rf-demo-ui-action');
     vi.restoreAllMocks();
   });
 
@@ -95,6 +97,27 @@ describe('useAppNavigationCallbacks', () => {
       const { result } = renderHook(() => useAppNavigationCallbacks(opts));
       act(() => result.current.handleSetActiveTab('results'));
       expect(opts.setActiveTab).not.toHaveBeenCalled();
+    });
+
+    it('does not prompt when a demo ctx.click is in flight', () => {
+      mockDemoEnabled.value = true;
+      mockShouldExit.mockReturnValue(true);
+      demoHubRuntimeRef.current = {
+        state: { view: 'live', selectedLesson: { id: 'l1' } },
+        suppressLiveTabExitRef: { current: false },
+        exitLiveDemo: vi.fn(),
+      } as never;
+      const confirmSpy = vi.spyOn(window, 'confirm');
+      beginDemoUiAction();
+      try {
+        const opts = makeOptions();
+        const { result } = renderHook(() => useAppNavigationCallbacks(opts));
+        act(() => result.current.handleSetActiveTab('results'));
+        expect(confirmSpy).not.toHaveBeenCalled();
+        expect(opts.setActiveTab).toHaveBeenCalledWith('results');
+      } finally {
+        endDemoUiAction();
+      }
     });
 
     it('does not prompt when suppress ref is true', () => {

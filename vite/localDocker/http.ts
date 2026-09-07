@@ -11,9 +11,10 @@ import {
 } from './logs.ts';
 import { openDockerDesktopApp, type OpenDesktopResult } from './openDesktop.ts';
 import { parseStackKey } from './stackIds.ts';
+import { LOCAL_DOCKER_PREFIX } from './prefix.ts';
 import type { DockerDaemonState } from './types.ts';
 
-export const LOCAL_DOCKER_PREFIX = '/__rff-docker';
+export { LOCAL_DOCKER_PREFIX };
 export const MAX_JSON_BODY_BYTES = 64 * 1024;
 
 export async function readJsonBody(req: IncomingMessage): Promise<unknown> {

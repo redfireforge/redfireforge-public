@@ -14,10 +14,12 @@ import type { GraphqlSchemaInfo } from '@shared/types/graphql';
 
 vi.mock('../../../shared/utils/platform', () => ({
   isTauri: vi.fn(() => false),
+  isDesktopRuntimeAvailable: vi.fn(() => false),
 }));
 
-import { isTauri } from '@shared/utils/platform';
+import { isDesktopRuntimeAvailable, isTauri } from '@shared/utils/platform';
 const mockIsTauri = vi.mocked(isTauri);
+const mockIsDesktopRuntimeAvailable = vi.mocked(isDesktopRuntimeAvailable);
 
 // Silence URL.createObjectURL not implemented in jsdom
 Object.defineProperty(URL, 'createObjectURL', { value: vi.fn(() => 'blob:test'), writable: true });
@@ -93,9 +95,12 @@ function makeSchemaInfo(overrides: Partial<GraphqlSchemaInfo> = {}): GraphqlSche
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('GraphqlMockPanel — web guard', () => {
-  beforeEach(() => { mockIsTauri.mockReturnValue(false); });
+  beforeEach(() => {
+    mockIsTauri.mockReturnValue(false);
+    mockIsDesktopRuntimeAvailable.mockReturnValue(false);
+  });
 
-  it('renders the desktop-only guard when not in Tauri', () => {
+  it('renders the desktop-only guard on hosted web', () => {
     render(<GraphqlMockPanel mockServer={makeMockServer()} schemaInfo={null} />);
     expect(screen.getByTestId('gql-mock-guard')).toBeDefined();
     expect(screen.queryByTestId('gql-mock-panel')).toBeNull();
@@ -106,10 +111,20 @@ describe('GraphqlMockPanel — web guard', () => {
     const link = screen.getByRole('link', { name: /Download the desktop app/i });
     expect(link.getAttribute('href')).toContain('releases');
   });
+
+  it('renders the full panel on a local clone even when not in Tauri', () => {
+    mockIsDesktopRuntimeAvailable.mockReturnValue(true);
+    render(<GraphqlMockPanel mockServer={makeMockServer()} schemaInfo={makeSchemaInfo()} />);
+    expect(screen.getByTestId('gql-mock-panel')).toBeDefined();
+    expect(screen.queryByTestId('gql-mock-guard')).toBeNull();
+  });
 });
 
 describe('GraphqlMockPanel — desktop (Tauri)', () => {
-  beforeEach(() => { mockIsTauri.mockReturnValue(true); });
+  beforeEach(() => {
+    mockIsTauri.mockReturnValue(true);
+    mockIsDesktopRuntimeAvailable.mockReturnValue(true);
+  });
   afterEach(() => { vi.restoreAllMocks(); });
 
   it('renders the full panel when in Tauri', () => {

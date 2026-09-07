@@ -3,7 +3,6 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
-import { useWebSocketMockServer } from './useWebSocketMockServer';
 import type { WsMockRule, WsMockStatus, WsMockLogEntry } from '@shared/websocket/types';
 
 vi.mock('../../shared/websocket/websocketStorage', () => ({
@@ -13,12 +12,19 @@ vi.mock('../../shared/websocket/websocketStorage', () => ({
   saveMockConfig: vi.fn(),
 }));
 
+vi.mock('@shared/utils/platform', () => ({
+  isTauri: vi.fn(() => false),
+}));
+
 import { loadMockRules, saveMockRules, loadMockConfig, saveMockConfig } from '@shared/websocket/websocketStorage';
+import { isTauri } from '@shared/utils/platform';
+import { useWebSocketMockServer, resolveWsMockApiUrl } from './useWebSocketMockServer';
 
 const mockedLoadMockRules = vi.mocked(loadMockRules);
 const mockedSaveMockRules = vi.mocked(saveMockRules);
 const mockedLoadMockConfig = vi.mocked(loadMockConfig);
 const mockedSaveMockConfig = vi.mocked(saveMockConfig);
+const mockedIsTauri = vi.mocked(isTauri);
 
 function makeMockRule(overrides: Partial<WsMockRule> = {}): WsMockRule {
   return {
@@ -36,16 +42,22 @@ function makeStatus(overrides: Partial<WsMockStatus> = {}): WsMockStatus {
 }
 
 function mockFetchResponse(data: unknown, ok = true) {
+  const envelope = { ok, data, error: ok ? undefined : { message: String(data) } };
+  const body = JSON.stringify(envelope);
   return Promise.resolve({
     status: 200,
-    json: () => Promise.resolve({ ok, data, error: ok ? undefined : { message: String(data) } }),
+    text: () => Promise.resolve(body),
+    json: () => Promise.resolve(envelope),
   } as Response);
 }
 
 function mockFetchFailure(message: string) {
+  const envelope = { ok: false, error: { message } };
+  const body = JSON.stringify(envelope);
   return Promise.resolve({
     status: 200,
-    json: () => Promise.resolve({ ok: false, error: { message } }),
+    text: () => Promise.resolve(body),
+    json: () => Promise.resolve(envelope),
   } as Response);
 }
 
@@ -56,7 +68,8 @@ function mockFetchNetworkError() {
 describe('useWebSocketMockServer', () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    resetAllMocks();
+    vi.resetAllMocks();
+    mockedIsTauri.mockReturnValue(false);
     mockedLoadMockRules.mockResolvedValue([]);
     mockedLoadMockConfig.mockResolvedValue(null);
     mockedSaveMockRules.mockResolvedValue(undefined);
@@ -513,7 +526,72 @@ describe('useWebSocketMockServer', () => {
     expect(caught?.message).toContain('Backend API is unreachable');
   });
 
-  it('start still surfaces generic non-JSON response for non-502 statuses', async () => {
+  it('start surfaces companion guidance when SPA HTML is returned as 200', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
+      if (typeof url === 'string' && url.includes('/start')) {
+        return Promise.resolve({
+          status: 200,
+          text: () => Promise.resolve('<!DOCTYPE html><html><body>app</body></html>'),
+        } as Response);
+      }
+      return mockFetchResponse({});
+    }));
+
+    const { result } = renderHook(() => useWebSocketMockServer(9876, false));
+    await act(async () => { await vi.runAllTimersAsync(); });
+
+    let caught: Error | null = null;
+    await act(async () => {
+      try {
+        await result.current.start();
+      } catch (err) {
+        caught = err as Error;
+      }
+    });
+    expect(caught?.message).toContain('companion server');
+  });
+
+  it('start parses JSON via resp.json when text() is unavailable', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
+      if (typeof url === 'string' && url.includes('/start')) {
+        const envelope = { ok: true, data: makeStatus({ running: true }) };
+        return Promise.resolve({
+          status: 200,
+          json: () => Promise.resolve(envelope),
+        } as Response);
+      }
+      return mockFetchResponse({});
+    }));
+
+    const { result } = renderHook(() => useWebSocketMockServer(9876, false));
+    await act(async () => { await vi.runAllTimersAsync(); });
+    await act(async () => { await result.current.start(); });
+    expect(result.current.status.running).toBe(true);
+  });
+
+  it('start reports a missing JSON parser when text() and json() are absent', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
+      if (typeof url === 'string' && url.includes('/start')) {
+        return Promise.resolve({ status: 418 } as Response);
+      }
+      return mockFetchResponse({});
+    }));
+
+    const { result } = renderHook(() => useWebSocketMockServer(9876, false));
+    await act(async () => { await vi.runAllTimersAsync(); });
+
+    let caught: Error | null = null;
+    await act(async () => {
+      try {
+        await result.current.start();
+      } catch (err) {
+        caught = err as Error;
+      }
+    });
+    expect(caught?.message).toContain('non-JSON response');
+  });
+
+  it('start still surfaces generic non-JSON response for non-502 error statuses', async () => {
     vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
       if (typeof url === 'string' && url.includes('/start')) {
         return Promise.resolve({
@@ -538,11 +616,39 @@ describe('useWebSocketMockServer', () => {
     expect(caught?.message).toContain('non-JSON response');
   });
 
+  it('start posts to the companion absolute URL in Tauri', async () => {
+    mockedIsTauri.mockReturnValue(true);
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (typeof url === 'string' && url.includes('/start')) {
+        return mockFetchResponse(makeStatus({ running: true }));
+      }
+      return mockFetchResponse({});
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(() => useWebSocketMockServer(9876, false));
+    await act(async () => { await vi.runAllTimersAsync(); });
+    await act(async () => { await result.current.start(); });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:3001/api/ws/mock/start',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('resolveWsMockApiUrl keeps relative paths on web and absolutes them in Tauri', () => {
+    mockedIsTauri.mockReturnValue(false);
+    expect(resolveWsMockApiUrl('/api/ws/mock/start')).toBe('/api/ws/mock/start');
+    mockedIsTauri.mockReturnValue(true);
+    expect(resolveWsMockApiUrl('/api/ws/mock/start')).toBe('http://localhost:3001/api/ws/mock/start');
+  });
+
   it('start surfaces unknown mock server errors', async () => {
     vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
       if (typeof url === 'string' && url.includes('/start')) {
         return Promise.resolve({
           status: 200,
+          text: () => Promise.resolve(JSON.stringify({ ok: false })),
           json: () => Promise.resolve({ ok: false }),
         } as Response);
       }

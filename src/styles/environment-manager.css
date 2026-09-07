@@ -26,10 +26,10 @@
 .env-manager-body {
   flex: 1;
   overflow-y: auto;
-  padding: 20px 28px 32px;
+  padding: 24px 28px 32px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 28px;
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
 }
@@ -44,6 +44,8 @@
   flex-direction: column;
   gap: 10px;
 }
+.env-section .settings-section-desc { margin-bottom: 0; }
+.env-section .settings-add-row { margin-bottom: 0; }
 .env-section h4 {
   margin: 0;
   font-size: 0.8rem;

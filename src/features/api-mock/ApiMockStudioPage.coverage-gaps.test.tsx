@@ -63,12 +63,13 @@ const nextAutoPort = vi.fn();
 const analyzeConflicts = vi.fn();
 const clearConsole = vi.fn();
 
-// In jsdom isTauri() returns false, which makes ApiMockServerBar disable the
-// Start button (desktopRequired=true). Mock it as true so control-flow tests
-// can exercise start/stop/apply/restart branches.
+// In jsdom hosted-web detection would disable Start. Mock desktop runtime
+// available so control-flow tests can exercise start/stop/apply/restart.
 vi.mock('@shared/utils/platform', () => ({
   isTauri: () => true,
   isE2eDesktopShim: () => false,
+  isLocalhost: () => true,
+  isDesktopRuntimeAvailable: () => true,
   supportsWorkers: () => false,
   isNode: () => false,
 }));

@@ -32,7 +32,7 @@ export async function seedEnvironmentManagerData(
 ) {
   const envId = 'env-1';
   const svcId = 'svc-1';
-  const envName = options.envName ?? 't01';
+  const envName = options.envName ?? 'test';
   const svcName = options.svcName ?? 'test-service';
   const baseUrls = options.baseUrls ?? { [envId]: 'http://localhost:5173' };
   const protocolEndpoints = options.protocolEndpoints;

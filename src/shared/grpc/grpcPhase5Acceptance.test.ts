@@ -455,7 +455,7 @@ describe('Phase 5F+5G acceptance checklist', () => {
         importPaths: ['./proto'],
         protoPaths: ['echo.proto'],
       },
-      metadata: { 'x-tenant': 't01' },
+      metadata: { 'x-tenant': 'test' },
     });
     const parsed = parseGrpcurlCommand(exported);
     expect(parsed.ok).toBe(true);
@@ -466,7 +466,7 @@ describe('Phase 5F+5G acceptance checklist', () => {
       serviceFullName: 'echo.EchoService',
       methodName: 'Echo',
       tlsMode: 'tls',
-      metadata: { 'x-tenant': 't01' },
+      metadata: { 'x-tenant': 'test' },
       descriptorFlags: { importPaths: ['./proto'], protoPaths: ['echo.proto'] },
     })).toEqual([]);
   });

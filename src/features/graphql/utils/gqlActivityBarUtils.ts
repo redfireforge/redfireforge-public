@@ -3,7 +3,7 @@
  * Extracted to a separate module so GraphqlStudioActivityBar.tsx exports only
  * React components (required by Fast Refresh / react-refresh/only-export-components).
  */
-import { isTauri } from '@shared/utils/platform';
+import { isDesktopRuntimeAvailable } from '@shared/utils/platform';
 import type { GraphqlStudioActivityTab } from '@shared/types/graphql';
 
 const STORAGE_KEY = 'gql-studio-activity-tab';
@@ -13,8 +13,8 @@ export function loadPersistedActivityTab(): GraphqlStudioActivityTab | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw === 'history' || raw === 'collections') return raw;
-    // Only restore 'mock' tab when running as Tauri desktop app.
-    if (raw === 'mock' && isTauri()) return raw;
+    // Restore 'mock' when the companion / desktop runtime is available.
+    if (raw === 'mock' && isDesktopRuntimeAvailable()) return raw;
   } catch { /* silent */ }
   return null;
 }

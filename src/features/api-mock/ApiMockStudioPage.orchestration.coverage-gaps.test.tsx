@@ -447,11 +447,17 @@ describe('ApiMockStudioPage orchestration coverage', () => {
     await waitFor(() => expect(stop).toHaveBeenCalledWith('srv-1'));
     await waitFor(() => expect(screen.getByTestId('api-mock-library-landing')).toBeTruthy());
     expect(screen.getByTestId('api-mock-live-region')).toHaveTextContent(/still saved in Saved servers/i);
-    expect(screen.getByTestId('api-mock-sidebar-item-srv-1')).toBeTruthy();
+    const parkedItem = await waitFor(() => {
+      const item = screen.getByTestId('api-mock-sidebar-item-srv-1');
+      expect(item).toHaveClass('am-sidebar-item-parked');
+      return item;
+    });
 
-    fireEvent.click(screen.getByTestId('api-mock-sidebar-item-srv-1'));
-    await waitFor(() => expect(screen.getByTestId('mock-select-srv-1')).toBeTruthy());
-    expect(screen.getByTestId('api-mock-live-region')).toHaveTextContent(/opened from Saved servers/i);
+    fireEvent.click(parkedItem.querySelector('.am-sidebar-item-btn') ?? parkedItem);
+    await waitFor(() => {
+      expect(screen.getByTestId('mock-select-srv-1')).toBeTruthy();
+      expect(screen.getByTestId('api-mock-live-region')).toHaveTextContent(/opened from Saved servers/i);
+    });
 
     fireEvent.click(screen.getByTestId('mock-create-server'));
     await waitFor(() => expect(screen.getByTestId('api-mock-live-region')).toHaveTextContent(/created on port 4601/i));

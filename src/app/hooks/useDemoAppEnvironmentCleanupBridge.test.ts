@@ -33,7 +33,7 @@ describe('useDemoAppEnvironmentCleanupBridge', () => {
       if (typeof fn === 'function') {
         return fn([
           { id: 'e-demo', name: GQL_DEMO_ENV_NAME },
-          { id: 'e-user', name: 't01' },
+          { id: 'e-user', name: 'test' },
         ]);
       }
       return fn;
@@ -86,7 +86,7 @@ describe('useDemoAppEnvironmentCleanupBridge', () => {
       resetSvcSelection: false,
     });
     const setEnvironments = vi.fn((fn: (prev: { id: string; name: string }[]) => unknown) => {
-      if (typeof fn === 'function') return fn([{ id: 'e-user', name: 't01' }]);
+      if (typeof fn === 'function') return fn([{ id: 'e-user', name: 'test' }]);
       return fn;
     });
     const setMicroservices = vi.fn((fn: (prev: { id: string; name: string }[]) => unknown) => {

@@ -144,14 +144,14 @@ describe('SettingsStorageTab', () => {
 
   it('updates max runs (clamps to 500, sets, refreshes)', async () => {
     render(<Harness />);
-    const numInput = document.querySelector('.storage-max-runs input') as HTMLInputElement;
+    const numInput = document.querySelector('#storage-max-runs') as HTMLInputElement;
     fireEvent.change(numInput, { target: { value: '999' } });
     await waitFor(() => expect(mSetMaxRuns).toHaveBeenCalledWith(500));
   });
 
   it('clamps max runs to minimum 1 on invalid input', async () => {
     render(<Harness />);
-    const numInput = document.querySelector('.storage-max-runs input') as HTMLInputElement;
+    const numInput = document.querySelector('#storage-max-runs') as HTMLInputElement;
     fireEvent.change(numInput, { target: { value: '' } });
     await waitFor(() => expect(mSetMaxRuns).toHaveBeenCalledWith(1));
   });

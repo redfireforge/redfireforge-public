@@ -7,6 +7,8 @@
 #   bash scripts/run-product-coverage-file.sh <source-file.ts>
 #   bash scripts/run-product-coverage-batch.sh <shared|features|app|server> [paths...]
 set -euo pipefail
+# Skip wall-clock perf benches — V8 coverage instrumentation invalidates them.
+export PRODUCT_COVERAGE=1
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 # shellcheck source=scripts/product-coverage-lib.sh
@@ -29,12 +31,14 @@ PIDS=()
 for i in $(seq 1 "$SHARDS"); do
   SHARD_OUT="$SHARD_DIR/s$i"
   mkdir -p "$SHARD_OUT"
+  # Log lives beside the reports dir, not inside it — Vitest's coverage
+  # reporter cleans reportsDirectory and would delete the log we need on failure.
   npx vitest run --project product --coverage \
     --maxWorkers=1 --no-file-parallelism \
     --shard="$i/$SHARDS" \
     --coverage.reportsDirectory="$SHARD_OUT" \
     --coverage.reportOnFailure \
-    > "$SHARD_OUT/vitest.log" 2>&1 &
+    > "$SHARD_DIR/s$i.log" 2>&1 &
   PIDS+=($!)
   echo "  Shard $i/$SHARDS started (PID $!)"
 done
@@ -126,7 +130,7 @@ for i in $(seq 1 "$SHARDS"); do
     ((SHARD_COUNT++)) || true
   else
     echo "  ✗ shard $i: coverage-final.json MISSING"
-    echo "    log: $SHARD_DIR/s$i/vitest.log"
+    echo "    log: $SHARD_DIR/s$i.log"
     echo "    files:"
     find "$SHARD_DIR/s$i" -maxdepth 3 -type f | sed 's/^/      - /' | head -n 20 || true
   fi
@@ -175,4 +179,28 @@ product_coverage_check_monolithic
 END_TIME=$(date +%s)
 TOTAL=$((END_TIME - START_TIME))
 echo ""
-echo "✅ Total: ${TOTAL}s ($(( TOTAL / 60 ))m $(( TOTAL % 60 ))s) — batches: $((BATCH_END - START_TIME))s, merge+verify: $((END_TIME - BATCH_END))s"
+echo "Total: ${TOTAL}s ($(( TOTAL / 60 ))m $(( TOTAL % 60 ))s) — batches: $((BATCH_END - START_TIME))s, merge+verify: $((END_TIME - BATCH_END))s"
+
+# Coverage can be green while tests fail, so the shard exit codes are a
+# separate gate — without this the script reports success on a failing suite.
+if [[ "$FAILURES" -gt 0 ]]; then
+  echo ""
+  echo "❌ $FAILURES shard(s) exited non-zero — failing tests:"
+  for i in $(seq 1 "$SHARDS"); do
+    log="$SHARD_DIR/s$i.log"
+    [[ -f "$log" ]] || continue
+    # Vitest colorizes FAIL lines; strip ANSI so grep can see them.
+    stripped=$(sed $'s/\x1B\\[[0-9;]*[A-Za-z]//g' "$log")
+    matches=$(printf '%s\n' "$stripped" | grep -E 'FAIL |Failed Tests|Unhandled Errors|Uncaught Exception|Test Files.*failed|× |heap out of memory|FATAL' | head -n 40 || true)
+    if [[ -n "$matches" ]]; then
+      echo "   --- shard $i ---"
+      printf '%s\n' "$matches" | sed 's/^/   /'
+    fi
+    echo "   --- last 80 lines of $log ---"
+    printf '%s\n' "$stripped" | tail -n 80 | sed 's/^/   /'
+  done
+  echo "   logs: $SHARD_DIR/s<N>.log"
+  exit 1
+fi
+
+echo "✅ All shards passed"

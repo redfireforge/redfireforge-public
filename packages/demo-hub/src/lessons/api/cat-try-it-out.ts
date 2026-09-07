@@ -227,7 +227,7 @@ export function findPreferredEnvOption(
 
 /**
  * Link/select the demo **jsonplaceholder** microservice + **demo** env.
- * Never picks the first product microservice (e.g. sales-order-retail).
+ * Never picks the first leftover product microservice (e.g. inventory-api).
  */
 async function linkDemoMicroserviceViaEditModal(ctx: DemoActionContext): Promise<void> {
   const msSelect = document.querySelector<HTMLElement>(CAT.EDIT_MICROSERVICE_SELECT);

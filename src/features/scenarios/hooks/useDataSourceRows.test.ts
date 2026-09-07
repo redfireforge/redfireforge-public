@@ -17,7 +17,7 @@ function makeDataSource(overrides: Partial<DataSource> = {}): DataSource {
     ],
     rows: [
       { id: 'r1', values: { c1: 'AAA', c2: 'WEB' }, enabled: true },
-      { id: 'r2', values: { c1: 'BBB', c2: 'DEALER' }, enabled: true },
+      { id: 'r2', values: { c1: 'BBB', c2: 'APP' }, enabled: true },
       { id: 'r3', values: { c1: 'CCC', c2: 'MOBILE' }, enabled: false },
     ],
     source: { type: 'inline' },

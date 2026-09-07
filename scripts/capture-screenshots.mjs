@@ -58,7 +58,7 @@ async function main() {
     await shot(page, 'settings-open');
 
     // Add an environment
-    const envInput = page.locator('input[placeholder*="t01, p01"]');
+    const envInput = page.locator('input[placeholder*="dev, test"]');
     await envInput.fill('demo-env');
     await shot(page, 'settings-env-type');
 
@@ -68,7 +68,7 @@ async function main() {
     await shot(page, 'settings-env-added');
 
     // Add a microservice
-    const svcInput = page.locator('input[placeholder*="sales-product"]');
+    const svcInput = page.locator('input[placeholder*="order-api"]');
     await svcInput.fill('demo-api-service');
     await shot(page, 'settings-svc-type');
 
@@ -109,7 +109,7 @@ async function main() {
     let clickedEnv = false;
     for (let i = 0; i < envCount; i++) {
       const text = await sidebarEnvItems.nth(i).textContent();
-      if (text?.includes('demo-env') || text?.includes('t01') || text?.includes('d01')) {
+      if (text?.includes('demo-env') || text?.includes('test') || text?.includes('dev')) {
         await sidebarEnvItems.nth(i).click();
         await wait(500);
         clickedEnv = true;

@@ -8,15 +8,18 @@ import {
 
 const mockIsTauri = vi.fn(() => false);
 const mockIsLocalhost = vi.fn(() => false);
+const mockIsDesktopRuntimeAvailable = vi.fn(() => false);
 vi.mock('@shared/utils/platform', () => ({
   isTauri: () => mockIsTauri(),
   isLocalhost: () => mockIsLocalhost(),
+  isDesktopRuntimeAvailable: () => mockIsDesktopRuntimeAvailable(),
 }));
 
 describe('desktopFeatureGate', () => {
   beforeEach(() => {
     mockIsTauri.mockReturnValue(false);
     mockIsLocalhost.mockReturnValue(false);
+    mockIsDesktopRuntimeAvailable.mockReturnValue(false);
   });
 
   afterEach(() => {
@@ -29,12 +32,12 @@ describe('desktopFeatureGate', () => {
     });
 
     it('is false on Tauri', () => {
-      mockIsTauri.mockReturnValue(true);
+      mockIsDesktopRuntimeAvailable.mockReturnValue(true);
       expect(shouldShowWebDownloadCta()).toBe(false);
     });
 
-    it('is false on localhost', () => {
-      mockIsLocalhost.mockReturnValue(true);
+    it('is false on localhost / local clone', () => {
+      mockIsDesktopRuntimeAvailable.mockReturnValue(true);
       expect(shouldShowWebDownloadCta()).toBe(false);
     });
   });
@@ -61,10 +64,7 @@ describe('desktopFeatureGate', () => {
     });
 
     it('returns null on Tauri and localhost', () => {
-      mockIsTauri.mockReturnValue(true);
-      expect(getBlockedDesktopFeature('grpc-studio')).toBeNull();
-      mockIsTauri.mockReturnValue(false);
-      mockIsLocalhost.mockReturnValue(true);
+      mockIsDesktopRuntimeAvailable.mockReturnValue(true);
       expect(getBlockedDesktopFeature('grpc-studio')).toBeNull();
     });
   });

@@ -291,7 +291,7 @@ def generate(version, img_dir, output_path):
 
     add_step(elements, 2,
         "Add an Environment",
-        "Type an environment name (e.g., 'demo-env', 't01', 'staging') in the input field "
+        "Type an environment name (e.g., 'demo-env', 'test', 'staging') in the input field "
         "and click Add.",
         styles, img('03-settings-env-type.png'),
         "Figure 3: Typing a new environment name")

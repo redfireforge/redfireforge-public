@@ -88,7 +88,7 @@ mkdir -p coverage/.tmp/isolated-"$$"/.tmp
 ISOLATED_COV_DIR="coverage/.tmp/isolated-$$"
 
 set +e
-npx vitest run --project product --coverage \
+PRODUCT_COVERAGE=1 npx vitest run --project product --coverage \
   --coverage.clean=true \
   --coverage.reportsDirectory="$ISOLATED_COV_DIR" \
   --coverage.include="$FILE" \

@@ -364,7 +364,7 @@ describe('bsrFetchGateway coverage gaps', () => {
     const prevHttpsLower = process.env.https_proxy;
     const prevNoProxy = process.env.NO_PROXY;
     const prevNoProxyLower = process.env.no_proxy;
-    process.env.HTTPS_PROXY = 'http://naproxy.gm.com:80';
+    process.env.HTTPS_PROXY = 'http://proxy.example.com:80';
     delete process.env.https_proxy;
     delete process.env.NO_PROXY;
     delete process.env.no_proxy;
@@ -382,7 +382,7 @@ describe('bsrFetchGateway coverage gaps', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
       callCount += 1;
       if ((init as { dispatcher?: unknown } | undefined)?.dispatcher) {
-        const cause = Object.assign(new Error('getaddrinfo ENOTFOUND naproxy.gm.com'), { code: 'ENOTFOUND' });
+        const cause = Object.assign(new Error('getaddrinfo ENOTFOUND proxy.example.com'), { code: 'ENOTFOUND' });
         throw new TypeError('fetch failed', { cause });
       }
       return new Response(payload, {

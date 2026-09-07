@@ -3,7 +3,7 @@
  *
  * Inner activity strip on the left side of GraphQL Studio (separate from the
  * app-level AppActivityBar). Has 3 icon tabs:
- *   History, Collections, Mock (Mock disabled + tooltip in web mode)
+ *   History, Collections, Mock (Mock disabled + tooltip on hosted web)
  *
  * Active tab is persisted to localStorage. Panel slides in from the left,
  * pushing the editor pane inward.
@@ -13,7 +13,7 @@
  */
 
 import { useCallback } from 'react';
-import { isTauri } from '@shared/utils/platform';
+import { isDesktopRuntimeAvailable } from '@shared/utils/platform';
 import { persistActivityTab } from '../utils/gqlActivityBarUtils';
 import type { GraphqlStudioActivityTab } from '@shared/types/graphql';
 
@@ -23,7 +23,7 @@ export interface GraphqlStudioActivityBarProps {
 }
 
 export function GraphqlStudioActivityBar({ activeTab, onTabChange }: GraphqlStudioActivityBarProps) {
-  const desktopMode = isTauri();
+  const desktopMode = isDesktopRuntimeAvailable();
 
   const handleTabClick = useCallback((tab: GraphqlStudioActivityTab) => {
     const next = activeTab === tab ? null : tab;

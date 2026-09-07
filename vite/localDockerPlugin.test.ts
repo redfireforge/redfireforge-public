@@ -142,12 +142,12 @@ describe('localDockerPlugin', () => {
     expect(plugin.configurePreviewServer).toBeUndefined();
   });
 
-  it('configureServer is a no-op when the kill switch is on', () => {
+  it('configureServer is a no-op when the kill switch is on', async () => {
     const prev = process.env.VITE_LOCAL_DOCKER;
     process.env.VITE_LOCAL_DOCKER = '0';
     try {
       const use = vi.fn();
-      localDockerPlugin().configureServer?.({
+      await localDockerPlugin().configureServer?.({
         config: { root: repoRoot },
         middlewares: { use },
       } as never);
@@ -158,13 +158,13 @@ describe('localDockerPlugin', () => {
     }
   });
 
-  it('configureServer is a no-op when docker/ is missing', () => {
+  it('configureServer is a no-op when docker/ is missing', async () => {
     const prev = process.env.VITE_LOCAL_DOCKER;
     delete process.env.VITE_LOCAL_DOCKER;
     try {
       const use = vi.fn();
       const emptyRoot = tempLogDir();
-      localDockerPlugin().configureServer?.({
+      await localDockerPlugin().configureServer?.({
         config: { root: emptyRoot },
         middlewares: { use },
       } as never);
@@ -175,12 +175,12 @@ describe('localDockerPlugin', () => {
     }
   });
 
-  it('configureServer mounts the helper when docker/ exists', () => {
+  it('configureServer mounts the helper when docker/ exists', async () => {
     const prev = process.env.VITE_LOCAL_DOCKER;
     delete process.env.VITE_LOCAL_DOCKER;
     try {
       const use = vi.fn();
-      localDockerPlugin().configureServer?.({
+      await localDockerPlugin().configureServer?.({
         config: { root: repoRoot },
         middlewares: { use },
       } as never);
@@ -194,7 +194,7 @@ describe('localDockerPlugin', () => {
   it('writes 500 when the request handler rejects', async () => {
     const spy = vi.spyOn(localDockerHttp, 'handleLocalDockerRequest').mockRejectedValueOnce(new Error('boom'));
     const use = vi.fn();
-    attachLocalDockerMiddleware({ middlewares: { use } } as never, repoRoot);
+    await attachLocalDockerMiddleware({ middlewares: { use } } as never, repoRoot);
     const handler = use.mock.calls[0]?.[1] as (req: IncomingMessage, res: ServerResponse) => void;
     const { res, out } = mockRes();
     handler(getReq('/health'), res as unknown as ServerResponse);
@@ -206,7 +206,7 @@ describe('localDockerPlugin', () => {
 
   it('mounted middleware serves health and open-desktop', async () => {
     const use = vi.fn();
-    attachLocalDockerMiddleware({ middlewares: { use } } as never, repoRoot);
+    await attachLocalDockerMiddleware({ middlewares: { use } } as never, repoRoot);
     const handler = use.mock.calls[0]?.[1] as (req: IncomingMessage, res: ServerResponse) => void;
     const health = mockRes();
     handler(getReq('/health'), health.res as unknown as ServerResponse);
@@ -223,7 +223,7 @@ describe('localDockerPlugin', () => {
   it('does not write 500 when a rejected handler already ended the response', async () => {
     const spy = vi.spyOn(localDockerHttp, 'handleLocalDockerRequest').mockRejectedValueOnce(new Error('boom'));
     const use = vi.fn();
-    attachLocalDockerMiddleware({ middlewares: { use } } as never, repoRoot);
+    await attachLocalDockerMiddleware({ middlewares: { use } } as never, repoRoot);
     const handler = use.mock.calls[0]?.[1] as (req: IncomingMessage, res: ServerResponse) => void;
     const { res, out } = mockRes();
     res.writableEnded = true;
@@ -237,7 +237,7 @@ describe('localDockerPlugin', () => {
   it('does not write 500 when a rejected handler already destroyed the response', async () => {
     const spy = vi.spyOn(localDockerHttp, 'handleLocalDockerRequest').mockRejectedValueOnce(new Error('boom'));
     const use = vi.fn();
-    attachLocalDockerMiddleware({ middlewares: { use } } as never, repoRoot);
+    await attachLocalDockerMiddleware({ middlewares: { use } } as never, repoRoot);
     const handler = use.mock.calls[0]?.[1] as (req: IncomingMessage, res: ServerResponse) => void;
     const { res, out } = mockRes();
     res.destroyed = true;
