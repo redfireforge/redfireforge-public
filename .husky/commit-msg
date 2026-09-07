@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Cursor may append Co-authored-by after prepare-commit-msg. Strip it here,
+# which runs on the final message before the commit object is written.
+file="$1"
+tmp="$(mktemp)"
+sed -E \
+  '/^Co-authored-by:[[:space:]]*Cursor/d; /^Made with Cursor/d; /^Made with \[Cursor\]/d' \
+  "$file" > "$tmp"
+mv "$tmp" "$file"
