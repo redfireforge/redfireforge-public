@@ -10,6 +10,7 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ### Changed
 - **Vitest 5** — Bump `vitest` and `@vitest/coverage-v8` together so Dependabot's 5.0.0 bump can `npm ci`. Projects keep `extends: false` and `clearMocks: false` to match the previous runner behavior.
+- **Dependabot minor/patch group** — Apply the 18 compatible updates from PR #166 (Tauri plugins, React Flow, monaco-graphql, react-router, TypeScript ESLint, and related types).
 
 ### Fixed
 - **WebSocket Studio page coverage** — Tests now cover the mock-port conflict path when the caller has no current port, so `WebSocketStudioPage` stays above 90% branches after the persistence extract.
