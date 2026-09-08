@@ -36,7 +36,11 @@ export const COMMON_TEST_EXCLUDE = [
   'e2e',
 ] as const;
 
-/** Coverage excludes for the production (`product`) gate. */
+/**
+ * Coverage excludes for the production (`product`) gate.
+ * Vitest 4 ships `coverageConfigDefaults.exclude` as [] — we must list these
+ * ourselves so demo, CSS, and test files never enter the product report.
+ */
 export const PRODUCT_COVERAGE_EXCLUDE = [
   '**/__test-utils__/**',
   '**/__mocks__/**',
@@ -45,6 +49,10 @@ export const PRODUCT_COVERAGE_EXCLUDE = [
   '**/*.test-utils.{ts,tsx}',
   '**/*.testHelpers.ts',
   '**/*.test.{ts,tsx}',
+  '**/*.spec.{ts,tsx}',
+  '**/*.d.ts',
+  '**/*.css',
+  '**/*.scss',
   '**/*.config.{ts,js}',
   'src/shared/types/index.ts',
   // App and server entry points — not unit-testable
@@ -52,12 +60,13 @@ export const PRODUCT_COVERAGE_EXCLUDE = [
   'src-server/index.ts',
   // Test factory / helper files
   'src/features/websocket/__tests__/websocket.test.factories.ts',
+  '**/src/test-utils/**',
+  '**/src/styles/**',
   // Entire demo hub — product coverage gate (Phase 1 + Phase 3 shell + Phase 7 package)
   '**/packages/demo-hub/**',
   '**/src/app/demo/**',
   '**/src/app/hooks/useDemo*.ts',
-  '**/src/styles/demo-player.css',
-  '**/src/styles/demo-hub.css',
+  'coverage/**',
   'node_modules',
   'dist',
   'src-tauri',
@@ -95,4 +104,17 @@ export function isDemoCoveragePath(filePath: string): boolean {
     || /\/src\/app\/demo\//.test(normalized)
     || normalized.endsWith('/demo-hub.css')
     || /\/useDemo[^/]*\.ts$/.test(normalized);
+}
+
+/** Demo, CSS, and test/helper files — never counted in the product coverage gate. */
+export function isIgnoredProductCoveragePath(filePath: string): boolean {
+  const normalized = filePath.replace(/\\/g, '/');
+  if (isDemoCoveragePath(normalized)) return true;
+  if (normalized.endsWith('.css') || normalized.endsWith('.scss')) return true;
+  if (normalized.includes('/src/styles/')) return true;
+  if (normalized.includes('/src/test-utils/')) return true;
+  if (/\.test\.(ts|tsx)$/.test(normalized) || /\.spec\.(ts|tsx)$/.test(normalized)) return true;
+  if (normalized.includes('.testHelpers.') || normalized.includes('.test-utils.')) return true;
+  if (normalized.endsWith('.d.ts')) return true;
+  return false;
 }

@@ -2,19 +2,19 @@ import { describe, expect, it } from 'vitest';
 import { resolveQuickTestHostForRequest } from './workflowRequestHost';
 import type { Environment, Microservice, RequestCollection, RequestItem } from '@shared/types';
 
-const envT01: Environment = { id: 'e-t01', name: 't01' };
-const envP01: Environment = { id: 'e-p01', name: 'p01' };
+const envT01: Environment = { id: 'e-test', name: 'test' };
+const envP01: Environment = { id: 'e-prod', name: 'prod' };
 
-const msSales: Microservice = {
-  id: 'ms-sales',
-  name: 'sales-product-autoassign',
-  baseUrls: { 'e-t01': 'https://sales.apps.test/', 'e-p01': 'https://sales.prod/' },
+const msOrders: Microservice = {
+  id: 'ms-orders',
+  name: 'order-api',
+  baseUrls: { 'e-test': 'https://orders.apps.test/', 'e-prod': 'https://orders.prod/' },
 };
 
-const msOnstar: Microservice = {
-  id: 'ms-onstar',
-  name: 'onstar-profile-read',
-  baseUrls: { 'e-t01': 'https://ons-profile-read.apps.test/', 'e-p01': 'https://ons.prod/' },
+const msProfiles: Microservice = {
+  id: 'ms-profiles',
+  name: 'profile-read',
+  baseUrls: { 'e-test': 'https://profile-read.apps.test/', 'e-prod': 'https://profiles.prod/' },
 };
 
 function makeReq(id: string): RequestItem {
@@ -35,30 +35,30 @@ describe('resolveQuickTestHostForRequest', () => {
       id: 'c1',
       name: 'C',
       mode: 'multi-env',
-      microserviceId: 'ms-sales',
+      microserviceId: 'ms-orders',
       requests: [],
       folders: [
         {
           id: 'sub',
-          name: 'onstar',
+          name: 'profiles',
           isSubCollection: true,
-          selectedEnvId: 'e-t01',
-          baseUrls: { 'e-t01': 'https://ons-profile-read.apps.test/' },
+          selectedEnvId: 'e-test',
+          baseUrls: { 'e-test': 'https://profile-read.apps.test/' },
           requests: [makeReq('r1')],
         },
       ],
     };
-    const harnessBase = 'https://sales.apps.test';
+    const harnessBase = 'https://orders.apps.test';
     const r = resolveQuickTestHostForRequest(
       col,
       makeReq('r1'),
-      'e-t01',
+      'e-test',
       harnessBase,
-      [msSales, msOnstar],
+      [msOrders, msProfiles],
       [envT01, envP01],
     );
-    expect(r.hostMicroserviceId).toBe('ms-onstar');
-    expect(r.hostEnvironmentId).toBe('e-t01');
+    expect(r.hostMicroserviceId).toBe('ms-profiles');
+    expect(r.hostEnvironmentId).toBe('e-test');
     expect(r.hostBaseUrl).toBeUndefined();
   });
 
@@ -67,15 +67,15 @@ describe('resolveQuickTestHostForRequest', () => {
       id: 'c1',
       name: 'C',
       mode: 'multi-env',
-      microserviceId: 'ms-sales',
+      microserviceId: 'ms-orders',
       requests: [],
       folders: [
         {
           id: 'sub',
           name: 'legacy',
           isSubCollection: true,
-          selectedEnvId: 'e-t01',
-          baseUrls: { 'e-t01': 'https://custom-legacy.example.com/' },
+          selectedEnvId: 'e-test',
+          baseUrls: { 'e-test': 'https://custom-legacy.example.com/' },
           requests: [makeReq('r2')],
         },
       ],
@@ -83,9 +83,9 @@ describe('resolveQuickTestHostForRequest', () => {
     const r = resolveQuickTestHostForRequest(
       col,
       makeReq('r2'),
-      'e-t01',
-      'https://sales.apps.test',
-      [msSales],
+      'e-test',
+      'https://orders.apps.test',
+      [msOrders],
       [envT01],
     );
     expect(r.hostBaseUrl).toBe('https://custom-legacy.example.com');
@@ -97,44 +97,44 @@ describe('resolveQuickTestHostForRequest', () => {
       id: 'c1',
       name: 'C',
       mode: 'multi-env',
-      microserviceId: 'ms-sales',
+      microserviceId: 'ms-orders',
       requests: [makeReq('top')],
       folders: [],
     };
     const r = resolveQuickTestHostForRequest(
       col,
       makeReq('top'),
-      'e-t01',
-      'https://sales.apps.test/',
-      [msSales],
+      'e-test',
+      'https://orders.apps.test/',
+      [msOrders],
       [envT01],
     );
     expect(r).toEqual({});
   });
 
-  it('infers onstar from absolute request URL when collection base matches harness', () => {
+  it('infers profile-read from absolute request URL when collection base matches harness', () => {
     const col: RequestCollection = {
       id: 'c1',
       name: 'C',
       mode: 'multi-env',
-      microserviceId: 'ms-sales',
+      microserviceId: 'ms-orders',
       requests: [],
       folders: [],
     };
     const req = {
       ...makeReq('r-abs'),
-      url: 'https://ons-profile-read.apps.test/orgs/1/vin/1GNS5U189T107587C',
+      url: 'https://profile-read.apps.test/orgs/1/users/u-123',
     };
     const r = resolveQuickTestHostForRequest(
       col,
       req,
-      'e-t01',
-      'https://sales.apps.test/',
-      [msSales, msOnstar],
+      'e-test',
+      'https://orders.apps.test/',
+      [msOrders, msProfiles],
       [envT01],
     );
-    expect(r.hostMicroserviceId).toBe('ms-onstar');
-    expect(r.hostEnvironmentId).toBe('e-t01');
+    expect(r.hostMicroserviceId).toBe('ms-profiles');
+    expect(r.hostEnvironmentId).toBe('e-test');
   });
 
   it('returns hostBaseUrl when absolute URL does not match any microservice', () => {
@@ -142,7 +142,7 @@ describe('resolveQuickTestHostForRequest', () => {
       id: 'c1',
       name: 'C',
       mode: 'multi-env',
-      microserviceId: 'ms-sales',
+      microserviceId: 'ms-orders',
       requests: [],
       folders: [],
     };
@@ -153,9 +153,9 @@ describe('resolveQuickTestHostForRequest', () => {
     const r = resolveQuickTestHostForRequest(
       col,
       req,
-      'e-t01',
-      'https://sales.apps.test/',
-      [msSales],
+      'e-test',
+      'https://orders.apps.test/',
+      [msOrders],
       [envT01],
     );
     expect(r.hostBaseUrl).toBe('https://custom-api.example.com');
@@ -172,7 +172,7 @@ describe('resolveQuickTestHostForRequest', () => {
     const r = resolveQuickTestHostForRequest(
       col,
       makeReq('r1'),
-      'e-t01',
+      'e-test',
       'https://harness.example.com',
       [],
       [envT01],
@@ -185,20 +185,20 @@ describe('resolveQuickTestHostForRequest', () => {
       id: 'c1',
       name: 'C',
       mode: 'multi-env',
-      microserviceId: 'ms-sales',
+      microserviceId: 'ms-orders',
       requests: [makeReq('r1')],
       folders: [],
     };
     const r = resolveQuickTestHostForRequest(
       col,
       makeReq('r1'),
-      'e-t01',
+      'e-test',
       'https://unrelated.com',
-      [msSales],
+      [msOrders],
       [envT01],
     );
-    expect(r.hostMicroserviceId).toBe('ms-sales');
-    expect(r.hostEnvironmentId).toBe('e-t01');
+    expect(r.hostMicroserviceId).toBe('ms-orders');
+    expect(r.hostEnvironmentId).toBe('e-test');
   });
 
   it('uses absolute URL when collection has microserviceId but no resolved base for env', () => {
@@ -206,25 +206,25 @@ describe('resolveQuickTestHostForRequest', () => {
       id: 'c1',
       name: 'C',
       mode: 'multi-env',
-      microserviceId: 'ms-sales',
+      microserviceId: 'ms-orders',
       requests: [],
       folders: [],
     };
     const req = {
       ...makeReq('r-abs'),
-      url: 'https://ons-profile-read.apps.test/path',
+      url: 'https://profile-read.apps.test/path',
     };
-    // Use an envId that has no matching base URL in ms-sales
+    // Use an envId that has no matching base URL in ms-orders
     const r = resolveQuickTestHostForRequest(
       col,
       req,
       'e-unknown',
       'https://no-match.com',
-      [msSales, msOnstar],
+      [msOrders, msProfiles],
       [envT01],
     );
-    expect(r.hostMicroserviceId).toBe('ms-onstar');
-    expect(r.hostEnvironmentId).toBe('e-t01');
+    expect(r.hostMicroserviceId).toBe('ms-profiles');
+    expect(r.hostEnvironmentId).toBe('e-test');
   });
 
   it('matches subcollection by name when no selectedEnvId', () => {
@@ -232,14 +232,14 @@ describe('resolveQuickTestHostForRequest', () => {
       id: 'c1',
       name: 'C',
       mode: 'multi-env',
-      microserviceId: 'ms-sales',
+      microserviceId: 'ms-orders',
       requests: [],
       folders: [
         {
           id: 'sub',
-          name: 't01',
+          name: 'test',
           isSubCollection: true,
-          baseUrls: { 'e-t01': 'https://custom.apps.test/' },
+          baseUrls: { 'e-test': 'https://custom.apps.test/' },
           requests: [makeReq('r1')],
         },
       ],
@@ -247,9 +247,9 @@ describe('resolveQuickTestHostForRequest', () => {
     const r = resolveQuickTestHostForRequest(
       col,
       makeReq('r1'),
-      'e-t01',
+      'e-test',
       'https://harness.example.com',
-      [msSales],
+      [msOrders],
       [envT01],
     );
     expect(r.hostBaseUrl).toBe('https://custom.apps.test');
@@ -270,7 +270,7 @@ describe('resolveQuickTestHostForRequest', () => {
     const r = resolveQuickTestHostForRequest(
       col,
       req,
-      'e-t01',
+      'e-test',
       'https://harness.example.com',
       [],
       [envT01],

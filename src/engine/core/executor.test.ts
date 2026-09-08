@@ -646,7 +646,7 @@ describe('runTest', () => {
       {
         microservices: [],
         globalAuthProfiles: [],
-        selectedEnvId: 't01',
+        selectedEnvId: 'test',
       },
     );
 
@@ -666,7 +666,7 @@ describe('runTest', () => {
       [],
       undefined,
       workflow.services,
-      't01',
+      'test',
     );
 
     expect(graphOpts.resolveHttpAuth!(nodeData)).toEqual({
@@ -677,7 +677,7 @@ describe('runTest', () => {
     expect(vi.mocked(resolveServiceAuth)).toHaveBeenCalledWith(
       nodeData,
       workflow.services,
-      't01',
+      'test',
       [],
       [],
     );

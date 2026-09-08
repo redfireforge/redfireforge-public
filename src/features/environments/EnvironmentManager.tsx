@@ -265,10 +265,11 @@ export default function EnvironmentManager({
       <div className="env-manager-body">
         <div className="env-section">
           <h4>Environments</h4>
+          <p className="settings-section-desc">Named targets used by microservices, requests, and tests.</p>
           <div className="settings-add-row">
             <input
               data-testid="em-new-env-input"
-              placeholder="e.g. t01, p01, staging"
+              placeholder="e.g. dev, test, staging, prod"
               value={newEnvName}
               onChange={(e) => setNewEnvName(e.target.value)}
               onKeyDown={(e) => {
@@ -278,7 +279,7 @@ export default function EnvironmentManager({
                 }
               }}
             />
-            <button data-testid="em-add-env-btn" type="button" className="btn btn-primary btn-xs" onClick={() => {
+            <button data-testid="em-add-env-btn" type="button" className="btn btn-primary btn-sm" onClick={() => {
               addEnv(newEnvName.trim());
               setNewEnvName('');
             }} disabled={!newEnvName.trim()}>Add</button>
@@ -329,10 +330,11 @@ export default function EnvironmentManager({
 
         <div className="env-section">
           <h4>Microservices</h4>
+          <p className="settings-section-desc">Services and protocol endpoints for each environment.</p>
           <div className="settings-add-row">
             <input
               data-testid="em-new-svc-input"
-              placeholder="e.g. sales-product-autoassign"
+              placeholder="e.g. order-api"
               value={newSvcName}
               onChange={(e) => setNewSvcName(e.target.value)}
               onKeyDown={(e) => {
@@ -342,7 +344,7 @@ export default function EnvironmentManager({
                 }
               }}
             />
-            <button data-testid="em-add-svc-btn" type="button" className="btn btn-primary btn-xs" onClick={() => {
+            <button data-testid="em-add-svc-btn" type="button" className="btn btn-primary btn-sm" onClick={() => {
               addSvc(newSvcName.trim());
               setNewSvcName('');
             }} disabled={!newSvcName.trim()}>Add</button>
@@ -385,14 +387,14 @@ export default function EnvironmentManager({
                     <span className="settings-svc-count">{deployedCount}/{environments.length} envs</span>
                     <button
                       type="button"
-                      className="btn btn-xs"
+                      className="btn btn-sm"
                       data-testid={`em-svc-configure-${svc.id}`}
                       onClick={() => {
                         setExpandedSvcId(isSvcExpanded ? null : svc.id);
                         setEditing(null);
                       }}
                     >{isSvcExpanded ? 'Collapse' : 'Configure'}</button>
-                    <button type="button" className="btn btn-xs btn-danger" onClick={() => {
+                    <button type="button" className="btn btn-sm btn-danger-outline" onClick={() => {
                       const affectedGroups = featureGroups.filter(g => g.microserviceId === svc.id);
                       const affectedScenarios = affectedGroups.reduce((n, g) => n + g.scenarios.length, 0);
                       const affectedTests = affectedGroups.reduce((n, g) => n + g.scenarios.reduce((m, s) => m + s.tests.length, 0), 0);

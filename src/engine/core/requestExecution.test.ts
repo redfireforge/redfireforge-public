@@ -450,10 +450,10 @@ describe('buildErrorResult', () => {
   });
 
   it('propagates dataRowId and dataRowLabel from expanded scenario', () => {
-    const scenario = makeScenario({ dataRowId: 'row-3', dataRowLabel: 'Row 3: VIN=1GY' });
+    const scenario = makeScenario({ dataRowId: 'row-3', dataRowLabel: 'Row 3: VIN=1HG' });
     const result = buildErrorResult(scenario, new Error('fail'));
     expect(result.dataRowId).toBe('row-3');
-    expect(result.dataRowLabel).toBe('Row 3: VIN=1GY');
+    expect(result.dataRowLabel).toBe('Row 3: VIN=1HG');
   });
 
   it('sets transportType for non-HTTP action types', () => {

@@ -1,12 +1,5 @@
-#META:{"version":1,"method":"GET","urlPattern":"https://sales-product-autoassign.apps.gmna.test.cvca.atmosdt.gm.com/sales/product/autoassign/v1/vehicles/management/{{vin}}/onboarding/vehiclePurchaseOffers","headers":[{"key":"Accept-Language","value":"en-US"},{"key":"Content-Type","value":"application/json"}],"body":"","auth":{"type":"inherit"},"validationMode":"none","pathVariables":["vin"]}
-name,path:vin,param:channel,param:enrollmentType,param:country,param:accountType,param:vehicleUsageCode
-CA - PN - LRBAZN111R1079862 - OnStar One Trial 1M + 3GB WiFi + Connected Access 8Y,LRBAZN111R1079862,MC_WEBRNW,ONBOARD_AS_NEW,CA,PN,
-US - PN - LRBFZL115R1079860 - OnStar One Trial 1M + Connected Access 8Y,LRBFZL115R1079860,MC_WEBRNW,ONBOARD_AS_NEW,US,PN,
-MX - PN - 1G1Y92145T1079842 - Unlimited WiFi 25GB 1Y + Essentials 1Y + Connected Access 8Y,1G1Y92145T1079842,WEB,ONBOARD_AS_NEW,MX,PN,
-MX - PN - 1GYXP8122T107983E - Unlimited WiFi 25GB 1Y + Connected Access 8Y + EV Access 8Y + Essentials 1Y,1GYXP8122T107983E,WEB,ONBOARD_AS_NEW,MX,PN,
-US - PN - 1GYKPW1KXR107983C - OnStar One Trial 6M + Super Cruise 3Y + Remote Access 3Y + Connected Access 8Y + EV Access 8Y,1GYKPW1KXR107983C,MC_WEBRNW,ONBOARD_AS_NEW,US,PN,
-US - PN - 1GYFZC129S107985E - OnStar One Trial 1M + Basics 8Y + Connected Access 8Y,1GYFZC129S107985E,MC_WEBRNW,ONBOARD_AS_NEW,US,PN,
-US - PN - 1GYFZA12XS107985C - OnStar One Trial 1M + Basics 8Y + Connected Access 8Y,1GYFZA12XS107985C,MC_WEBRNW,ONBOARD_AS_NEW,US,PN,
-MX - PN - LZWWLNGP2V107985A - Basics 8Y + Connected Access 8Y,LZWWLNGP2V107985A,MC_WEBRNW,ONBOARD_AS_NEW,MX,PN,
-US - PN - 5GA1RB117J1079838 - OnStar One Remarketing Trial 1M + Connected Access 8Y,5GA1RB117J1079838,MC_WEBRNW,ONBOARD_AS_USED,US,PN,
-US - PN - 3GNKD1RL1V1079854 - OnStar One Trial 1M + Basics 8Y + Connected Access 8Y + EV Access 8Y,3GNKD1RL1V1079854,MC_WEBRNW,ONBOARD_AS_NEW,US,PN,
+#META:{"version":1,"method":"GET","urlPattern":"https://order-api.example.com/v1/vehicles/{{vin}}","headers":[{"key":"Accept-Language","value":"en-US"},{"key":"Content-Type","value":"application/json"}],"body":"","auth":{"type":"inherit"},"validationMode":"none","pathVariables":["vin"]}
+name,path:vin,param:channel,param:country,validate:$.offers[0].code,validate:$.offers[0].name
+US-web-1HGCM82633A004352,1HGCM82633A004352,web,US,TRIAL-1M,Connected Trial — 1 Month
+CA-web-2HGES16575H512347,2HGES16575H512347,web,CA,TRIAL-1M,Connected Trial — 1 Month
+MX-app-3FAHP0HA8CR123456,3FAHP0HA8CR123456,app,MX,PLUS-12M,Connected Plus — 12 Months

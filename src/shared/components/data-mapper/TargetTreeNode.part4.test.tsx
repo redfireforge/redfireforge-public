@@ -84,7 +84,7 @@ describe('P3-05: Multiple array assertions on one node', () => {
     { type: 'arrayLength' as const, jsonPath: '$.offers', operator: '>=' as const, value: 1 },
     { type: 'arrayContains' as const, jsonPath: '$.offers', mode: 'any' as const, value: '{"offerName":"EV Access"}' },
     { type: 'each' as const, jsonPath: '$.offers', fieldPath: 'rank', operator: '>=' as const, value: '0' },
-    { type: 'containsSubset' as const, jsonPath: '$.offers', expected: '{"offerName":"OnStar Safety Plan"}' },
+    { type: 'containsSubset' as const, jsonPath: '$.offers', expected: '{"offerName":"Connected Safety Plan"}' },
   ];
   const expandedOffers = new Set(['__root__', '', 'offers']);
 

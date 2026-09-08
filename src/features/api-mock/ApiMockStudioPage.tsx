@@ -597,10 +597,9 @@ export function ApiMockStudioPage() {
         ruleCount: s.routes?.length ?? 0,
         serverFolder: s.serverFolder,
       })),
-      onSelect: (id: string) => {
-        if (openTabIds.includes(id)) setActiveServerId(id);
-        else handleOpenFromLibrary(id);
-      },
+      // Library helper reads openTabIds from a ref, so a stale sidebar
+      // callback still reopens a parked server after Close.
+      onSelect: handleOpenFromLibrary,
       onCreate: handleCreateServer,
       onReorder: handleReorderLibrary,
       onDelete: library.handleDeleteServer,

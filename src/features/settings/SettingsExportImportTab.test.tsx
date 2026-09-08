@@ -80,10 +80,19 @@ beforeEach(() => {
 describe('SettingsExportImportTab — export pane', () => {
   it('renders export pane by default with all envs selected', () => {
     renderTab();
-    expect(screen.getByText('EXPORT & IMPORT')).toBeTruthy();
+    expect(screen.getByText('Export & Import')).toBeTruthy();
     expect(screen.getByText('Environments')).toBeTruthy();
     expect(screen.getByText('(2/2)')).toBeTruthy();
     expect(screen.getByText(/Export \(2 selected\)/)).toBeTruthy();
+  });
+
+  it('shows an empty state when there are no environments or auth profiles', () => {
+    renderTab({ environments: [], appGlobalAuthProfiles: [] });
+    expect(screen.getByText('No environments to export yet. Add one on the Environments tab.')).toBeTruthy();
+    expect(screen.getByText('No global auth profiles to include.')).toBeTruthy();
+    expect(screen.getByText(/Export \(0 selected\)/)).toBeTruthy();
+    const exportBtn = screen.getByText(/Export \(0 selected\)/).closest('button') as HTMLButtonElement;
+    expect(exportBtn.disabled).toBe(true);
   });
 
   it('toggles a single environment off and on', () => {
@@ -256,8 +265,8 @@ describe('SettingsExportImportTab — import pane', () => {
     switchToImport();
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
     fireEvent.change(fileInput, { target: { files: [makeFile(validJson)] } });
-    await waitFor(() => expect(screen.getByText(/Include response versions \(2\)/)).toBeTruthy());
-    const versionCbs = document.querySelectorAll('.exi-version-opts input[type="checkbox"]');
+    await waitFor(() => expect(screen.getByText('↑ Import')).toBeTruthy());
+    const versionCbs = document.querySelectorAll('.exi-import-preview .exi-version-opts input[type="checkbox"]');
     fireEvent.click(versionCbs[0]); // uncheck response versions
     fireEvent.click(versionCbs[1]); // uncheck rules versions
     fireEvent.click(screen.getByText('↑ Import'));
@@ -401,5 +410,101 @@ describe('SettingsExportImportTab — import pane', () => {
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
     fireEvent.change(fileInput, { target: { files: [new File([noMeta], 'n.json')] } });
     await waitFor(() => expect(screen.getByText('v2.0')).toBeTruthy());
+  });
+});
+
+describe('SettingsExportImportTab — coverage gaps', () => {
+  function switchToImport() {
+    fireEvent.click(screen.getByText('Import'));
+  }
+  function makeFile(content: string, name = 'data.json') {
+    return new File([content], name, { type: 'application/json' });
+  }
+
+  it('treats a microservice with no baseUrls map as unselected', async () => {
+    renderTab({ microservices: [{ id: 's1', name: 's1' } as Microservice] });
+    fireEvent.click(screen.getByText(/Export \(/).closest('button')!);
+    await waitFor(() => expect(mSave).toHaveBeenCalled());
+    const data = mSave.mock.calls[0][0] as Record<string, unknown>;
+    expect((data.microservices as unknown[]).length).toBe(0);
+  });
+
+  it('renders the No Auth badge and toggles one auth profile', () => {
+    renderTab({ appGlobalAuthProfiles: [makeAuth('a1', 'none'), makeAuth('a2', 'bearer')] });
+    expect(screen.getByText('No Auth')).toBeTruthy();
+    expect(screen.getByText('BEARER')).toBeTruthy();
+    expect(screen.getByText(/Export \(4 selected\)/)).toBeTruthy();
+    const authGroup = document.querySelectorAll('.exi-items')[1];
+    const authBoxes = authGroup.querySelectorAll('input[type="checkbox"]');
+    fireEvent.click(authBoxes[0]);
+    expect(screen.getByText(/Export \(3 selected\)/)).toBeTruthy();
+  });
+
+  it('opens the file picker from the dropzone via Enter and Space', () => {
+    renderTab();
+    switchToImport();
+    const dropzone = document.querySelector('.exi-dropzone') as HTMLElement;
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const clickSpy = vi.spyOn(fileInput, 'click').mockImplementation(() => {});
+    fireEvent.keyDown(dropzone, { key: 'Enter' });
+    fireEvent.keyDown(dropzone, { key: ' ' });
+    expect(clickSpy).toHaveBeenCalledTimes(2);
+    fireEvent.keyDown(dropzone, { key: 'Tab' });
+    expect(clickSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('opens the Tauri picker from the dropzone via Enter', async () => {
+    mockIsTauri = true;
+    mOpenFile.mockResolvedValue({ content: '{"environments":[]}', name: 'tauri.json' });
+    renderTab();
+    switchToImport();
+    fireEvent.keyDown(document.querySelector('.exi-dropzone') as HTMLElement, { key: 'Enter' });
+    await waitFor(() => expect(mOpenFile).toHaveBeenCalled());
+  });
+
+  it('parses a file that omits the environments array', async () => {
+    renderTab();
+    switchToImport();
+    const partial = JSON.stringify({ microservices: [{ id: 'sZ', name: 'SZ', baseUrls: {} }] });
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(fileInput, { target: { files: [makeFile(partial, 'partial.json')] } });
+    await waitFor(() => expect(screen.getByText('partial.json')).toBeTruthy());
+    expect(screen.getByText(/1 new microservice/)).toBeTruthy();
+  });
+
+  it('pluralizes summary counts and shows a single auth profile', async () => {
+    renderTab({ environments: [], microservices: [], appGlobalAuthProfiles: [] });
+    switchToImport();
+    const many = JSON.stringify({
+      environments: [{ id: 'e1', name: 'A' }, { id: 'e2', name: 'B' }],
+      microservices: [{ id: 's1', name: 'S1', baseUrls: {} }, { id: 's2', name: 'S2', baseUrls: {} }],
+      featureGroups: [{ id: 'f1', name: 'F1' }, { id: 'f2', name: 'F2' }],
+      globalAuthProfiles: [{ id: 'a1', name: 'A1', auth: { type: 'bearer' } }],
+    });
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(fileInput, { target: { files: [makeFile(many, 'many.json')] } });
+    await waitFor(() => expect(screen.getByText(/2 new environments/)).toBeTruthy());
+    expect(screen.getByText(/2 new microservices/)).toBeTruthy();
+    expect(screen.getByText(/2 feature groups/)).toBeTruthy();
+    expect(screen.getByText(/Include 1 auth profile/)).toBeTruthy();
+  });
+
+  it('filters out auth profiles that already exist on import', async () => {
+    const { onImport } = renderTab({ appGlobalAuthProfiles: [makeAuth('aX', 'bearer')] });
+    switchToImport();
+    const withAuth = JSON.stringify({
+      environments: [],
+      microservices: [],
+      featureGroups: [],
+      globalAuthProfiles: [{ id: 'aX', name: 'AuthX', auth: { type: 'bearer' } }],
+      appGlobalAuthProfiles: [{ id: 'aY', name: 'AuthY', auth: { type: 'none' } }],
+    });
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(fileInput, { target: { files: [makeFile(withAuth)] } });
+    await waitFor(() => expect(screen.getByText('data.json')).toBeTruthy());
+    fireEvent.click(screen.getByText('↑ Import'));
+    const arg = onImport.mock.calls[0][0];
+    expect(arg.globalAuthProfiles).toHaveLength(1);
+    expect(arg.globalAuthProfiles[0].id).toBe('aY');
   });
 });

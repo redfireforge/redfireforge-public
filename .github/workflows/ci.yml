@@ -64,6 +64,33 @@ jobs:
               - 'e2e/**'
               - 'playwright.config.ts'
 
+  commit-message:
+    name: Commit message
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Strip AI attribution from commit messages
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          BRANCH_NAME: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          SAME_REPO: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          bash scripts/check-commit-messages.sh --self-test
+          bash scripts/check-commit-messages.sh --ci
+
   cert-expiry:
     name: Demo TLS cert expiry
     runs-on: ubuntu-latest
@@ -123,6 +150,13 @@ jobs:
         run: npm run test:product:coverage:fast
         env:
           COVERAGE_SHARDS: 2
+      - name: Upload product shard logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: product-coverage-shard-logs
+          path: coverage/.tmp/shards/**/*.log
+          if-no-files-found: ignore
       - name: Check coverage thresholds
         run: |
           echo "Product coverage report generated. Review in PR for >90% target."

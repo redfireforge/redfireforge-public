@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import type { Tab } from '../utils/appTabUtils';
 import { DEMO_HUB_ENABLED } from '../../config/features';
+import { isDemoUiActionActive } from '@shared/utils/demoUiAction';
 import { demoHubRuntimeRef } from '../demo/demoHubRuntimeRef';
 import { shouldExitLiveDemoForTabChange } from '../demo/liveDemoTabGuard';
 import type { UseRequestsReturn } from '../../features/requests/hooks/useRequests';
@@ -36,7 +37,7 @@ export function useAppNavigationCallbacks({
   const handleSetActiveTab = useCallback((tab: Tab) => {
     const hub = demoHubRuntimeRef.current;
     const inLive = DEMO_HUB_ENABLED && hub.state.view === 'live';
-    const suppressed = hub.suppressLiveTabExitRef?.current === true;
+    const suppressed = hub.suppressLiveTabExitRef?.current === true || isDemoUiActionActive();
     const shouldExit = inLive
       && !suppressed
       && shouldExitLiveDemoForTabChange(tab, activeTab, hub.state.selectedLesson);

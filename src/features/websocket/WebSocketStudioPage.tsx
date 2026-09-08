@@ -14,17 +14,14 @@ import { buildEnvVarMap } from '@shared/utils/envVarUtils';
 import { getRowStatus } from '../environments/utils/protocolEndpointUtils';
 import type {
   WsConnectionDraft,
-  WsPersistedTabState,
   WsProtocolMode,
   WsViewTab,
   WsStudioLocation,
 } from '@shared/websocket/types';
-import {
-  mapViewTabToStudioLocation,
-  deriveViewTabFromStudio,
-} from '@shared/websocket/types';
+import { mapViewTabToStudioLocation } from '@shared/websocket/types';
 import { loadWsTabState, saveWsTabState } from '@shared/websocket/websocketStorage';
 import ConfirmModal from '@shared/components/ConfirmModal';
+import { resolveWsMockApiUrl } from './useWebSocketMockServer';
 import {
   DEMO_INITIAL_SURFACE_EVENT,
   peekDemoInitialSurface,
@@ -33,14 +30,16 @@ import {
   MAX_TABS,
   MOCK_PORT_BASE,
   applyDemoWsStudioMode,
-  isAutoMockPort,
   LOCALHOST_WS_URL_RE,
   generateTabId,
-  advanceSeqPastRestoredIds,
   deriveTabLabel,
   nextFreePort,
   preparePortsForNewTab,
 } from './WebSocketStudioPage.helpers';
+import {
+  buildWsPersistedTabState,
+  restoreWsPersistedTabs,
+} from './wsStudioTabPersistence';
 import type { WebSocketStudioPageProps } from './WebSocketStudioPage.types';
 import { useWsDemoBridges } from './useWsDemoBridges';
 import '../../styles/websocket-studio.css';
@@ -118,118 +117,18 @@ export function WebSocketStudioPage({
     loadWsTabState().then((state) => {
       if (cancelled) return;
       if (state && state.tabs.length > 0) {
-        const restoredTabs: WsConnectionTabInfo[] = state.tabs.map((t) => ({
-          id: t.id,
-          label: t.label,
-          url: t.url,
-        }));
-        advanceSeqPastRestoredIds(restoredTabs);
-        renamedTabIds.current = new Set(state.renamedTabIds);
-
-        const connStates: Record<string, ConnectionStateHint> = {};
-        const urls: Record<string, string> = {};
-        const views: Record<string, WsViewTab> = {};
-        const iUrls: Record<string, string> = {};
-        const iDrafts: Record<string, Partial<WsConnectionDraft>> = {};
-        const locs: Record<string, WsStudioLocation> = {};
-        // Assign mock ports sequentially, restoring any that were persisted.
-        const assignedPorts = new Set<number>();
-        const restoredMockPorts: Record<string, number> = {};
-        for (const t of state.tabs) {
-          connStates[t.id] = 'disconnected';
-          urls[t.id] = t.url;
-          views[t.id] = t.viewTab;
-          if (t.url) iUrls[t.id] = t.url;
-          iDrafts[t.id] = {
-            subprotocols: t.subprotocols ?? '',
-            headers: t.headers ?? [],
-            queryParams: t.queryParams ?? [],
-            auth: t.auth,
-          };
-          // loadWsTabState normalizes these, but fall back defensively.
-          const derived = mapViewTabToStudioLocation(t.viewTab);
-          locs[t.id] = {
-            mode: t.mode ?? derived.mode,
-            leftTab: t.leftTab ?? derived.leftTab,
-            rightTab: t.rightTab ?? derived.rightTab,
-          };
-          // Restore persisted mockPort or assign a fresh one.
-          if (t.mockPort && !assignedPorts.has(t.mockPort)) {
-            restoredMockPorts[t.id] = t.mockPort;
-            assignedPorts.add(t.mockPort);
-          } else {
-            const p = nextFreePort(assignedPorts);
-            restoredMockPorts[t.id] = p;
-            assignedPorts.add(p);
-          }
-        }
-        const normalizeLocalhostUrl = (tabId: string) => {
-          const rawUrl = urls[tabId] ?? '';
-          if (!LOCALHOST_WS_URL_RE.test(rawUrl)) return;
-          const suffix = rawUrl.match(LOCALHOST_WS_URL_RE)?.[1] ?? '';
-          const normalizedUrl = `ws://localhost:${MOCK_PORT_BASE}${suffix}`;
-          urls[tabId] = normalizedUrl;
-          const restored = restoredTabs.find((t) => t.id === tabId);
-          if (restored) restored.url = normalizedUrl;
-          iUrls[tabId] = normalizedUrl;
-        };
-        // Pin the first tab (and any "demo" tab) to 9876. Persisted leftovers like
-        // 9878 after closing intermediate tabs otherwise stick on "New Connection".
-        const pinTabToBasePort = (tabId: string) => {
-          if (restoredMockPorts[tabId] === MOCK_PORT_BASE) {
-            normalizeLocalhostUrl(tabId);
-            return;
-          }
-          const oldPort = restoredMockPorts[tabId];
-          const conflictId = Object.entries(restoredMockPorts).find(
-            ([id, port]) => id !== tabId && port === MOCK_PORT_BASE,
-          )?.[0];
-          if (conflictId) {
-            const used = new Set(
-              Object.entries(restoredMockPorts)
-                .filter(([id]) => id !== conflictId && id !== tabId)
-                .map(([, p]) => p),
-            );
-            used.add(MOCK_PORT_BASE);
-            restoredMockPorts[conflictId] =
-              oldPort !== undefined && oldPort !== MOCK_PORT_BASE
-                ? oldPort
-                : nextFreePort(used);
-          }
-          restoredMockPorts[tabId] = MOCK_PORT_BASE;
-          normalizeLocalhostUrl(tabId);
-        };
-        const firstTab = state.tabs[0];
-        // Sole tab stuck on an auto-range leftover (9877/9878/…) → reclaim 9876.
-        if (
-          state.tabs.length === 1
-          && firstTab
-          && restoredMockPorts[firstTab.id] !== undefined
-          && restoredMockPorts[firstTab.id] !== MOCK_PORT_BASE
-          && isAutoMockPort(restoredMockPorts[firstTab.id])
-        ) {
-          pinTabToBasePort(firstTab.id);
-        } else if (
-          firstTab
-          && (firstTab.label === 'New Connection' || /^demo$/i.test(firstTab.label))
-        ) {
-          pinTabToBasePort(firstTab.id);
-        }
-        const demoTab = state.tabs.find((t) => /^demo$/i.test(t.label));
-        if (demoTab && demoTab.id !== firstTab?.id) {
-          pinTabToBasePort(demoTab.id);
-        }
-        mockPortsRef.current = restoredMockPorts;
-        setMockPorts(restoredMockPorts);
-        tabUrls.current = urls;
-        tabViewTabs.current = views;
-        initialUrlsRef.current = iUrls;
-        initialDraftsRef.current = iDrafts;
-
-        setTabs(restoredTabs);
-        setActiveTabId(state.activeTabId);
-        setConnectionStates(connStates);
-        setStudioLoc(applyDemoWsStudioMode(locs));
+        const restored = restoreWsPersistedTabs(state);
+        renamedTabIds.current = new Set(restored.renamedTabIds);
+        mockPortsRef.current = restored.mockPorts;
+        setMockPorts(restored.mockPorts);
+        tabUrls.current = restored.urls;
+        tabViewTabs.current = restored.views;
+        initialUrlsRef.current = restored.initialUrls;
+        initialDraftsRef.current = restored.initialDrafts;
+        setTabs(restored.tabs);
+        setActiveTabId(restored.activeTabId);
+        setConnectionStates(restored.connectionStates);
+        setStudioLoc(restored.studioLocs);
       } else {
         createDefaultTab();
       }
@@ -295,42 +194,17 @@ export function WebSocketStudioPage({
   const tabsRef = useRef(tabs);
   tabsRef.current = tabs;
 
-  const buildPersistState = useCallback((): WsPersistedTabState => {
-    return {
-      tabs: tabsRef.current.map((t) => {
-        const loc = studioLocRef.current[t.id];
-        // The studio location is the source of truth and the legacy `viewTab`
-        // is kept consistent via the inverse mapping. When no location exists
-        // yet (e.g. before load), `viewTab` leads and the new fields are
-        // derived from it for back-compat.
-        let viewTab: WsViewTab;
-        let mode = loc?.mode;
-        let leftTab = loc?.leftTab;
-        let rightTab = loc?.rightTab;
-        if (loc) {
-          viewTab = deriveViewTabFromStudio(loc.mode, loc.leftTab);
-        } else {
-          viewTab = tabViewTabs.current[t.id] ?? 'connect';
-          const derived = mapViewTabToStudioLocation(viewTab);
-          mode = mode ?? derived.mode;
-          leftTab = leftTab ?? derived.leftTab;
-          rightTab = rightTab ?? derived.rightTab;
-        }
-        return {
-          id: t.id,
-          label: t.label,
-          url: tabUrls.current[t.id] ?? '',
-          viewTab,
-          mode,
-          leftTab,
-          rightTab,
-          mockPort: mockPortsRef.current[t.id],
-          ...readTabDraftFields(t.id),
-        };
-      }),
+  const buildPersistState = useCallback(() => {
+    return buildWsPersistedTabState({
+      tabs: tabsRef.current,
+      studioLocs: studioLocRef.current,
+      viewTabs: tabViewTabs.current,
+      urls: tabUrls.current,
+      mockPorts: mockPortsRef.current,
       activeTabId: activeTabIdRef.current,
       renamedTabIds: Array.from(renamedTabIds.current),
-    };
+      readDraft: readTabDraftFields,
+    });
   }, [readTabDraftFields]);
 
   const debouncedSave = useCallback(() => {
@@ -471,7 +345,7 @@ export function WebSocketStudioPage({
         mockPortsRef.current = nextPorts;
         setMockPorts(nextPorts);
         if (closedPort !== undefined) {
-          void fetch('/api/ws/mock/stop', {
+          void fetch(resolveWsMockApiUrl('/api/ws/mock/stop'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ port: closedPort }),

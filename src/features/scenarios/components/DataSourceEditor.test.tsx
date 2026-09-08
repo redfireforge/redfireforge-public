@@ -217,7 +217,7 @@ describe('DataSourceEditor', () => {
 
     it('Quick Setup auto-creates data source from URL params', () => {
       const onChange = vi.fn();
-      render(<DataSourceEditor draft={makeScenario({ url: 'https://api.example.com/api?channel=WEBRNW' })} onDraftChange={onChange} />);
+      render(<DataSourceEditor draft={makeScenario({ url: 'https://api.example.com/api?channel=WEB' })} onDraftChange={onChange} />);
       fireEvent.click(screen.getByText(/Quick Setup/));
       expect(onChange).toHaveBeenCalledTimes(1);
       const updated = onChange.mock.calls[0][0] as Scenario;
@@ -241,17 +241,17 @@ describe('DataSourceEditor', () => {
 
     it('renders cell values', () => {
       render(<DataSourceEditor draft={makeScenario({ dataSource: makeDataSource() })} onDraftChange={vi.fn()} />);
-      expect(screen.getByDisplayValue('1GYVUZ')).toBeTruthy();
-      expect(screen.getByDisplayValue('WEBRNW')).toBeTruthy();
+      expect(screen.getByDisplayValue('1HGCM8')).toBeTruthy();
+      expect(screen.getByDisplayValue('WEB')).toBeTruthy();
     });
 
     it('calls onDraftChange when cell value changes', () => {
       const onChange = vi.fn();
       render(<DataSourceEditor draft={makeScenario({ dataSource: makeDataSource() })} onDraftChange={onChange} />);
-      fireEvent.change(screen.getByDisplayValue('1GYVUZ'), { target: { value: '3GYVUZ' } });
+      fireEvent.change(screen.getByDisplayValue('1HGCM8'), { target: { value: '3VWFE2' } });
       expect(onChange).toHaveBeenCalledTimes(1);
       const updated = onChange.mock.calls[0][0] as Scenario;
-      expect(updated.dataSource!.rows[0].values.c1).toBe('3GYVUZ');
+      expect(updated.dataSource!.rows[0].values.c1).toBe('3VWFE2');
     });
 
     it('adds a row when + Row is clicked', () => {
@@ -373,16 +373,16 @@ describe('DataSourceEditor', () => {
 
     it('filters rows by search query', () => {
       render(<DataSourceEditor draft={makeScenario({ dataSource: makeDataSource() })} onDraftChange={vi.fn()} />);
-      fireEvent.change(screen.getByPlaceholderText('Search rows…'), { target: { value: '1GYVUZ' } });
+      fireEvent.change(screen.getByPlaceholderText('Search rows…'), { target: { value: '1HGCM8' } });
       const cells = document.querySelectorAll('.data-source-cell-input');
-      const vinCells = Array.from(cells).filter((c) => (c as HTMLInputElement).value === '1GYVUZ');
+      const vinCells = Array.from(cells).filter((c) => (c as HTMLInputElement).value === '1HGCM8');
       expect(vinCells.length).toBe(1);
       expect(document.querySelectorAll('.data-source-row').length).toBe(1);
     });
 
     it('shows row count when search is active', () => {
       render(<DataSourceEditor draft={makeScenario({ dataSource: makeDataSource() })} onDraftChange={vi.fn()} />);
-      fireEvent.change(screen.getByPlaceholderText('Search rows…'), { target: { value: '1GYVUZ' } });
+      fireEvent.change(screen.getByPlaceholderText('Search rows…'), { target: { value: '1HGCM8' } });
       expect(screen.getByText(/1 of 2 rows/)).toBeTruthy();
     });
 

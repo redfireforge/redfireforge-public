@@ -78,7 +78,7 @@ describe('collectConditionVariableHints', () => {
 
   it('includes this HTTP step own initial variable names for URL/params insert picker', () => {
     const h = http('h1', [{ name: 'token' }]);
-    (h.data as HttpNodeData).initialVariables = { vin: '1GNxxx' };
+    (h.data as HttpNodeData).initialVariables = { vin: 'VINxxx' };
     const nodes: WorkflowNode[] = [h];
     const edges: WorkflowEdge[] = [];
     const hints = collectConditionVariableHints(nodes, edges, 'h1', {});

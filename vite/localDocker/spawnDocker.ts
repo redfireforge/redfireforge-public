@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { envWithDockerBinDir } from './dockerBin.ts';
 import type { DockerRunOptions, DockerRunResult, DockerRunner } from './types.ts';
 
 /** After SIGTERM, wait this long before SIGKILL. Do not key off `child.killed` — Node sets that on the first kill(). */
@@ -28,6 +29,7 @@ export function runDockerProcess(
     try {
       child = spawn(bin, args, {
         cwd: opts.cwd,
+        env: envWithDockerBinDir(bin),
         shell: false,
         windowsHide: true,
         stdio: ['ignore', 'pipe', 'pipe'],

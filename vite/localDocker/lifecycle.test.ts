@@ -315,7 +315,7 @@ describe('lifecycle', () => {
   it('stop-all downs only rff-* project names', async () => {
     const { runner, calls } = createMockRunner((call) => {
       if (call.args[0] === 'compose' && call.args.includes('ls')) {
-        return { stdout: 'rff-graphql\nsales-product-autoassign-postgres\ngraphql\n' };
+        return { stdout: 'rff-graphql\norders-api-postgres\ngraphql\n' };
       }
       return {};
     });

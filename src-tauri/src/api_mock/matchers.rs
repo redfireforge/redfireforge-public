@@ -316,11 +316,11 @@ mod tests {
     const SOAP: &str = r#"<?xml version="1.0"?>
 <SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/">
   <SOAP-ENV:Body>
-    <ns3:ActivateOnStarSubscriberRequest xmlns:ns3="http://csi.cingular.com/Request.xsd">
+    <ns3:ActivateAccountRequest xmlns:ns3="http://example.com/schema/Request.xsd">
       <ns3:VehicleDetails>
-        <ns3:vehicleIdentificationNumber>1GN1RK114R1FaultCode200</ns3:vehicleIdentificationNumber>
+        <ns3:vehicleIdentificationNumber>1HGCM82633AFaultCode200</ns3:vehicleIdentificationNumber>
       </ns3:VehicleDetails>
-    </ns3:ActivateOnStarSubscriberRequest>
+    </ns3:ActivateAccountRequest>
   </SOAP-ENV:Body>
 </SOAP-ENV:Envelope>"#;
 
@@ -330,7 +330,7 @@ mod tests {
     fn xpath_exists_and_equals() {
         assert!(match_xpath_exists(Some(SOAP), Some(&json!(VIN))));
         assert!(!match_xpath_exists(Some(SOAP), Some(&json!("//*[local-name() = 'nope']"))));
-        assert!(match_xpath_equals(Some(SOAP), Some(&json!([VIN, "1GN1RK114R1FaultCode200"])), None));
+        assert!(match_xpath_equals(Some(SOAP), Some(&json!([VIN, "1HGCM82633AFaultCode200"])), None));
         assert!(match_xpath_equals(
             Some(SOAP),
             Some(&json!([VIN, "FaultCode200"])),

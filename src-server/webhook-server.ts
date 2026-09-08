@@ -24,6 +24,8 @@ import { generateExecutionId } from '../src/features/test-runner/utils/serverFor
 import { toErrorMessage } from '../src/shared/utils/helpers';
 import { GRPC_SPRING_FIXTURE_ACTUATOR_HEALTH_LOOPBACK_URL } from '../src/shared/grpc/grpcSpringFixturePorts';
 import { probeApiMockEcho } from '../src/shared/api-mock/echoHealthProbe';
+import { isDemoHttpHealthPort, normalizeDemoHttpHealthPath } from '../src/shared/utils/demoHttpHealthPorts';
+import { probeDemoHttpHealth } from '../src/shared/utils/demoHttpHealthProbe';
 
 const app = express();
 
@@ -210,6 +212,36 @@ app.get('/health/kafka-admin', async (req: Request, res: Response) => {
     clearTimeout(timer);
     return res.status(200).json({ status: 'down', source: 'kafka-admin', port, reason: toErrorMessage(error) });
   }
+});
+
+// Demo Docker HTTP /health (GraphQL 4010/4444/4446, gRPC 50052).
+// PrerequisiteGate used to fetch these from the browser — Chrome logged
+// ERR_CONNECTION_REFUSED every 3s while the stack was stopped.
+app.get('/health/demo-http', async (req: Request, res: Response) => {
+  const port = parseInt((req.query.port as string) || '', 10);
+  if (!isDemoHttpHealthPort(port)) {
+    return res.status(200).json({
+      status: 'down',
+      source: 'demo-http',
+      reason: 'unsupported_port',
+    });
+  }
+  const probePath = normalizeDemoHttpHealthPath(req.query.path as string | undefined);
+  const probe = await probeDemoHttpHealth(port, 2500, probePath);
+  if (probe.ok) {
+    return res.status(200).json({
+      status: 'ok',
+      source: 'demo-http',
+      port,
+      httpStatus: probe.statusCode,
+    });
+  }
+  return res.status(200).json({
+    status: 'down',
+    source: 'demo-http',
+    port,
+    reason: probe.reason ?? 'unreachable',
+  });
 });
 
 // API Mock Docker echo (:4017) — AM-17 PrerequisiteGate.

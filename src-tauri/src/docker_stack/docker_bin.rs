@@ -3,7 +3,7 @@
 //! well-known locations. Hide the extra console window when spawning on Windows.
 
 use std::ffi::OsStr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tokio::process::Command;
 
 #[cfg_attr(not(windows), allow(dead_code))]
@@ -185,8 +185,30 @@ pub fn hidden_cmd(program: impl AsRef<OsStr>) -> Command {
     }
 }
 
+/// Prepend `docker.exe`'s directory so helpers like `docker-credential-desktop`
+/// resolve when the app's PATH is stale (common on Windows user-install Desktop).
+#[cfg_attr(not(windows), allow(dead_code))]
+pub fn path_with_docker_bin_dir(docker_exe: &Path, existing_path: Option<&str>) -> Option<String> {
+    let dir = docker_exe.parent()?.to_string_lossy();
+    if dir.is_empty() {
+        return None;
+    }
+    match existing_path.filter(|s| !s.is_empty()) {
+        Some(rest) => Some(format!("{dir};{rest}")),
+        None => Some(dir.into_owned()),
+    }
+}
+
 pub fn docker_cmd() -> Command {
-    hidden_cmd(docker_bin())
+    let bin = docker_bin();
+    let mut cmd = hidden_cmd(&bin);
+    #[cfg(windows)]
+    {
+        if let Some(path) = path_with_docker_bin_dir(&bin, std::env::var("PATH").ok().as_deref()) {
+            cmd.env("PATH", path);
+        }
+    }
+    cmd
 }
 
 #[cfg(test)]
@@ -292,5 +314,26 @@ mod tests {
         if bin != PathBuf::from("docker") {
             assert!(bin.is_file(), "resolved docker must exist: {}", bin.display());
         }
+    }
+
+    #[test]
+    fn path_with_docker_bin_dir_prepends_parent() {
+        let exe = PathBuf::from(r"C:\Users\me\AppData\Local\Programs\DockerDesktop\resources\bin\docker.exe");
+        let path = path_with_docker_bin_dir(&exe, Some(r"C:\Windows\System32")).unwrap();
+        assert!(path.starts_with(r"C:\Users\me\AppData\Local\Programs\DockerDesktop\resources\bin;"));
+        assert!(path.ends_with(r"C:\Windows\System32"));
+        assert_eq!(
+            path_with_docker_bin_dir(&exe, None).as_deref(),
+            Some(r"C:\Users\me\AppData\Local\Programs\DockerDesktop\resources\bin")
+        );
+        assert!(path_with_docker_bin_dir(Path::new("docker"), Some("x")).is_none());
+    }
+
+    #[test]
+    fn windows_cli_candidates_include_user_install_dockerdesktop() {
+        let paths = windows_docker_cli_candidates(None, None, None, Some(r"D:\Users\me\AppData\Local"));
+        let as_str: Vec<String> = paths.iter().map(|p| p.to_string_lossy().into_owned()).collect();
+        assert!(as_str.iter().any(|p| p.contains(r"Programs\DockerDesktop\resources\bin\docker.exe")
+            || p.contains("Programs\\DockerDesktop\\resources\\bin\\docker.exe")));
     }
 }

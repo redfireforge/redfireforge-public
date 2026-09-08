@@ -108,6 +108,15 @@
           if (isBenign(e)) return;
           recordFatal((e && e.message) || (e && e.error && e.error.message) || 'Script error');
         }, true);
+        // Vite 504 Outdated Request = plugin container already closed (failed
+        // config restart). Hard-refresh cannot recover; the user must restart Vite.
+        fetch('/@vite/client', { cache: 'no-store' }).then(function (r) {
+          if (r.status === 504) {
+            recordFatal(
+              'the Vite dev server is stale (504 Outdated Request). Stop npm run dev / dev:demo and start it again, then refresh.',
+            );
+          }
+        }).catch(function () { /* ignore — boot timer still runs */ });
         window.addEventListener('unhandledrejection', function (e) {
           if (isBenign(e)) return;
           var r = e && e.reason;

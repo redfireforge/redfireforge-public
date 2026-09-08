@@ -211,25 +211,25 @@ describe('migrateWorkflowSchema', () => {
     const wf = makeWorkflow({
       services: [{
         id: 'svc-1', name: 'Multi', urlMode: 'multi-env',
-        baseUrls: { t01: 'https://test.example.com', p01: 'https://prod.example.com' },
-        authPerEnv: { t01: { type: 'bearer', token: 'test-tok' } },
+        baseUrls: { test: 'https://test.example.com', prod: 'https://prod.example.com' },
+        authPerEnv: { test: { type: 'bearer', token: 'test-tok' } },
         endpoints: [],
       }],
     });
     const result = migrateWorkflowSchema(wf);
     const svc = result.services!.find(s => s.id === 'svc-1');
     expect(svc!.endpoints!.length).toBe(2);
-    const t01 = svc!.endpoints!.find(e => e.envId === 't01');
-    expect(t01!.url).toBe('https://test.example.com');
-    expect(t01!.authMode).toBe('custom');
-    expect(t01!.auth).toEqual({ type: 'bearer', token: 'test-tok' });
-    const p01 = svc!.endpoints!.find(e => e.envId === 'p01');
-    expect(p01!.authMode).toBe('inherit');
+    const test = svc!.endpoints!.find(e => e.envId === 'test');
+    expect(test!.url).toBe('https://test.example.com');
+    expect(test!.authMode).toBe('custom');
+    expect(test!.auth).toEqual({ type: 'bearer', token: 'test-tok' });
+    const prod = svc!.endpoints!.find(e => e.envId === 'prod');
+    expect(prod!.authMode).toBe('inherit');
   });
 
   it('preserves endpoints when services already have them', () => {
     const endpoints = [
-      { envId: 't01', url: 'https://test.com', enabled: true, authMode: 'inherit' as const, source: 'manual' as const },
+      { envId: 'test', url: 'https://test.com', enabled: true, authMode: 'inherit' as const, source: 'manual' as const },
     ];
     const wf = makeWorkflow({
       services: [{

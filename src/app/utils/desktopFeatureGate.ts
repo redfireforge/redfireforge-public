@@ -1,9 +1,9 @@
 import type { Tab } from './appTabUtils';
-import { isTauri, isLocalhost } from '@shared/utils/platform';
+import { isDesktopRuntimeAvailable } from '@shared/utils/platform';
 
-/** Hosted web only — never show download CTAs on Tauri or localhost. */
+/** Hosted web only — never show download CTAs on Tauri, local clone, or E2E shim. */
 export function shouldShowWebDownloadCta(): boolean {
-  return !isTauri() && !isLocalhost();
+  return !isDesktopRuntimeAvailable();
 }
 
 const DESKTOP_ONLY_TABS: ReadonlySet<Tab> = new Set([

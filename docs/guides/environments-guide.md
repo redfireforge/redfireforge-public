@@ -20,9 +20,9 @@ Test: GET /users
 
 An **Environment** is a deployment target:
 - `dev` — Development
-- `t01`, `t02` — Test environments
+- `test` — Test
 - `staging` — Pre-production
-- `production` — Live
+- `prod` — Production
 
 ### Microservices
 
@@ -302,8 +302,7 @@ Environments and microservices are included when exporting via **Export Center**
 ### 1. Use Consistent Naming
 
 ```
-✓ dev, staging, production
-✓ t01, t02, t03
+✓ dev, test, staging, prod
 ✗ Dev, STAGING, Prod
 ```
 

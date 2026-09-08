@@ -12,17 +12,17 @@ const minimalScenario = (): HttpNodeData['scenario'] => ({
 
 describe('resolveServiceBaseUrl', () => {
   const microservices: Microservice[] = [
-    { id: 'ms-1', name: 'MS1', baseUrls: { t01: 'https://ms1.test.com/', p01: 'https://ms1.prod.com' } },
+    { id: 'ms-1', name: 'MS1', baseUrls: { test: 'https://ms1.test.com/', prod: 'https://ms1.prod.com' } },
   ];
 
   it('resolves from endpoint matrix for selected env', () => {
     const svc: WorkflowService = {
       id: 's1', name: 'Svc',
       endpoints: [
-        { envId: 't01', url: 'https://test.api.com/', enabled: true, authMode: 'inherit', source: 'manual' },
+        { envId: 'test', url: 'https://test.api.com/', enabled: true, authMode: 'inherit', source: 'manual' },
       ],
     };
-    expect(resolveServiceBaseUrl(svc, [], 't01')).toBe('https://test.api.com');
+    expect(resolveServiceBaseUrl(svc, [], 'test')).toBe('https://test.api.com');
   });
 
   it('falls back to __all__ endpoint when env not found', () => {
@@ -32,32 +32,32 @@ describe('resolveServiceBaseUrl', () => {
         { envId: '__all__', url: 'https://all.api.com/', enabled: true, authMode: 'inherit', source: 'manual' },
       ],
     };
-    expect(resolveServiceBaseUrl(svc, [], 't01')).toBe('https://all.api.com');
+    expect(resolveServiceBaseUrl(svc, [], 'test')).toBe('https://all.api.com');
   });
 
   it('falls back to first enabled endpoint with URL', () => {
     const svc: WorkflowService = {
       id: 's1', name: 'Svc',
       endpoints: [
-        { envId: 'p01', url: 'https://prod.api.com/', enabled: true, authMode: 'inherit', source: 'manual' },
+        { envId: 'prod', url: 'https://prod.api.com/', enabled: true, authMode: 'inherit', source: 'manual' },
       ],
     };
-    expect(resolveServiceBaseUrl(svc, [], 't01')).toBe('https://prod.api.com');
+    expect(resolveServiceBaseUrl(svc, [], 'test')).toBe('https://prod.api.com');
   });
 
   it('skips disabled endpoints', () => {
     const svc: WorkflowService = {
       id: 's1', name: 'Svc',
       endpoints: [
-        { envId: 't01', url: 'https://disabled.com', enabled: false, authMode: 'inherit', source: 'manual' },
+        { envId: 'test', url: 'https://disabled.com', enabled: false, authMode: 'inherit', source: 'manual' },
       ],
     };
-    expect(resolveServiceBaseUrl(svc, [], 't01')).toBeUndefined();
+    expect(resolveServiceBaseUrl(svc, [], 'test')).toBeUndefined();
   });
 
   it('resolves from microservice baseUrls when no endpoints', () => {
     const svc: WorkflowService = { id: 's1', name: 'Svc', microserviceId: 'ms-1', endpoints: [] };
-    expect(resolveServiceBaseUrl(svc, microservices, 't01')).toBe('https://ms1.test.com');
+    expect(resolveServiceBaseUrl(svc, microservices, 'test')).toBe('https://ms1.test.com');
   });
 
   it('falls back to first microservice baseUrl when env not found', () => {
@@ -83,15 +83,15 @@ describe('resolveServiceBaseUrl', () => {
   it('resolves legacy multi-env urlMode', () => {
     const svc: WorkflowService = {
       id: 's1', name: 'Svc', urlMode: 'multi-env',
-      baseUrls: { t01: 'https://test.com/', p01: 'https://prod.com' },
+      baseUrls: { test: 'https://test.com/', prod: 'https://prod.com' },
     };
-    expect(resolveServiceBaseUrl(svc, [], 't01')).toBe('https://test.com');
+    expect(resolveServiceBaseUrl(svc, [], 'test')).toBe('https://test.com');
   });
 
   it('returns first baseUrl for multi-env when env not found', () => {
     const svc: WorkflowService = {
       id: 's1', name: 'Svc', urlMode: 'multi-env',
-      baseUrls: { p01: 'https://prod.com' },
+      baseUrls: { prod: 'https://prod.com' },
     };
     expect(resolveServiceBaseUrl(svc, [], 'unknown')).toBe('https://prod.com');
   });
@@ -117,7 +117,7 @@ describe('resolveServiceBaseUrl', () => {
 
 describe('resolveHttpNodeBaseUrl', () => {
   const microservices: Microservice[] = [
-    { id: 'svc-a', name: 'A', baseUrls: { t01: 'https://a.example.com/', p01: 'https://a-prod.example.com' } },
+    { id: 'svc-a', name: 'A', baseUrls: { test: 'https://a.example.com/', prod: 'https://a-prod.example.com' } },
   ];
 
   it('returns undefined when host fields missing', () => {
@@ -127,7 +127,7 @@ describe('resolveHttpNodeBaseUrl', () => {
 
   it('resolves when both ids set', () => {
     const d: HttpNodeData = {
-      label: 'x', hostEnvironmentId: 't01', hostMicroserviceId: 'svc-a',
+      label: 'x', hostEnvironmentId: 'test', hostMicroserviceId: 'svc-a',
       scenario: minimalScenario(),
     };
     expect(resolveHttpNodeBaseUrl(d, microservices)).toBe('https://a.example.com');
@@ -136,7 +136,7 @@ describe('resolveHttpNodeBaseUrl', () => {
   it('prefers explicit hostBaseUrl over env + microservice', () => {
     const d: HttpNodeData = {
       label: 'x', hostBaseUrl: 'https://ons.example.com/',
-      hostEnvironmentId: 't01', hostMicroserviceId: 'svc-a',
+      hostEnvironmentId: 'test', hostMicroserviceId: 'svc-a',
       scenario: minimalScenario(),
     };
     expect(resolveHttpNodeBaseUrl(d, microservices)).toBe('https://ons.example.com');
@@ -145,15 +145,15 @@ describe('resolveHttpNodeBaseUrl', () => {
   it('resolves via serviceId and services array', () => {
     const services: WorkflowService[] = [{
       id: 'svc-1', name: 'S',
-      endpoints: [{ envId: 't01', url: 'https://svc.test.com', enabled: true, authMode: 'inherit', source: 'manual' }],
+      endpoints: [{ envId: 'test', url: 'https://svc.test.com', enabled: true, authMode: 'inherit', source: 'manual' }],
     }];
     const d: HttpNodeData = { label: 'x', serviceId: 'svc-1', scenario: minimalScenario() };
-    expect(resolveHttpNodeBaseUrl(d, [], undefined, services, 't01')).toBe('https://svc.test.com');
+    expect(resolveHttpNodeBaseUrl(d, [], undefined, services, 'test')).toBe('https://svc.test.com');
   });
 
   it('returns undefined when serviceId not found in services', () => {
     const d: HttpNodeData = { label: 'x', serviceId: 'missing', scenario: minimalScenario() };
-    expect(resolveHttpNodeBaseUrl(d, [], undefined, [{ id: 'other', name: 'O' }], 't01')).toBeUndefined();
+    expect(resolveHttpNodeBaseUrl(d, [], undefined, [{ id: 'other', name: 'O' }], 'test')).toBeUndefined();
   });
 
   it('resolves via hostProfileId', () => {
@@ -164,7 +164,7 @@ describe('resolveHttpNodeBaseUrl', () => {
 
   it('resolves hostProfile with env+microservice', () => {
     const d: HttpNodeData = { label: 'x', hostProfileId: 'hp-1', scenario: minimalScenario() };
-    const hostProfiles = [{ id: 'hp-1', name: 'H', hostEnvironmentId: 't01', hostMicroserviceId: 'svc-a' }];
+    const hostProfiles = [{ id: 'hp-1', name: 'H', hostEnvironmentId: 'test', hostMicroserviceId: 'svc-a' }];
     expect(resolveHttpNodeBaseUrl(d, microservices, hostProfiles)).toBe('https://a.example.com');
   });
 
@@ -189,7 +189,7 @@ describe('resolveHttpNodeBaseUrl', () => {
 
   it('returns undefined for unknown microserviceId', () => {
     const d: HttpNodeData = {
-      label: 'x', hostEnvironmentId: 't01', hostMicroserviceId: 'unknown',
+      label: 'x', hostEnvironmentId: 'test', hostMicroserviceId: 'unknown',
       scenario: minimalScenario(),
     };
     expect(resolveHttpNodeBaseUrl(d, microservices)).toBeUndefined();
@@ -215,21 +215,21 @@ describe('resolveServiceAuth', () => {
   it('returns custom auth from endpoint row', () => {
     const services: WorkflowService[] = [{
       id: 's1', name: 'S',
-      endpoints: [{ envId: 't01', url: 'https://t.com', enabled: true, authMode: 'custom', auth: customAuth, source: 'manual' }],
+      endpoints: [{ envId: 'test', url: 'https://t.com', enabled: true, authMode: 'custom', auth: customAuth, source: 'manual' }],
     }];
     const d: HttpNodeData = { label: 'x', serviceId: 's1', scenario: minimalScenario() };
-    expect(resolveServiceAuth(d, services, 't01')).toEqual(customAuth);
+    expect(resolveServiceAuth(d, services, 'test')).toEqual(customAuth);
   });
 
   it('resolves inherited auth from microservice authProfileIds', () => {
-    const ms: Microservice[] = [{ id: 'ms-1', name: 'MS', baseUrls: {}, authProfileIds: { t01: 'ap-1' } }];
+    const ms: Microservice[] = [{ id: 'ms-1', name: 'MS', baseUrls: {}, authProfileIds: { test: 'ap-1' } }];
     const globalAuth: GlobalAuthProfile[] = [{ id: 'ap-1', name: 'A', auth: bearerAuth }];
     const services: WorkflowService[] = [{
       id: 's1', name: 'S', microserviceId: 'ms-1',
-      endpoints: [{ envId: 't01', url: 'https://t.com', enabled: true, authMode: 'inherit', source: 'manual' }],
+      endpoints: [{ envId: 'test', url: 'https://t.com', enabled: true, authMode: 'inherit', source: 'manual' }],
     }];
     const d: HttpNodeData = { label: 'x', serviceId: 's1', scenario: minimalScenario() };
-    expect(resolveServiceAuth(d, services, 't01', ms, globalAuth)).toEqual(bearerAuth);
+    expect(resolveServiceAuth(d, services, 'test', ms, globalAuth)).toEqual(bearerAuth);
   });
 
   it('falls back to defaultAuth', () => {
@@ -238,17 +238,17 @@ describe('resolveServiceAuth', () => {
       endpoints: [],
     }];
     const d: HttpNodeData = { label: 'x', serviceId: 's1', scenario: minimalScenario() };
-    expect(resolveServiceAuth(d, services, 't01')).toEqual(bearerAuth);
+    expect(resolveServiceAuth(d, services, 'test')).toEqual(bearerAuth);
   });
 
   it('falls back to legacy authPerEnv', () => {
     const services: WorkflowService[] = [{
       id: 's1', name: 'S',
-      authPerEnv: { t01: bearerAuth },
+      authPerEnv: { test: bearerAuth },
       endpoints: [],
     }];
     const d: HttpNodeData = { label: 'x', serviceId: 's1', scenario: minimalScenario() };
-    expect(resolveServiceAuth(d, services, 't01')).toEqual(bearerAuth);
+    expect(resolveServiceAuth(d, services, 'test')).toEqual(bearerAuth);
   });
 
   it('falls back to legacy auth field', () => {
@@ -257,7 +257,7 @@ describe('resolveServiceAuth', () => {
       endpoints: [],
     }];
     const d: HttpNodeData = { label: 'x', serviceId: 's1', scenario: minimalScenario() };
-    expect(resolveServiceAuth(d, services, 't01')).toEqual(bearerAuth);
+    expect(resolveServiceAuth(d, services, 'test')).toEqual(bearerAuth);
   });
 
   it('returns __all__ endpoint auth when env-specific not found', () => {
@@ -275,24 +275,24 @@ describe('resolveServiceAuth', () => {
       { id: 'gp1', name: 'GP', auth: apiKeyAuth },
     ];
     const microservices: Microservice[] = [
-      { id: 'ms1', name: 'MS', baseUrls: {}, authProfileIds: { t01: 'gp1' } },
+      { id: 'ms1', name: 'MS', baseUrls: {}, authProfileIds: { test: 'gp1' } },
     ];
     const services: WorkflowService[] = [{
       id: 's1', name: 'S', microserviceId: 'ms1',
-      endpoints: [{ envId: 't01', url: 'https://a.com', enabled: true, authMode: 'inherit', source: 'manual' }],
+      endpoints: [{ envId: 'test', url: 'https://a.com', enabled: true, authMode: 'inherit', source: 'manual' }],
     }];
     const d: HttpNodeData = { label: 'x', serviceId: 's1', scenario: minimalScenario() };
-    expect(resolveServiceAuth(d, services, 't01', microservices, globalProfiles)).toEqual(apiKeyAuth);
+    expect(resolveServiceAuth(d, services, 'test', microservices, globalProfiles)).toEqual(apiKeyAuth);
   });
 
   it('falls back to legacy authPerEnv when no endpoints match', () => {
     const envAuth = { type: 'bearer' as const, token: 'env-tok' };
     const services: WorkflowService[] = [{
       id: 's1', name: 'S',
-      authPerEnv: { t01: envAuth },
+      authPerEnv: { test: envAuth },
     }];
     const d: HttpNodeData = { label: 'x', serviceId: 's1', scenario: minimalScenario() };
-    expect(resolveServiceAuth(d, services, 't01')).toEqual(envAuth);
+    expect(resolveServiceAuth(d, services, 'test')).toEqual(envAuth);
   });
 });
 
@@ -309,7 +309,7 @@ describe('resolveServiceBaseUrl — additional branches', () => {
   });
 
   it('resolves microservice without selectedEnvId falls to first baseUrl', () => {
-    const ms: Microservice[] = [{ id: 'ms1', name: 'MS', baseUrls: { p01: 'https://prod.com/' } }];
+    const ms: Microservice[] = [{ id: 'ms1', name: 'MS', baseUrls: { prod: 'https://prod.com/' } }];
     const svc: WorkflowService = { id: 's1', name: 'Svc', microserviceId: 'ms1', endpoints: [] };
     expect(resolveServiceBaseUrl(svc, ms)).toBe('https://prod.com');
   });
@@ -325,9 +325,9 @@ describe('resolveServiceBaseUrl — additional branches', () => {
   });
 
   it('returns undefined for microservice with empty baseUrl for env', () => {
-    const ms: Microservice[] = [{ id: 'ms1', name: 'MS', baseUrls: { t01: '  ' } }];
+    const ms: Microservice[] = [{ id: 'ms1', name: 'MS', baseUrls: { test: '  ' } }];
     const svc: WorkflowService = { id: 's1', name: 'Svc', microserviceId: 'ms1', endpoints: [] };
-    expect(resolveServiceBaseUrl(svc, ms, 't01')).toBeUndefined();
+    expect(resolveServiceBaseUrl(svc, ms, 'test')).toBeUndefined();
   });
 });
 
@@ -337,25 +337,25 @@ describe('resolveHttpNodeBaseUrl — envOverride', () => {
   const services: WorkflowService[] = [{
     id: 'svc-1', name: 'S',
     endpoints: [
-      { envId: 't01', url: 'https://svc.test.com', enabled: true, authMode: 'inherit', source: 'manual' },
+      { envId: 'test', url: 'https://svc.test.com', enabled: true, authMode: 'inherit', source: 'manual' },
       { envId: '__adhoc__', url: 'https://svc.adhoc.com', enabled: true, authMode: 'inherit', source: 'manual' },
-      { envId: 'p01', url: 'https://svc.prod.com', enabled: true, authMode: 'inherit', source: 'manual' },
+      { envId: 'prod', url: 'https://svc.prod.com', enabled: true, authMode: 'inherit', source: 'manual' },
     ],
   }];
 
   it('uses envOverride instead of global selectedEnvId', () => {
     const d: HttpNodeData = { label: 'x', serviceId: 'svc-1', envOverride: '__adhoc__', scenario: minimalScenario() };
-    expect(resolveHttpNodeBaseUrl(d, [], undefined, services, 't01')).toBe('https://svc.adhoc.com');
+    expect(resolveHttpNodeBaseUrl(d, [], undefined, services, 'test')).toBe('https://svc.adhoc.com');
   });
 
   it('uses global selectedEnvId when no envOverride', () => {
     const d: HttpNodeData = { label: 'x', serviceId: 'svc-1', scenario: minimalScenario() };
-    expect(resolveHttpNodeBaseUrl(d, [], undefined, services, 't01')).toBe('https://svc.test.com');
+    expect(resolveHttpNodeBaseUrl(d, [], undefined, services, 'test')).toBe('https://svc.test.com');
   });
 
   it('uses envOverride for prod while global is test', () => {
-    const d: HttpNodeData = { label: 'x', serviceId: 'svc-1', envOverride: 'p01', scenario: minimalScenario() };
-    expect(resolveHttpNodeBaseUrl(d, [], undefined, services, 't01')).toBe('https://svc.prod.com');
+    const d: HttpNodeData = { label: 'x', serviceId: 'svc-1', envOverride: 'prod', scenario: minimalScenario() };
+    expect(resolveHttpNodeBaseUrl(d, [], undefined, services, 'test')).toBe('https://svc.prod.com');
   });
 });
 
@@ -367,48 +367,48 @@ describe('resolveServiceAuth — envOverride', () => {
     const services: WorkflowService[] = [{
       id: 's1', name: 'S',
       endpoints: [
-        { envId: 't01', url: 'https://t.com', enabled: true, authMode: 'custom', auth: testAuth, source: 'manual' },
+        { envId: 'test', url: 'https://t.com', enabled: true, authMode: 'custom', auth: testAuth, source: 'manual' },
         { envId: '__adhoc__', url: 'https://a.com', enabled: true, authMode: 'custom', auth: adhocAuth, source: 'manual' },
       ],
     }];
     const d: HttpNodeData = { label: 'x', serviceId: 's1', envOverride: '__adhoc__', scenario: minimalScenario() };
-    expect(resolveServiceAuth(d, services, 't01')).toEqual(adhocAuth);
+    expect(resolveServiceAuth(d, services, 'test')).toEqual(adhocAuth);
   });
 
   it('uses global selectedEnvId when no envOverride for auth', () => {
     const services: WorkflowService[] = [{
       id: 's1', name: 'S',
       endpoints: [
-        { envId: 't01', url: 'https://t.com', enabled: true, authMode: 'custom', auth: testAuth, source: 'manual' },
+        { envId: 'test', url: 'https://t.com', enabled: true, authMode: 'custom', auth: testAuth, source: 'manual' },
         { envId: '__adhoc__', url: 'https://a.com', enabled: true, authMode: 'custom', auth: adhocAuth, source: 'manual' },
       ],
     }];
     const d: HttpNodeData = { label: 'x', serviceId: 's1', scenario: minimalScenario() };
-    expect(resolveServiceAuth(d, services, 't01')).toEqual(testAuth);
+    expect(resolveServiceAuth(d, services, 'test')).toEqual(testAuth);
   });
 });
 
 describe('resolveHttpNodeBaseUrl — additional branches', () => {
   const microservices: Microservice[] = [
-    { id: 'svc-a', name: 'A', baseUrls: { t01: 'https://a.example.com/' } },
+    { id: 'svc-a', name: 'A', baseUrls: { test: 'https://a.example.com/' } },
   ];
 
   it('resolves via hostProfile with env+microservice when profile baseUrl is empty', () => {
     const d: HttpNodeData = { label: 'x', hostProfileId: 'hp-1', scenario: minimalScenario() };
-    const hostProfiles = [{ id: 'hp-1', name: 'H', hostEnvironmentId: 't01', hostMicroserviceId: 'svc-a' }];
+    const hostProfiles = [{ id: 'hp-1', name: 'H', hostEnvironmentId: 'test', hostMicroserviceId: 'svc-a' }];
     expect(resolveHttpNodeBaseUrl(d, microservices, hostProfiles)).toBe('https://a.example.com');
   });
 
   it('returns undefined for hostProfile with unknown microserviceId', () => {
     const d: HttpNodeData = { label: 'x', hostProfileId: 'hp-1', scenario: minimalScenario() };
-    const hostProfiles = [{ id: 'hp-1', name: 'H', hostEnvironmentId: 't01', hostMicroserviceId: 'unknown' }];
+    const hostProfiles = [{ id: 'hp-1', name: 'H', hostEnvironmentId: 'test', hostMicroserviceId: 'unknown' }];
     expect(resolveHttpNodeBaseUrl(d, microservices, hostProfiles)).toBeUndefined();
   });
 
   it('returns undefined for hostProfile with microservice but empty URL for env', () => {
-    const ms: Microservice[] = [{ id: 'svc-b', name: 'B', baseUrls: { t01: '  ' } }];
+    const ms: Microservice[] = [{ id: 'svc-b', name: 'B', baseUrls: { test: '  ' } }];
     const d: HttpNodeData = { label: 'x', hostProfileId: 'hp-1', scenario: minimalScenario() };
-    const hostProfiles = [{ id: 'hp-1', name: 'H', hostEnvironmentId: 't01', hostMicroserviceId: 'svc-b' }];
+    const hostProfiles = [{ id: 'hp-1', name: 'H', hostEnvironmentId: 'test', hostMicroserviceId: 'svc-b' }];
     expect(resolveHttpNodeBaseUrl(d, ms, hostProfiles)).toBeUndefined();
   });
 });

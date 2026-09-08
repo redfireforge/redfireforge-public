@@ -8,6 +8,27 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.8.5] — 2026-09-07
+
+### Added
+- **Commit message gate** — Husky strips Cursor / Copilot / Claude attribution from the final commit message. CI does the same on feature/hotfix branches (rewrite + force-push) and strips those lines from the PR body, so leftover trailers do not fail the PR. Workspace `git.addAICoAuthor` is off.
+
+### Changed
+- **Vitest 5** — Bump `vitest` and `@vitest/coverage-v8` together so Dependabot's 5.0.0 bump can `npm ci`. Keep `istanbul-lib-coverage` as a direct dep because Vitest 5 only ships the ESM `@vitest/istanbul-lib-coverage` fork, and the product coverage merge still `require()`s the old name. Projects keep `extends: false` and `clearMocks: false` to match the previous runner behavior.
+- **Dependabot minor/patch group** — Apply the 18 compatible updates from PR #166 (Tauri plugins, React Flow, monaco-graphql, react-router, TypeScript ESLint, and related types).
+
+### Fixed
+- **Tauri plugin crate/npm mismatch** — Dependabot raised `@tauri-apps/plugin-http` to 2.6 and `plugin-updater` to 2.11, but `Cargo.lock` stayed on 2.5.8 / 2.10.1. `tauri build` now treats that minor mismatch as a hard error. Pin the Rust crates to the same majors/minors and refresh the lockfile.
+- **WebSocket Studio page coverage** — Tests now cover the mock-port conflict path when the caller has no current port, so `WebSocketStudioPage` stays above 90% branches after the persistence extract.
+- **WebSocket Studio monolith gate** — Persisted-tab restore and serialize now live in `wsStudioTabPersistence`, so `WebSocketStudioPage` stays under the 750-line product CI limit.
+- **WebSocket mock hook coverage** — `mockFetch` now has tests for `json()`-only responses and bodies with no parser, so product CI stays above 90% branches on `useWebSocketMockServer`.
+- **Windows Docker credential PATH in Linux CI** — `envWithDockerBinDir` now splits Windows paths with win32 rules, so the Desktop `resources\\bin` directory is prepended on Ubuntu runners (and locally on macOS).
+- **E2E Nightly checkout** — Resolve `develop` (or the dispatch ref) to an exact `refs/heads/…` before checkout, and fall back to the triggering ref if that branch is missing. Stops the scheduled job from failing when `develop` was deleted.
+- **API Mock parked-server reopen** — Clicking a Saved servers item after closing its last tab always reopens the tab. The sidebar no longer keeps a stale “this tab is still open” callback, which also flaked product CI.
+- **Local clone desktop gates** — Hosted/remote web still requires the desktop app for API Mock Start, GraphQL Mock, and Demo Hub desktop-only lessons. A local `npm run dev` clone (`localhost`, `*.localhost`, loopback) now unlocks those features the same way the desktop app does, via the companion on `:3001`.
+- **Live demo tab-exit confirm** — Demo Hub `ctx.click` / `ctx.selectOption` no longer trip “Leave the live demo?” when the player itself switches tabs (for example Kafka Quick Start → Protocols). A human click on the activity bar during a lesson still prompts.
+- **Demo Hub health-probe DevTools spam** — GraphQL (`:4010`), GraphQL TLS (`:4444` / `:4446`), gRPC echo (`:50052`), and Kafka Console (`:18080`) prerequisite checks now go through `/health/demo-http`. Chrome no longer logs `ERR_CONNECTION_REFUSED` every few seconds while those Docker stacks are stopped.
+
 ## [0.8.4] — 2026-09-04
 
 ### Added

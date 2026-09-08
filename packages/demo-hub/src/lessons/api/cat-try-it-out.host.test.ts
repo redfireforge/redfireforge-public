@@ -17,7 +17,7 @@ describe('CAT-2 Environment host strategy selection', () => {
   it('prefers jsonplaceholder over the first product microservice', () => {
     document.body.innerHTML = `
       <div class="cat-dark-select__option"><span class="cat-dark-select__option-label">— None —</span></div>
-      <div class="cat-dark-select__option"><span class="cat-dark-select__option-label">sales-order-retail</span></div>
+      <div class="cat-dark-select__option"><span class="cat-dark-select__option-label">inventory-api</span></div>
       <div class="cat-dark-select__option"><span class="cat-dark-select__option-label">jsonplaceholder</span></div>
     `;
     const pick = findPreferredMicroserviceOption('jsonplaceholder');
@@ -28,7 +28,7 @@ describe('CAT-2 Environment host strategy selection', () => {
     document.body.innerHTML = `
       <div class="cs-item">101 (no base URL)</div>
       <div class="cs-item">demo — https://jsonplaceholder.typicode.com</div>
-      <div class="cs-item">t01 — https://example.internal</div>
+      <div class="cs-item">test — https://example.internal</div>
     `;
     const items = Array.from(document.querySelectorAll<HTMLElement>('.cs-item'));
     const pick = findPreferredEnvOption(items, 'demo');
@@ -39,11 +39,11 @@ describe('CAT-2 Environment host strategy selection', () => {
   it('reads linked microservice name without the Change button text', () => {
     document.body.innerHTML = `
       <span data-testid="catalog-host-svc-label">
-        sales-order-retail
+        inventory-api
         <button data-testid="catalog-host-svc-change">Change</button>
       </span>
     `;
-    expect(readLinkedMicroserviceName()).toBe('sales-order-retail');
+    expect(readLinkedMicroserviceName()).toBe('inventory-api');
   });
 });
 

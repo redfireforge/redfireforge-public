@@ -25,18 +25,18 @@ function seedMultiEnv(page: import('@playwright/test').Page) {
 
     localStorage.setItem('perf-test-v3-environments', JSON.stringify([
       { id: 'gal-env', name: 'Gallery Samples' },
-      { id: 't01-env', name: 't01' },
-      { id: 't02-env', name: 't02' },
+      { id: 'test-env', name: 'test' },
+      { id: 'staging-env', name: 'staging' },
     ]));
     localStorage.setItem('perf-test-v3-microservices', JSON.stringify([
       { id: 'gal-svc', name: 'Gallery Samples', baseUrls: { 'gal-env': '' } },
-      { id: 't01-svc', name: 'sales-product-autoassign', baseUrls: { 't01-env': 'https://example.com' } },
-      { id: 't02-svc', name: 'another-service', baseUrls: { 't02-env': 'https://example2.com' } },
+      { id: 'test-svc', name: 'order-api', baseUrls: { 'test-env': 'https://example.com' } },
+      { id: 'staging-svc', name: 'another-service', baseUrls: { 'staging-env': 'https://example2.com' } },
     ]));
     localStorage.setItem('perf-test-v3-feature-groups', JSON.stringify([
       { id: 'fg-gal', name: 'Gallery: Sample', source: 'gallery', microserviceId: 'gal-svc', environmentId: 'gal-env', scenarios: [] },
-      { id: 'fg-t01', name: 'My Tests', microserviceId: 't01-svc', environmentId: 't01-env', scenarios: [{ id: 'sc-1', name: 'Scenario A', tests: [] }] },
-      { id: 'fg-t02', name: 'Other Tests', microserviceId: 't02-svc', environmentId: 't02-env', scenarios: [] },
+      { id: 'fg-test', name: 'My Tests', microserviceId: 'test-svc', environmentId: 'test-env', scenarios: [{ id: 'sc-1', name: 'Scenario A', tests: [] }] },
+      { id: 'fg-staging', name: 'Other Tests', microserviceId: 'staging-svc', environmentId: 'staging-env', scenarios: [] },
     ]));
     localStorage.setItem('perf-test-v3-selected-env', 'gal-env');
     localStorage.setItem('perf-test-v3-selected-svc', 'gal-svc');
@@ -48,7 +48,7 @@ test.describe('Page persistence across refresh', () => {
   // All tests in this describe block involve page reloads
   test.describe.configure({ mode: 'serial' });
 
-  test('selecting t01 via sidebar persists after refresh', async ({ page }) => {
+  test('selecting test via sidebar persists after refresh', async ({ page }) => {
     test.slow(); // Involves page reload
     await seedMultiEnv(page);
     await page.goto('http://localhost:5173/?tab=scenarios');
@@ -59,40 +59,40 @@ test.describe('Page persistence across refresh', () => {
     await expect(envDropdown).toBeVisible({ timeout: 10_000 });
     await expectHeaderValue(envDropdown, 'gal-env');
 
-    // Click t01 in sidebar
-    await page.locator('.sidebar-item-name', { hasText: 't01' }).click();
+    // Click test in sidebar
+    await page.locator('.sidebar-item-name', { hasText: 'test' }).click();
 
     // Verify selection changed
-    await expectHeaderValue(envDropdown, 't01-env');
+    await expectHeaderValue(envDropdown, 'test-env');
 
     // Check localStorage was updated
     const stored = await page.evaluate(() => ({
       envId: localStorage.getItem('perf-test-v3-selected-env'),
       svcId: localStorage.getItem('perf-test-v3-selected-svc'),
     }));
-    expect(stored.envId).toBe('t01-env');
-    expect(stored.svcId).toBe('t01-svc');
+    expect(stored.envId).toBe('test-env');
+    expect(stored.svcId).toBe('test-svc');
 
-    // Feature groups should show t01's FGs
+    // Feature groups should show test's FGs
     await expect(page.locator('.feature-group-card', { hasText: 'My Tests' })).toBeVisible();
 
     // Reload
     await page.reload();
     await page.waitForLoadState('networkidle');
 
-    // After reload: wait for dropdown to be ready, then verify t01 is selected
+    // After reload: wait for dropdown to be ready, then verify test is selected
     await expect(envDropdown).toBeVisible({ timeout: 10_000 });
-    await expectHeaderValue(envDropdown, 't01-env');
+    await expectHeaderValue(envDropdown, 'test-env');
 
-    // Sidebar should show t01 as selected and expanded
-    await expect(page.locator('.sidebar-item.selected .sidebar-item-name')).toHaveText('t01');
+    // Sidebar should show test as selected and expanded
+    await expect(page.locator('.sidebar-item.selected .sidebar-item-name')).toHaveText('test');
 
-    // Feature groups should show t01's FGs, NOT gallery
+    // Feature groups should show test's FGs, NOT gallery
     await expect(page.locator('.feature-group-card', { hasText: 'My Tests' })).toBeVisible();
     await expect(page.locator('.feature-group-card', { hasText: 'Gallery' })).not.toBeVisible();
   });
 
-  test('selecting t01 via header dropdowns persists after refresh', async ({ page }) => {
+  test('selecting test via header dropdowns persists after refresh', async ({ page }) => {
     test.slow(); // Involves page reload
     await seedMultiEnv(page);
     await page.goto('http://localhost:5173/?tab=scenarios');
@@ -103,9 +103,9 @@ test.describe('Page persistence across refresh', () => {
     const svcDropdown = page.locator('[data-testid="header-svc-select"]');
     await expect(envDropdown).toBeVisible({ timeout: 10_000 });
 
-    // Select t01 via header dropdown
-    await selectHeaderOption(page, 'header-env-select', 't01');
-    await selectHeaderOption(page, 'header-svc-select', 'sales-product-autoassign');
+    // Select test via header dropdown
+    await selectHeaderOption(page, 'header-env-select', 'test');
+    await selectHeaderOption(page, 'header-svc-select', 'order-api');
 
     // Wait for the selection to propagate (feature card should appear)
     await expect(page.locator('.feature-group-card', { hasText: 'My Tests' })).toBeVisible({ timeout: 5_000 });
@@ -116,8 +116,8 @@ test.describe('Page persistence across refresh', () => {
 
     // Wait for dropdown to be ready, then verify persistence
     await expect(envDropdown).toBeVisible({ timeout: 10_000 });
-    await expectHeaderValue(envDropdown, 't01-env');
-    await expectHeaderValue(svcDropdown, 't01-svc');
+    await expectHeaderValue(envDropdown, 'test-env');
+    await expectHeaderValue(svcDropdown, 'test-svc');
     await expect(page.locator('.feature-group-card', { hasText: 'My Tests' })).toBeVisible({ timeout: 5_000 });
   });
 
@@ -141,29 +141,29 @@ test.describe('Page persistence across refresh', () => {
 
   test('localStorage selectedEnvId is NOT overwritten on load', async ({ page }) => {
     test.slow(); // Involves localStorage seeding and full app load
-    // Seed with t01 pre-selected (not gallery) to verify the app respects it.
+    // Seed with test pre-selected (not gallery) to verify the app respects it.
     await page.addInitScript(() => {
       if (localStorage.getItem('__e2e_seed_done__')) return;
       localStorage.setItem('__e2e_seed_done__', '1');
 
       localStorage.setItem('perf-test-v3-environments', JSON.stringify([
         { id: 'gal-env', name: 'Gallery Samples' },
-        { id: 't01-env', name: 't01' },
-        { id: 't02-env', name: 't02' },
+        { id: 'test-env', name: 'test' },
+        { id: 'staging-env', name: 'staging' },
       ]));
       localStorage.setItem('perf-test-v3-microservices', JSON.stringify([
         { id: 'gal-svc', name: 'Gallery Samples', baseUrls: { 'gal-env': '' } },
-        { id: 't01-svc', name: 'sales-product-autoassign', baseUrls: { 't01-env': 'https://example.com' } },
-        { id: 't02-svc', name: 'another-service', baseUrls: { 't02-env': 'https://example2.com' } },
+        { id: 'test-svc', name: 'order-api', baseUrls: { 'test-env': 'https://example.com' } },
+        { id: 'staging-svc', name: 'another-service', baseUrls: { 'staging-env': 'https://example2.com' } },
       ]));
       localStorage.setItem('perf-test-v3-feature-groups', JSON.stringify([
         { id: 'fg-gal', name: 'Gallery: Sample', source: 'gallery', microserviceId: 'gal-svc', environmentId: 'gal-env', scenarios: [] },
-        { id: 'fg-t01', name: 'My Tests', microserviceId: 't01-svc', environmentId: 't01-env', scenarios: [{ id: 'sc-1', name: 'Scenario A', tests: [] }] },
-        { id: 'fg-t02', name: 'Other Tests', microserviceId: 't02-svc', environmentId: 't02-env', scenarios: [] },
+        { id: 'fg-test', name: 'My Tests', microserviceId: 'test-svc', environmentId: 'test-env', scenarios: [{ id: 'sc-1', name: 'Scenario A', tests: [] }] },
+        { id: 'fg-staging', name: 'Other Tests', microserviceId: 'staging-svc', environmentId: 'staging-env', scenarios: [] },
       ]));
-      // Pre-select t01 (not gal-env) to verify the app won't overwrite it
-      localStorage.setItem('perf-test-v3-selected-env', 't01-env');
-      localStorage.setItem('perf-test-v3-selected-svc', 't01-svc');
+      // Pre-select test (not gal-env) to verify the app won't overwrite it
+      localStorage.setItem('perf-test-v3-selected-env', 'test-env');
+      localStorage.setItem('perf-test-v3-selected-svc', 'test-svc');
       localStorage.setItem('perf-test-v3-migrated', 'true');
     });
 
@@ -174,18 +174,18 @@ test.describe('Page persistence across refresh', () => {
     const envDropdown = page.locator('[data-testid="header-env-select"]');
     await expect(envDropdown).toBeVisible({ timeout: 10_000 });
 
-    // Check that localStorage still has t01, not overwritten to gallery or empty
+    // Check that localStorage still has test, not overwritten to gallery or empty
     const stored = await page.evaluate(() => ({
       envId: localStorage.getItem('perf-test-v3-selected-env'),
       svcId: localStorage.getItem('perf-test-v3-selected-svc'),
     }));
-    expect(stored.envId).toBe('t01-env');
-    expect(stored.svcId).toBe('t01-svc');
+    expect(stored.envId).toBe('test-env');
+    expect(stored.svcId).toBe('test-svc');
 
-    // Header should show t01
-    await expectHeaderValue(envDropdown, 't01-env');
+    // Header should show test
+    await expectHeaderValue(envDropdown, 'test-env');
 
-    // Feature groups for t01 should be visible
+    // Feature groups for test should be visible
     await expect(page.locator('.feature-group-card', { hasText: 'My Tests' })).toBeVisible();
   });
 });

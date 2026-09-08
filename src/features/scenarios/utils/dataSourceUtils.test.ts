@@ -25,7 +25,7 @@ describe('autoDetectColumns', () => {
   });
 
   it('detects query parameters', () => {
-    const cols = autoDetectColumns(makeScenario({ url: 'https://api.example.com/api?channel=WEBRNW&status=active' }));
+    const cols = autoDetectColumns(makeScenario({ url: 'https://api.example.com/api?channel=WEB&status=active' }));
     const paramCols = cols.filter(c => c.type === 'param');
     expect(paramCols).toHaveLength(2);
     expect(paramCols[0].name).toBe('channel');
@@ -225,12 +225,12 @@ describe('createEmptyColumn', () => {
 describe('createDataSourceWithTemplatizedUrl', () => {
   it('detects query params, pre-fills row, and builds urlTemplate with {{param}} placeholders', () => {
     const scenario = makeScenario({
-      url: 'https://api.example.com/vehicles/1GTPU91D6R107995A/offers?channel=WEBRNW&country=MX',
+      url: 'https://api.example.com/vehicles/1HGCM82633A004995/offers?channel=WEB&country=MX',
     });
     const { dataSource, url } = createDataSourceWithTemplatizedUrl(scenario);
 
     // URL should NOT be modified (no auto path templatization)
-    expect(url).toContain('1GTPU91D6R107995A');
+    expect(url).toContain('1HGCM82633A004995');
     expect(url).not.toContain('{{');
 
     // Only query param columns (no path columns — VIN not auto-detected)
@@ -242,19 +242,19 @@ describe('createDataSourceWithTemplatizedUrl', () => {
     // First row should be pre-filled with param values
     const row = dataSource.rows[0];
     const channelCol = paramCols.find(c => c.name === 'channel')!;
-    expect(row.values[channelCol.id]).toBe('WEBRNW');
+    expect(row.values[channelCol.id]).toBe('WEB');
     const countryCol = paramCols.find(c => c.name === 'country')!;
     expect(row.values[countryCol.id]).toBe('MX');
 
     // urlTemplate should have {{param}} placeholders
     expect(dataSource.urlTemplate).toBe(
-      'https://api.example.com/vehicles/1GTPU91D6R107995A/offers?channel={{channel}}&country={{country}}'
+      'https://api.example.com/vehicles/1HGCM82633A004995/offers?channel={{channel}}&country={{country}}'
     );
   });
 
   it('detects existing {{vin}} placeholder as path column and includes in urlTemplate', () => {
     const scenario = makeScenario({
-      url: 'https://api.example.com/vehicles/{{vin}}/offers?channel=WEBRNW',
+      url: 'https://api.example.com/vehicles/{{vin}}/offers?channel=WEB',
     });
     const { dataSource, url } = createDataSourceWithTemplatizedUrl(scenario);
 
@@ -301,7 +301,7 @@ describe('buildUrlTemplate', () => {
       { id: '1', name: 'channel', type: 'param' as const, mapping: 'channel' },
       { id: '2', name: 'country', type: 'param' as const, mapping: 'country' },
     ];
-    const result = buildUrlTemplate('https://example.com/api?channel=WEBRNW&country=MX', columns);
+    const result = buildUrlTemplate('https://example.com/api?channel=WEB&country=MX', columns);
     expect(result).toBe('https://example.com/api?channel={{channel}}&country={{country}}');
   });
 

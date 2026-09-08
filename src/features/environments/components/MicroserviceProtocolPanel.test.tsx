@@ -21,7 +21,7 @@ function makeProps(overrides: Partial<MicroserviceProtocolPanelProps> = {}): Mic
     },
     ...overrides.svc,
   };
-  const environments: Environment[] = overrides.environments ?? [{ id: 'e1', name: 't01' }];
+  const environments: Environment[] = overrides.environments ?? [{ id: 'e1', name: 'test' }];
   return {
     svc,
     environments,
@@ -121,7 +121,7 @@ describe('MicroserviceProtocolPanel', () => {
     render(
       <ProtocolHeaderBadges
         svc={makeProps().svc}
-        environments={[{ id: 'e1', name: 't01' }]}
+        environments={[{ id: 'e1', name: 'test' }]}
         enabledProtocols={['http', 'grpc']}
       />,
     );

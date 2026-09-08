@@ -34,7 +34,7 @@ function makeSimpleWorkflow(): Workflow {
 async function seedAndOpenWorkflowRunner(page: Page): Promise<void> {
   const workflow = makeSimpleWorkflow();
   await page.addInitScript((wf) => {
-    localStorage.setItem('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 't01' }]));
+    localStorage.setItem('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 'test' }]));
     localStorage.setItem('perf-test-v3-microservices', JSON.stringify([{ id: 'svc-1', name: 'test-service', baseUrls: { 'env-1': 'http://localhost:5173' } }]));
     localStorage.setItem('perf-test-v3-feature-groups', '[]');
     localStorage.setItem('perf-test-v3-selected-env', 'env-1');
@@ -118,7 +118,7 @@ test.describe('Radio button click interaction', () => {
     // Seed with workflow so both TestRunner and WorkflowRunner are loaded
     const workflow = makeSimpleWorkflow();
     await page.addInitScript((wf) => {
-      localStorage.setItem('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 't01' }]));
+      localStorage.setItem('perf-test-v3-environments', JSON.stringify([{ id: 'env-1', name: 'test' }]));
       localStorage.setItem('perf-test-v3-microservices', JSON.stringify([{ id: 'svc-1', name: 'test-service', baseUrls: { 'env-1': 'http://localhost:5173' } }]));
       localStorage.setItem('perf-test-v3-feature-groups', '[]');
       localStorage.setItem('perf-test-v3-selected-env', 'env-1');

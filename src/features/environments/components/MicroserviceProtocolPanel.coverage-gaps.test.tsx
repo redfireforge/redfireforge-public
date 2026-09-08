@@ -27,8 +27,8 @@ function makeProps(overrides: Partial<MicroserviceProtocolPanelProps> = {}): Mic
     ...overrides.svc,
   };
   const environments: Environment[] = overrides.environments ?? [
-    { id: 'e1', name: 't01' },
-    { id: 'e2', name: 'p01' },
+    { id: 'e1', name: 'test' },
+    { id: 'e2', name: 'prod' },
   ];
   return {
     svc,
@@ -156,7 +156,7 @@ describe('MicroserviceProtocolPanel coverage gaps', () => {
     expect(screen.getAllByLabelText('Auth profile').length).toBeGreaterThan(0);
 
     rerender(<MicroserviceProtocolPanel {...grpcProps} />);
-    const tlsToggle = screen.getByLabelText('TLS for t01');
+    const tlsToggle = screen.getByLabelText('TLS for test');
     expect(tlsToggle).not.toBeChecked();
     fireEvent.click(tlsToggle);
     expect(grpcProps.onToggleGrpcTls).toHaveBeenCalledWith('e1', true);

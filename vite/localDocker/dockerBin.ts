@@ -1,5 +1,7 @@
 import { existsSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
+import { dirname as posixDirname } from 'node:path/posix';
+import { dirname as win32Dirname } from 'node:path/win32';
 
 /** Docker Desktop first, then Homebrew / engine — GUI PATH often omits these. */
 export function unixDockerCandidates(home?: string): string[] {
@@ -108,4 +110,27 @@ export function resolveDockerBin(opts?: {
       })
     : unixDockerCandidates(env.HOME);
   return firstExistingFile([...fromPath, ...wellKnown], exists);
+}
+
+/**
+ * Prepend the directory that contains `docker` / `docker.exe` so credential
+ * helpers (`docker-credential-desktop`) resolve when the process PATH is stale.
+ */
+export function envWithDockerBinDir(
+  bin: string,
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+): NodeJS.ProcessEnv {
+  // Host `path.dirname` follows the runner OS. Windows paths must use win32
+  // rules so Linux/macOS CI still prepends `...\resources\bin`.
+  const dir = platform === 'win32' ? win32Dirname(bin) : posixDirname(bin);
+  if (!dir || dir === '.' || dir === bin) {
+    return { ...env };
+  }
+  const existing = env.PATH ?? env.Path ?? '';
+  const sep = platform === 'win32' ? ';' : ':';
+  const next = existing ? `${dir}${sep}${existing}` : dir;
+  const out: NodeJS.ProcessEnv = { ...env, PATH: next };
+  if (platform === 'win32') out.Path = next;
+  return out;
 }

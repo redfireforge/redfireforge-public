@@ -902,7 +902,7 @@ mod tests {
 
     #[test]
     fn rff_compose_project_names_ignore_unrelated() {
-        let ls = "rff-graphql\nsales-product-autoassign-postgres\nrff-ws-tls\n\nrff-graphql\n";
+        let ls = "rff-graphql\norders-api-postgres\nrff-ws-tls\n\nrff-graphql\n";
         assert_eq!(
             rff_compose_project_names(ls),
             vec![

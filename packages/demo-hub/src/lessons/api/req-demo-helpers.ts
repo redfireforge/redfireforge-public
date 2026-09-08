@@ -779,7 +779,7 @@ export function findRequestTabIndexByLabel(label: string): number {
 
 /**
  * Rename a tab by its current label. Never falls back to index 0 — that would
- * rename a leftover product tab (e.g. sales-product) instead of the demo request.
+ * rename a leftover product tab (e.g. inventory-api) instead of the demo request.
  * Returns false when no matching tab is open.
  */
 export async function renameRequestTabByLabel(

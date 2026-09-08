@@ -187,8 +187,8 @@ describe('buildCatalogExport', () => {
   const basePayload: CatalogExportPayload = {
     collectionName: 'test-api',
     envs: [
-      { envId: 'env-t01', envName: 't01', baseUrl: 'https://t01.example.com' },
-      { envId: 'env-p01', envName: 'p01', baseUrl: 'https://p01.example.com' },
+      { envId: 'env-test', envName: 'test', baseUrl: 'https://test.example.com' },
+      { envId: 'env-prod', envName: 'prod', baseUrl: 'https://prod.example.com' },
     ],
     endpoints: [makeEndpoint()],
     customNames: {},
@@ -219,33 +219,33 @@ describe('buildCatalogExport', () => {
   it('creates environment folders as sub-collections', () => {
     const { collection } = buildCatalogExport(basePayload, baseContext);
     expect(collection.folders).toHaveLength(2);
-    expect(collection.folders![0].name).toBe('t01');
-    expect(collection.folders![1].name).toBe('p01');
+    expect(collection.folders![0].name).toBe('test');
+    expect(collection.folders![1].name).toBe('prod');
     expect(collection.folders![0].isSubCollection).toBe(true);
     expect(collection.folders![1].isSubCollection).toBe(true);
   });
 
   it('each env folder has requests built with the correct base URL', () => {
     const { collection } = buildCatalogExport(basePayload, baseContext);
-    expect(collection.folders![0].requests[0].url).toContain('t01.example.com');
-    expect(collection.folders![1].requests[0].url).toContain('p01.example.com');
+    expect(collection.folders![0].requests[0].url).toContain('test.example.com');
+    expect(collection.folders![1].requests[0].url).toContain('prod.example.com');
   });
 
   it('maps existing wb environments by name', () => {
     const ctx = {
       ...baseContext,
-      existingEnvNames: new Map([['t01', 'req-t01-id']]),
+      existingEnvNames: new Map([['test', 'req-test-id']]),
     };
     const { collection, newEnvironments } = buildCatalogExport(basePayload, ctx);
     expect(newEnvironments).toHaveLength(1);
-    expect(newEnvironments[0].name).toBe('p01');
-    expect(collection.baseUrls!['req-t01-id']).toBe('https://t01.example.com');
+    expect(newEnvironments[0].name).toBe('prod');
+    expect(collection.baseUrls!['req-test-id']).toBe('https://test.example.com');
   });
 
   it('creates new environments for unknown env names', () => {
     const { newEnvironments } = buildCatalogExport(basePayload, baseContext);
     expect(newEnvironments).toHaveLength(2);
-    expect(newEnvironments.map(e => e.name)).toEqual(['t01', 'p01']);
+    expect(newEnvironments.map(e => e.name)).toEqual(['test', 'prod']);
   });
 
   it('collection baseUrls maps wbEnvIds to base URLs', () => {
@@ -262,10 +262,10 @@ describe('buildCatalogExport', () => {
 
   it('env folders have baseUrls and selectedEnvId', () => {
     const { collection, newEnvironments } = buildCatalogExport(basePayload, baseContext);
-    const t01Env = newEnvironments.find(e => e.name === 't01')!;
+    const t01Env = newEnvironments.find(e => e.name === 'test')!;
     const t01Folder = collection.folders![0];
     expect(t01Folder.selectedEnvId).toBe(t01Env.id);
-    expect(t01Folder.baseUrls![t01Env.id]).toBe('https://t01.example.com');
+    expect(t01Folder.baseUrls![t01Env.id]).toBe('https://test.example.com');
   });
 
   it('env folders have empty sub-folders array', () => {

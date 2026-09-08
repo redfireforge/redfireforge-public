@@ -10,24 +10,25 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../../shared/utils/platform', () => ({
   isTauri: vi.fn(() => false),
+  isDesktopRuntimeAvailable: vi.fn(() => false),
 }));
 
 vi.mock('../utils/gqlActivityBarUtils', () => ({
   persistActivityTab: vi.fn(),
 }));
 
-import { isTauri } from '@shared/utils/platform';
+import { isDesktopRuntimeAvailable } from '@shared/utils/platform';
 import { persistActivityTab } from '../utils/gqlActivityBarUtils';
 import { GraphqlStudioActivityBar } from './GraphqlStudioActivityBar';
 
-const mockIsTauri = vi.mocked(isTauri);
+const mockIsDesktopRuntimeAvailable = vi.mocked(isDesktopRuntimeAvailable);
 const mockPersist = vi.mocked(persistActivityTab);
 
 // ─── Setup ────────────────────────────────────────────────────────────────────
 
 beforeEach(() => {
-  resetAllMocks();
-  mockIsTauri.mockReturnValue(false);
+  vi.clearAllMocks();
+  mockIsDesktopRuntimeAvailable.mockReturnValue(false);
 });
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -66,14 +67,14 @@ describe('GraphqlStudioActivityBar — rendering', () => {
     expect(collectionsBtn.getAttribute('aria-selected')).toBe('false');
   });
 
-  it('disables mock tab in web mode (isTauri = false)', () => {
+  it('disables mock tab on hosted web', () => {
     render(<GraphqlStudioActivityBar activeTab={null} onTabChange={vi.fn()} />);
     const mockBtn = screen.getByTestId('gql-activity-mock');
     expect(mockBtn).toHaveProperty('disabled', true);
   });
 
-  it('enables mock tab in desktop mode (isTauri = true)', () => {
-    mockIsTauri.mockReturnValue(true);
+  it('enables mock tab when desktop runtime is available', () => {
+    mockIsDesktopRuntimeAvailable.mockReturnValue(true);
     render(<GraphqlStudioActivityBar activeTab={null} onTabChange={vi.fn()} />);
     const mockBtn = screen.getByTestId('gql-activity-mock');
     expect(mockBtn).toHaveProperty('disabled', false);
@@ -126,8 +127,8 @@ describe('GraphqlStudioActivityBar — tab click behavior', () => {
     expect(onTabChange).not.toHaveBeenCalled();
   });
 
-  it('calls onTabChange for mock tab in desktop mode', () => {
-    mockIsTauri.mockReturnValue(true);
+  it('calls onTabChange for mock tab when desktop runtime is available', () => {
+    mockIsDesktopRuntimeAvailable.mockReturnValue(true);
     const onTabChange = vi.fn();
     render(<GraphqlStudioActivityBar activeTab={null} onTabChange={onTabChange} />);
 
@@ -136,8 +137,8 @@ describe('GraphqlStudioActivityBar — tab click behavior', () => {
     expect(onTabChange).toHaveBeenCalledWith('mock');
   });
 
-  it('shows desktop mock label in Tauri mode', () => {
-    mockIsTauri.mockReturnValue(true);
+  it('shows desktop mock label when runtime is available', () => {
+    mockIsDesktopRuntimeAvailable.mockReturnValue(true);
     render(<GraphqlStudioActivityBar activeTab={null} onTabChange={vi.fn()} />);
     const mockBtn = screen.getByTestId('gql-activity-mock');
     expect(mockBtn.getAttribute('aria-label')).toBe('Mock');

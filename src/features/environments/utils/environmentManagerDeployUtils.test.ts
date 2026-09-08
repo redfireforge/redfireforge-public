@@ -42,7 +42,7 @@ describe('applyToggleDeploy', () => {
 
 describe('isDuplicateAdditionalEnvName', () => {
   it('detects duplicates against global environments', () => {
-    expect(isDuplicateAdditionalEnvName('T01', [{ name: 't01' }], svcA)).toBe(true);
+    expect(isDuplicateAdditionalEnvName('TEST', [{ name: 'test' }], svcA)).toBe(true);
   });
 
   it('detects duplicates against existing custom envs', () => {
@@ -50,7 +50,7 @@ describe('isDuplicateAdditionalEnvName', () => {
   });
 
   it('returns false for unique names', () => {
-    expect(isDuplicateAdditionalEnvName('qa-2', [{ name: 't01' }], svcA)).toBe(false);
+    expect(isDuplicateAdditionalEnvName('qa-2', [{ name: 'test' }], svcA)).toBe(false);
   });
 });
 
