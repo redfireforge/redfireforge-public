@@ -8,6 +8,9 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Fixed
+- **Docker command unused-mut warning** — `docker_cmd` only mutates PATH on Windows, so non-Windows builds no longer warn about `let mut cmd`.
+
 ## [0.8.5] — 2026-09-07
 
 ### Added
