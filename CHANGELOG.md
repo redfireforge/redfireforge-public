@@ -8,6 +8,8 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.8.5] — 2026-09-07
+
 ### Added
 - **Commit message gate** — Husky strips Cursor / Copilot / Claude attribution from the final commit message. CI does the same on feature/hotfix branches (rewrite + force-push) and strips those lines from the PR body, so leftover trailers do not fail the PR. Workspace `git.addAICoAuthor` is off.
 
