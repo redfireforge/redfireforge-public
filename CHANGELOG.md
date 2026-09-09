@@ -8,6 +8,9 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Changed
+- **Homebrew cask workflow** — Use `actions/checkout@v5` so the post-release tap bump no longer warns that Node.js 20 is deprecated.
+
 ## [0.8.6] — 2026-09-09
 
 ### Fixed
