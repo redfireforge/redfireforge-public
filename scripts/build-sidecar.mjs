@@ -8,7 +8,7 @@
  * Output: src-tauri/binaries/redfireforge-companion-<target-triple>
  */
 import { build } from 'esbuild';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, copyFileSync, writeFileSync, rmSync, statSync, chmodSync, readFileSync, readdirSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -51,6 +51,33 @@ const WORK = 'dist-server';
 const BUNDLE = join(WORK, 'companion.cjs');
 const BLOB = join(WORK, 'companion.blob');
 const SEA_CONFIG = join(WORK, 'sea-config.json');
+
+const LIEF_NOTE_WARN = /Can't find string offset for section name '\.note/;
+
+/** postject via npx; drop known-harmless LIEF ELF note warnings on Linux. */
+function filterPostjectOutput(text) {
+  return String(text ?? '')
+    .split(/\r?\n/)
+    .filter((line) => line.length > 0 && !LIEF_NOTE_WARN.test(line))
+    .join('\n');
+}
+
+function runPostject(args, env, useShell) {
+  const result = spawnSync('npx', ['--yes', 'postject', ...args], {
+    encoding: 'utf8',
+    shell: useShell,
+    env,
+  });
+  const stdout = filterPostjectOutput(result.stdout);
+  const stderr = filterPostjectOutput(result.stderr);
+  if (stdout) process.stdout.write(stdout.endsWith('\n') ? stdout : `${stdout}\n`);
+  if (stderr) process.stderr.write(stderr.endsWith('\n') ? stderr : `${stderr}\n`);
+  if (result.status !== 0) {
+    const err = new Error(`postject exited ${result.status}`);
+    err.status = result.status;
+    throw err;
+  }
+}
 
 function rustTargetTriple() {
   const out = execFileSync('rustc', ['-vV'], { encoding: 'utf8' });
@@ -135,6 +162,17 @@ if (isWindows) {
   }
 }
 
+// LIEF (used by postject) misreads GNU property notes on modern Node ELF
+// binaries and prints `Can't find string offset for section name '.note.100'`.
+// Drop that section before inject when objcopy is available.
+if (!isWindows && !isMac) {
+  try {
+    execFileSync('objcopy', ['--remove-section=.note.gnu.property', binPath], { stdio: 'inherit' });
+  } catch {
+    // objcopy is optional — postject still injects; we just hide the LIEF noise.
+  }
+}
+
 const postject = [
   binPath, 'NODE_SEA_BLOB', BLOB,
   '--sentinel-fuse', 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2',
@@ -142,7 +180,7 @@ const postject = [
 if (isMac) postject.push('--macho-segment-name', 'NODE_SEA');
 const npxEnv = { ...process.env };
 delete npxEnv.npm_config_devdir;
-execFileSync('npx', ['--yes', 'postject', ...postject], { stdio: 'inherit', shell: isWindows, env: npxEnv });
+runPostject(postject, npxEnv, isWindows);
 
 // Ad-hoc signature keeps macOS from killing the binary; `tauri build` re-signs
 // the whole bundle with the real identity afterwards.
