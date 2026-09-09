@@ -5,6 +5,7 @@ mod companion;
 mod graphql;
 mod grpc;
 mod kafka;
+mod linux_webview;
 mod websocket;
 mod api_mock;
 mod docker_stack;
@@ -72,6 +73,8 @@ use websocket::state::WsState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+  linux_webview::apply_linux_webview_workarounds();
+
   // Install a process-level rustls CryptoProvider (ring) before any TLS work.
   // rustls 0.23 panics on the first `wss://` handshake if no default provider
   // is installed and the enabled crypto crate features are ambiguous (both
