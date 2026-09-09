@@ -88,6 +88,7 @@ pub fn first_existing_file(paths: &[PathBuf]) -> Option<PathBuf> {
 }
 
 /// Docker Desktop / Homebrew / engine locations used when GUI PATH is empty.
+#[cfg_attr(windows, allow(dead_code))]
 pub fn unix_docker_cli_candidates(home: Option<&str>) -> Vec<PathBuf> {
     let mut out = vec![
         PathBuf::from("/usr/local/bin/docker"),
@@ -106,6 +107,7 @@ pub fn unix_docker_cli_candidates(home: Option<&str>) -> Vec<PathBuf> {
 }
 
 /// First `docker` on a Unix PATH (`:` separated).
+#[cfg_attr(windows, allow(dead_code))]
 pub fn unix_path_docker(path_env: Option<&str>) -> Option<PathBuf> {
     let path_env = path_env.filter(|s| !s.is_empty())?;
     for dir in path_env.split(':') {
@@ -201,14 +203,18 @@ pub fn path_with_docker_bin_dir(docker_exe: &Path, existing_path: Option<&str>) 
 
 pub fn docker_cmd() -> Command {
     let bin = docker_bin();
-    let mut cmd = hidden_cmd(&bin);
     #[cfg(windows)]
     {
+        let mut cmd = hidden_cmd(&bin);
         if let Some(path) = path_with_docker_bin_dir(&bin, std::env::var("PATH").ok().as_deref()) {
             cmd.env("PATH", path);
         }
+        cmd
     }
-    cmd
+    #[cfg(not(windows))]
+    {
+        hidden_cmd(&bin)
+    }
 }
 
 #[cfg(test)]
@@ -318,13 +324,15 @@ mod tests {
 
     #[test]
     fn path_with_docker_bin_dir_prepends_parent() {
-        let exe = PathBuf::from(r"C:\Users\me\AppData\Local\Programs\DockerDesktop\resources\bin\docker.exe");
-        let path = path_with_docker_bin_dir(&exe, Some(r"C:\Windows\System32")).unwrap();
-        assert!(path.starts_with(r"C:\Users\me\AppData\Local\Programs\DockerDesktop\resources\bin;"));
-        assert!(path.ends_with(r"C:\Windows\System32"));
+        // Use a multi-segment PathBuf so parent() is valid on Unix and Windows.
+        let exe = PathBuf::from("resources").join("bin").join("docker.exe");
+        let dir = exe.parent().expect("joined path has a parent").to_string_lossy();
+        let path = path_with_docker_bin_dir(&exe, Some("System32")).unwrap();
+        assert!(path.starts_with(&*dir));
+        assert!(path.ends_with("System32"));
         assert_eq!(
             path_with_docker_bin_dir(&exe, None).as_deref(),
-            Some(r"C:\Users\me\AppData\Local\Programs\DockerDesktop\resources\bin")
+            Some(&*dir)
         );
         assert!(path_with_docker_bin_dir(Path::new("docker"), Some("x")).is_none());
     }

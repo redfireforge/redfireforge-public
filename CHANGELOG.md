@@ -8,6 +8,12 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Fixed
+- **Linux Learning Hub blank window** — WebKitGTK on VMware (and some Wayland/NVIDIA hosts) created the window but never painted. Set DMA-BUF / compositing workarounds at process start; VMware guests also force X11 + software GL.
+- **Docker command unused-mut warning** — `docker_cmd` only mutates PATH on Windows, so non-Windows builds no longer warn about `let mut cmd`.
+
+## [0.8.5] — 2026-09-07
+
 ### Added
 - **Commit message gate** — Husky strips Cursor / Copilot / Claude attribution from the final commit message. CI does the same on feature/hotfix branches (rewrite + force-push) and strips those lines from the PR body, so leftover trailers do not fail the PR. Workspace `git.addAICoAuthor` is off.
 

@@ -45,7 +45,8 @@ pub fn on_app_exit(app: &tauri::AppHandle) {
 #[cfg(test)]
 mod extract_tests {
     use super::extract::{
-        copy_dir_recursive, extraction_looks_complete, repo_docker_dir, stack_key_to_dir,
+        copy_dir_recursive, extraction_looks_complete, linux_packaged_docker_dirs,
+        looks_like_docker_source, repo_docker_dir, resolve_bundled_docker_source, stack_key_to_dir,
         EXTRACT_SENTINELS,
     };
     use super::manifest::ALL_STACK_KEYS;
@@ -324,5 +325,70 @@ mod extract_tests {
             };
             assert!(manifest.is_file(), "missing {manifest:?}");
         }
+    }
+
+    #[test]
+    fn resolve_bundled_docker_source_finds_nsis_up_dir_and_exe_fallback() {
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("time")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("rff-docker-nsis-src-{stamp}"));
+        let exe = root.join("app");
+        let up_docker = exe.join("_up_").join("docker");
+        fs::create_dir_all(up_docker.join("kafka").join("plaintext")).unwrap();
+        fs::write(
+            up_docker.join("kafka").join("plaintext").join("docker-compose.yml"),
+            "services: {}\n",
+        )
+        .unwrap();
+
+        assert!(looks_like_docker_source(&up_docker));
+        assert!(!looks_like_docker_source(&exe));
+
+        let from_exe = resolve_bundled_docker_source(Some(&exe), Some(&exe), &[], None);
+        assert_eq!(from_exe.as_deref(), Some(up_docker.as_path()));
+
+        let from_up = resolve_bundled_docker_source(Some(&exe.join("_up_")), None, &[], None);
+        assert_eq!(from_up.as_deref(), Some(up_docker.as_path()));
+
+        assert!(resolve_bundled_docker_source(Some(&root), Some(&root), &[], None).is_none());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn linux_packaged_docker_dirs_cover_deb_appimage_and_dev_lib() {
+        let dirs = linux_packaged_docker_dirs(
+            Some(Path::new("/usr/bin")),
+            Some("redfireforge"),
+            Some("/tmp/.mount_rffXXX"),
+        );
+        let as_str: Vec<String> = dirs.iter().map(|p| p.to_string_lossy().replace('\\', "/")).collect();
+        assert!(as_str.iter().any(|p| p == "/usr/lib/redfireforge/docker"));
+        assert!(as_str.iter().any(|p| p == "/usr/lib/RedfireForge Learning Hub/_up_/docker"));
+        assert!(as_str.iter().any(|p| p.ends_with("/usr/lib/redfireforge/docker")
+            && p.contains(".mount_rffXXX")));
+        assert!(as_str.iter().any(|p| p.ends_with("/lib/redfireforge/docker")));
+    }
+
+    #[test]
+    fn resolve_bundled_docker_source_uses_linux_lib_extra_when_resource_dir_misses() {
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("time")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("rff-docker-linux-src-{stamp}"));
+        let lib_docker = root.join("usr").join("lib").join("redfireforge").join("docker");
+        fs::create_dir_all(lib_docker.join("graphql")).unwrap();
+        fs::write(lib_docker.join("graphql").join("docker-compose.yml"), "services: {}\n").unwrap();
+
+        let found = resolve_bundled_docker_source(
+            Some(Path::new("/no/such/resource")),
+            Some(Path::new("/usr/bin")),
+            &[lib_docker.clone()],
+            None,
+        );
+        assert_eq!(found.as_deref(), Some(lib_docker.as_path()));
+        let _ = fs::remove_dir_all(&root);
     }
 }

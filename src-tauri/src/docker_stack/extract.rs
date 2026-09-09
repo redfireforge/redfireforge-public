@@ -174,14 +174,105 @@ pub(crate) fn extraction_looks_complete(docker_dir: &Path) -> bool {
         .all(|rel| docker_dir.join(rel).is_file())
 }
 
-fn bundled_docker_source(app: &AppHandle) -> Option<PathBuf> {
-    if let Ok(resource_dir) = app.path().resource_dir() {
-        let bundled = resource_dir.join("docker");
-        if bundled.is_dir() {
-            return Some(bundled);
+/// True when `dir` is a usable bundled/repo `docker/` tree (not an empty folder).
+pub(crate) fn looks_like_docker_source(dir: &Path) -> bool {
+    dir.join("kafka/plaintext/docker-compose.yml").is_file()
+        || dir.join("graphql/docker-compose.yml").is_file()
+}
+
+/// Linux deb/AppImage resource roots Tauri documents (`resource_dir` can fail
+/// the same way Windows NSIS did — exe lives in `/usr/bin`, compose in `/usr/lib/<exe>/`).
+pub(crate) fn linux_packaged_docker_dirs(
+    exe_dir: Option<&Path>,
+    exe_stem: Option<&str>,
+    appdir: Option<&str>,
+) -> Vec<PathBuf> {
+    let mut stems: Vec<String> = Vec::new();
+    if let Some(stem) = exe_stem.filter(|s| !s.is_empty()) {
+        stems.push(stem.to_string());
+    }
+    for extra in [
+        "redfireforge",
+        "redfireforge-learning-hub",
+        "RedfireForge Learning Hub",
+    ] {
+        if !stems.iter().any(|s| s == extra) {
+            stems.push(extra.to_string());
         }
     }
-    repo_docker_dir()
+    let mut out = Vec::new();
+    for stem in &stems {
+        out.push(PathBuf::from(format!("/usr/lib/{stem}/docker")));
+        out.push(PathBuf::from(format!("/usr/lib/{stem}/_up_/docker")));
+        if let Some(appdir) = appdir.filter(|s| !s.is_empty()) {
+            out.push(PathBuf::from(appdir).join("usr/lib").join(stem).join("docker"));
+            out.push(
+                PathBuf::from(appdir)
+                    .join("usr/lib")
+                    .join(stem)
+                    .join("_up_")
+                    .join("docker"),
+            );
+        }
+        if let Some(exe) = exe_dir {
+            out.push(exe.join("..").join("lib").join(stem).join("docker"));
+            out.push(exe.join("..").join("lib").join(stem).join("_up_").join("docker"));
+        }
+    }
+    out
+}
+
+/// Resolve the bundled compose tree.
+/// Windows NSIS: `_up_/docker` next to the exe.
+/// Linux deb/AppImage: `/usr/lib/<exe>/docker` (not `/usr/bin`).
+/// macOS: `Contents/Resources/docker`.
+pub(crate) fn resolve_bundled_docker_source(
+    resource_dir: Option<&Path>,
+    exe_dir: Option<&Path>,
+    extra: &[PathBuf],
+    repo_fallback: Option<PathBuf>,
+) -> Option<PathBuf> {
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    if let Some(rd) = resource_dir {
+        candidates.push(rd.join("docker"));
+        candidates.push(rd.to_path_buf());
+        candidates.push(rd.join("_up_").join("docker"));
+    }
+    if let Some(exe) = exe_dir {
+        candidates.push(exe.join("docker"));
+        candidates.push(exe.join("_up_").join("docker"));
+        candidates.push(exe.join("resources").join("docker"));
+        // macOS .app: binary is in Contents/MacOS, resources in Contents/Resources
+        candidates.push(exe.join("..").join("Resources").join("docker"));
+    }
+    candidates.extend(extra.iter().cloned());
+    for cand in candidates {
+        if looks_like_docker_source(&cand) {
+            return Some(cand);
+        }
+    }
+    repo_fallback.filter(|p| looks_like_docker_source(p) || p.is_dir())
+}
+
+fn bundled_docker_source(app: &AppHandle) -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok();
+    let exe_dir = exe.as_ref().and_then(|p| p.parent()).map(|p| p.to_path_buf());
+    let exe_stem = exe
+        .as_ref()
+        .and_then(|p| p.file_stem())
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_string());
+    let extras = linux_packaged_docker_dirs(
+        exe_dir.as_deref(),
+        exe_stem.as_deref(),
+        std::env::var("APPDIR").ok().as_deref(),
+    );
+    resolve_bundled_docker_source(
+        app.path().resource_dir().ok().as_deref(),
+        exe_dir.as_deref(),
+        &extras,
+        repo_docker_dir(),
+    )
 }
 
 pub(crate) fn repo_docker_dir() -> Option<PathBuf> {
@@ -278,20 +369,37 @@ fn extract_docker_resources_if_needed_locked(app: &AppHandle) {
     // Phase 7: last-run logs live under docker/ and must survive a version-bump wipe.
     let stashed_last_run = collect_last_run_logs(&docker_dir);
 
-    if docker_dir.exists() {
-        if let Err(e) = fs::remove_dir_all(&docker_dir) {
-            log::error!("[docker] Failed to remove old docker dir: {e}");
-            return;
-        }
+    // Copy into a sibling staging dir first. Wipe-then-copy left an empty
+    // `%APPDATA%\…\docker` on Windows when the source path was wrong.
+    let staging = docker_dir.with_file_name("docker.extracting");
+    if staging.exists() {
+        let _ = fs::remove_dir_all(&staging);
     }
-    if let Err(e) = fs::create_dir_all(&docker_dir) {
-        log::error!("[docker] Failed to recreate docker dir: {e}");
+    if let Err(e) = copy_dir_recursive(&source_docker, &staging) {
+        log::error!("[docker] Resource copy failed: {e}");
+        let _ = fs::remove_dir_all(&staging);
         restore_last_run_logs(&docker_dir, &stashed_last_run);
         return;
     }
-
-    if let Err(e) = copy_dir_recursive(&source_docker, &docker_dir) {
-        log::error!("[docker] Resource copy failed: {e}");
+    if !extraction_looks_complete(&staging) {
+        log::error!(
+            "[docker] Staging extract is missing required stack files — leaving existing dest in place"
+        );
+        let _ = fs::remove_dir_all(&staging);
+        restore_last_run_logs(&docker_dir, &stashed_last_run);
+        return;
+    }
+    if docker_dir.exists() {
+        if let Err(e) = fs::remove_dir_all(&docker_dir) {
+            log::error!("[docker] Failed to remove old docker dir: {e}");
+            let _ = fs::remove_dir_all(&staging);
+            restore_last_run_logs(&docker_dir, &stashed_last_run);
+            return;
+        }
+    }
+    if let Err(e) = fs::rename(&staging, &docker_dir) {
+        log::error!("[docker] Failed to promote staging extract: {e}");
+        let _ = fs::remove_dir_all(&staging);
         restore_last_run_logs(&docker_dir, &stashed_last_run);
         return;
     }
