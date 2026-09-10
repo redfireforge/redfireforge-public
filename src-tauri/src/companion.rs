@@ -6,6 +6,9 @@
 //!
 //! In `tauri dev` the developer usually already runs `npm run server:dev`; if
 //! the port is occupied we adopt that instance instead of fighting over it.
+//! Lesson Docker reachability does not use this sidecar — PrerequisiteGate
+//! probes the service port with native HTTP so a stale or foreign occupant
+//! of :3001 cannot lock Start Demo.
 
 use std::net::{SocketAddr, TcpStream};
 use std::sync::Mutex;

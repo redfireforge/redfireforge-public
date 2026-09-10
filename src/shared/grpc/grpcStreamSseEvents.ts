@@ -4,7 +4,7 @@ import {
   type GrpcRouteEnvelope,
   type GrpcStreamEvent,
 } from './contracts';
-import { buildGrpcStreamQuery } from './grpcExpressProxyJsonTransport';
+import { buildGrpcStreamQuery, resolveGrpcExpressProxyUrl } from './grpcExpressProxyJsonTransport';
 import { parseGrpcSseStream, parseGrpcStreamEventJson } from './grpcStreamSseParser';
 
 type GrpcStreamEventsState =
@@ -108,7 +108,9 @@ export function openGrpcStreamEventsViaSse(
       const query = buildGrpcStreamQuery(tabId, {
         lastSequence: options.resolveLastSequence?.() ?? options.lastSequence,
       });
-      const url = `/api/grpc/stream/${encodeURIComponent(streamId)}/events?${query}`;
+      const url = resolveGrpcExpressProxyUrl(
+        `/api/grpc/stream/${encodeURIComponent(streamId)}/events?${query}`,
+      );
 
       try {
         const response = await fetch(url, {

@@ -1,6 +1,5 @@
 #[cfg(test)]
 mod tests {
-    use crate::executor::*;
     use crate::executor_test_helpers::make_scenario;
     use crate::types::*;
 

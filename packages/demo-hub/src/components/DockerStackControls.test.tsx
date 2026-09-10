@@ -38,6 +38,7 @@ vi.mock('../utils/dockerStackApi', async (importOriginal) => {
   };
 });
 
+import { openDockerDesktop, triggerAppUpdateCheck } from '../utils/dockerStackApi';
 import { resetDockerStackStore, setStackRunning } from '../stores/dockerStackStore';
 
 describe('DockerStackControls', () => {
@@ -77,6 +78,8 @@ describe('DockerStackControls', () => {
     await act(() => Promise.resolve());
     expect(screen.getByTestId('prereq-docker-state').textContent).toContain('not running');
     expect(screen.getByTestId('prereq-open-docker')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('prereq-open-docker'));
+    expect(openDockerDesktop).toHaveBeenCalled();
   });
 
   it('shows a 90s Windows start hint on State B when the host is Windows', async () => {
@@ -186,6 +189,33 @@ describe('DockerStackControls', () => {
     expect(screen.getByTestId('prereq-port-conflict').textContent).toContain('4010');
   });
 
+  it('lists multiple conflicting ports', async () => {
+    startDockerStack.mockRejectedValue(
+      new Error('PORT_CONFLICT:[{"port":4010,"process":"node"},{"port":4011,"process":"python"}]'),
+    );
+    render(<DockerStackControls stackKey="graphql" />);
+    await act(() => Promise.resolve());
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('prereq-start-stack'));
+      await Promise.resolve();
+    });
+    const items = screen.getByTestId('prereq-port-conflict').querySelectorAll('li');
+    expect(items).toHaveLength(2);
+    expect(items[0]?.textContent).toContain('4010');
+    expect(items[1]?.textContent).toContain('4011');
+  });
+
+  it('falls back when a port-conflict payload has no usable ports', async () => {
+    startDockerStack.mockRejectedValue(new Error('PORT_CONFLICT:'));
+    render(<DockerStackControls stackKey="graphql" />);
+    await act(() => Promise.resolve());
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('prereq-start-stack'));
+      await Promise.resolve();
+    });
+    expect(screen.getByTestId('prereq-port-conflict').textContent).toMatch(/port is already in use|already in use/i);
+  });
+
   it('shows OOM state from start errors', async () => {
     startDockerStack.mockRejectedValue(new Error('OOM_KILLED:2048'));
     render(<DockerStackControls stackKey="graphql" />);
@@ -286,12 +316,16 @@ describe('DockerStackControls', () => {
     const { unmount } = render(<DockerStackControls stackKey="graphql-tls" />);
     await act(() => Promise.resolve());
     expect(screen.getByTestId('prereq-cert-expiring').textContent).toContain('8 days');
+    fireEvent.click(screen.getByText('Check for updates →'));
+    expect(triggerAppUpdateCheck).toHaveBeenCalled();
     unmount();
     getStackManifest.mockResolvedValue({ certExpiresAt: '2000-01-01', minMemoryMb: 512 });
     render(<DockerStackControls stackKey="graphql-tls" />);
     await act(() => Promise.resolve());
     expect(screen.getByTestId('prereq-cert-expired')).toBeTruthy();
     expect(screen.getByTestId('prereq-start-stack')).toBeDisabled();
+    fireEvent.click(screen.getByText('Check for updates →'));
+    expect(triggerAppUpdateCheck).toHaveBeenCalled();
   });
 
   it('shows a low-memory note in State C', async () => {
@@ -351,6 +385,36 @@ describe('DockerStackControls', () => {
       await Promise.resolve();
     });
     expect(screen.getByTestId('prereq-start-stack')).toBeTruthy();
+  });
+
+  it('disables Start Stack when lesson services are already reachable', async () => {
+    render(<DockerStackControls stackKey="kafka-plaintext" servicesReachable />);
+    await act(() => Promise.resolve());
+    expect(screen.getByTestId('prereq-stack-status').textContent).toContain('not started by this app');
+    expect(screen.getByTestId('prereq-already-reachable').textContent).toContain('Start Demo');
+    expect(screen.getByTestId('prereq-already-reachable').textContent).toContain('stop the other');
+    expect(screen.getByTestId('prereq-start-stack')).toBeDisabled();
+    expect(screen.queryByTestId('prereq-stop-stack')).toBeNull();
+    fireEvent.click(screen.getByTestId('prereq-start-stack'));
+    expect(startDockerStack).not.toHaveBeenCalled();
+  });
+
+  it('does not ask to free ports when a conflict is the already-running lesson', async () => {
+    startDockerStack.mockRejectedValue(
+      new Error('PORT_CONFLICT:[{"port":19092,"process":"wslrelay","pid":9788}]'),
+    );
+    const { rerender } = render(<DockerStackControls stackKey="kafka-plaintext" />);
+    await act(() => Promise.resolve());
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('prereq-start-stack'));
+      await Promise.resolve();
+    });
+    expect(screen.getByTestId('prereq-port-conflict')).toBeTruthy();
+    rerender(<DockerStackControls stackKey="kafka-plaintext" servicesReachable />);
+    await act(() => Promise.resolve());
+    expect(screen.queryByTestId('prereq-port-conflict')).toBeNull();
+    expect(screen.getByTestId('prereq-stack-status').textContent).toContain('not started by this app');
+    expect(screen.getByTestId('prereq-start-stack')).toBeDisabled();
   });
 
   it('shows last-run file lines after hydrate when the stack is already up', async () => {

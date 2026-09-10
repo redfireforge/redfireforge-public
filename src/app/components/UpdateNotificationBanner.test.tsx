@@ -49,7 +49,7 @@ describe('UpdateNotificationBanner', () => {
     );
     render(<UpdateNotificationBanner />);
     expect(screen.getByRole('alert')).toHaveTextContent('Update failed: network down');
-    fireEvent.click(screen.getByLabelText('Dismiss'));
+    fireEvent.click(screen.getByTestId('update-banner-dismiss'));
     expect(dismissUpdate).toHaveBeenCalled();
   });
 
@@ -80,7 +80,7 @@ describe('UpdateNotificationBanner', () => {
     expect(screen.getByRole('status')).toHaveTextContent('RedfireForge 1.2.3 is available — Fixed bugs');
     fireEvent.click(screen.getByText('Install & Restart'));
     expect(installUpdate).toHaveBeenCalled();
-    fireEvent.click(screen.getByLabelText('Dismiss'));
+    fireEvent.click(screen.getByTestId('update-banner-dismiss'));
     expect(dismissUpdate).toHaveBeenCalled();
   });
 
@@ -128,7 +128,7 @@ describe('UpdateNotificationBanner', () => {
         }),
       );
       render(<UpdateNotificationBanner />);
-      fireEvent.click(screen.getByLabelText('Dismiss'));
+      fireEvent.click(screen.getByTestId('update-banner-dismiss'));
       expect(dismissUpdate).toHaveBeenCalled();
     });
 
