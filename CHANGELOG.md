@@ -8,6 +8,9 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Fixed
+- **Linux AppImage white / blank window** — Official `.AppImage` launches still painted a solid white (Standard) or navy (Learning Hub) window on Wayland and VMware. Force X11 and unset `WAYLAND_DISPLAY` whenever the session is Wayland (AppRun’s `GDK_BACKEND=x11` is ignored while that variable stays set), detect VMware via PCI `15ad` as well as DMI, and disable the WebKit sandbox on AppImage FUSE mounts.
+
 ### Changed
 - **Homebrew cask workflow** — Use `actions/checkout@v5` so the post-release tap bump no longer warns that Node.js 20 is deprecated.
 
