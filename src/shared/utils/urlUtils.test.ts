@@ -14,16 +14,34 @@ describe('urlUtils', () => {
       expect(replaceHost(url, null as unknown as string)).toBe(url);
     });
 
-    it('preserves absolute https URLs unchanged (does NOT replace host)', () => {
-      const absoluteUrl = 'https://httpbin.org/status/204';
-      const result = replaceHost(absoluteUrl, 'https://jsonplaceholder.typicode.com');
-      expect(result).toBe(absoluteUrl);
+    it('rewrites absolute https origin and keeps the path', () => {
+      const result = replaceHost('https://httpbin.org/status/204', 'https://jsonplaceholder.typicode.com');
+      expect(result).toBe('https://jsonplaceholder.typicode.com/status/204');
     });
 
-    it('preserves absolute http URLs unchanged', () => {
-      const absoluteUrl = 'http://httpbin.org/delay/1';
-      const result = replaceHost(absoluteUrl, 'https://api.example.com');
-      expect(result).toBe(absoluteUrl);
+    it('rewrites absolute http origin onto the new host', () => {
+      const result = replaceHost('http://httpbin.org/delay/1', 'https://api.example.com');
+      expect(result).toBe('https://api.example.com/delay/1');
+    });
+
+    it('rewrites a promoted Cloud Foundry URL onto localhost', () => {
+      const result = replaceHost(
+        'https://svc.apps.test.example.com/salesproduct/autoassignment/v1/vehicles/VIN1/onboarding/digitalmo/offers?channel=MC_THIRDPARTY',
+        'http://localhost:8080',
+      );
+      expect(result).toBe(
+        'http://localhost:8080/salesproduct/autoassignment/v1/vehicles/VIN1/onboarding/digitalmo/offers?channel=MC_THIRDPARTY',
+      );
+    });
+
+    it('prefixes a new base path when the absolute path does not already include it', () => {
+      const result = replaceHost('https://api.example.com/users', 'http://127.0.0.1:4600/mock');
+      expect(result).toBe('http://127.0.0.1:4600/mock/users');
+    });
+
+    it('does not double a base path already present on the absolute URL', () => {
+      const result = replaceHost('https://api.example.com/mock/users', 'http://127.0.0.1:4600/mock');
+      expect(result).toBe('http://127.0.0.1:4600/mock/users');
     });
 
     // --- Relative path cases ---
@@ -59,6 +77,11 @@ describe('urlUtils', () => {
     it('preserves hash fragments on relative URLs', () => {
       const result = replaceHost('/page#section', 'https://api.example.com');
       expect(result).toBe('https://api.example.com/page#section');
+    });
+
+    it('preserves {{template}} variables when rewriting an absolute URL', () => {
+      const result = replaceHost('https://old.example.com/users/{{userId}}', 'http://localhost:8080');
+      expect(result).toBe('http://localhost:8080/users/{{userId}}');
     });
 
     it('preserves {{template}} variables in relative path', () => {

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import type { RequestCollection } from '@shared/types';
 
 export type DragItem =
@@ -6,6 +6,55 @@ export type DragItem =
   | { kind: 'folder'; folderId: string; colId: string }
   | { kind: 'collection'; colId: string }
   | null;
+
+/** Custom MIME — WKWebView may omit this from `types` during dragover. */
+export const SIDEBAR_DRAG_MIME = 'application/x-rff-sidebar';
+const SIDEBAR_DRAG_PREFIX = 'rff-sidebar:';
+
+export function serializeSidebarDrag(item: NonNullable<DragItem>): string {
+  if (item.kind === 'request') return `${SIDEBAR_DRAG_PREFIX}request:${item.colId}:${item.reqId}`;
+  if (item.kind === 'folder') return `${SIDEBAR_DRAG_PREFIX}folder:${item.colId}:${item.folderId}`;
+  return `${SIDEBAR_DRAG_PREFIX}collection:${item.colId}`;
+}
+
+export function parseSidebarDrag(raw: string | undefined | null): NonNullable<DragItem> | null {
+  if (!raw || !raw.startsWith(SIDEBAR_DRAG_PREFIX)) return null;
+  const rest = raw.slice(SIDEBAR_DRAG_PREFIX.length);
+  const kindEnd = rest.indexOf(':');
+  if (kindEnd < 0) return null;
+  const kind = rest.slice(0, kindEnd);
+  const afterKind = rest.slice(kindEnd + 1);
+  if (kind === 'collection') {
+    return afterKind ? { kind: 'collection', colId: afterKind } : null;
+  }
+  const colEnd = afterKind.indexOf(':');
+  if (colEnd < 0) return null;
+  const colId = afterKind.slice(0, colEnd);
+  const id = afterKind.slice(colEnd + 1);
+  if (!colId || !id) return null;
+  if (kind === 'request') return { kind: 'request', colId, reqId: id };
+  if (kind === 'folder') return { kind: 'folder', colId, folderId: id };
+  return null;
+}
+
+function readTransferPayload(e: React.DragEvent): string {
+  try {
+    return e.dataTransfer.getData(SIDEBAR_DRAG_MIME) || e.dataTransfer.getData('text/plain') || '';
+  } catch {
+    return '';
+  }
+}
+
+function writeSidebarDrag(e: React.DragEvent, item: NonNullable<DragItem>) {
+  e.dataTransfer.effectAllowed = 'move';
+  const payload = serializeSidebarDrag(item);
+  try {
+    e.dataTransfer.setData(SIDEBAR_DRAG_MIME, payload);
+  } catch {
+    /* some WebViews reject custom MIME types */
+  }
+  e.dataTransfer.setData('text/plain', payload);
+}
 
 type OnMoveRequest = (colId: string, reqId: string, targetFolderId: string | null, beforeReqId?: string) => void;
 type OnMoveRequestToCollection = (
@@ -45,45 +94,85 @@ export function useRequestsSidebarDnD({
 }: UseRequestsSidebarDnDParams) {
   const [dragItem, _setDragItem] = useState<DragItem>(null);
   const dragItemRef = useRef<DragItem>(null);
+  /** Survives WKWebView `dragend`-before-`drop` so the drop can still resolve. */
+  const lastDragRef = useRef<DragItem>(null);
+  const lastDragClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const setDragItem = useCallback((v: DragItem) => {
     dragItemRef.current = v;
+    if (v) {
+      lastDragRef.current = v;
+      if (lastDragClearTimerRef.current) {
+        clearTimeout(lastDragClearTimerRef.current);
+        lastDragClearTimerRef.current = null;
+      }
+    }
     _setDragItem(v);
   }, []);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [dropInsert, setDropInsert] = useState<{ beforeReqId: string; folderId: string | null } | null>(null);
   const autoExpandTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const resolveDragItem = useCallback((e?: React.DragEvent): DragItem => {
+    if (dragItemRef.current) return dragItemRef.current;
+    if (e) {
+      const parsed = parseSidebarDrag(readTransferPayload(e));
+      if (parsed) return parsed;
+    }
+    return lastDragRef.current;
+  }, []);
+
+  const finishDrag = useCallback(() => {
+    lastDragRef.current = null;
+    if (lastDragClearTimerRef.current) {
+      clearTimeout(lastDragClearTimerRef.current);
+      lastDragClearTimerRef.current = null;
+    }
+    setDragItem(null);
+    setDropTarget(null);
+    setDropInsert(null);
+  }, [setDragItem]);
+
+  useEffect(() => () => {
+    if (lastDragClearTimerRef.current) clearTimeout(lastDragClearTimerRef.current);
+    if (autoExpandTimerRef.current) clearTimeout(autoExpandTimerRef.current);
+  }, []);
+
   const handleCollectionDragStart = useCallback((e: React.DragEvent, colId: string) => {
-    setDragItem({ kind: 'collection', colId });
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', colId);
+    const item = { kind: 'collection' as const, colId };
+    setDragItem(item);
+    writeSidebarDrag(e, item);
   }, [setDragItem]);
 
   const handleReqDragStart = useCallback((e: React.DragEvent, colId: string, reqId: string) => {
-    setDragItem({ kind: 'request', reqId, colId });
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', reqId);
+    e.stopPropagation();
+    const item = { kind: 'request' as const, reqId, colId };
+    setDragItem(item);
+    writeSidebarDrag(e, item);
   }, [setDragItem]);
 
   const handleFolderDragStart = useCallback((e: React.DragEvent, colId: string, folderId: string) => {
-    setDragItem({ kind: 'folder', folderId, colId });
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', folderId);
+    if (dragItemRef.current?.kind === 'request' || lastDragRef.current?.kind === 'request') {
+      e.preventDefault();
+      return;
+    }
+    const item = { kind: 'folder' as const, folderId, colId };
+    setDragItem(item);
+    writeSidebarDrag(e, item);
   }, [setDragItem]);
 
   const handleDragOver = useCallback((e: React.DragEvent, _targetId: string) => {
-    if (!dragItemRef.current) return;
+    if (!resolveDragItem(e)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     setDropTarget(_targetId);
-  }, []);
+  }, [resolveDragItem]);
 
   const handleDragLeave = useCallback(() => setDropTarget(null), []);
 
   const handleDrop = useCallback((e: React.DragEvent, colId: string, targetFolderId: string | null) => {
     e.preventDefault();
     e.stopPropagation();
-    const di = dragItemRef.current;
+    const di = resolveDragItem(e);
     if (!di) return;
     if (di.kind === 'collection') {
       const targetCol = collections.find(c => c.id === colId);
@@ -105,26 +194,24 @@ export function useRequestsSidebarDnD({
         onMoveFolderToCollection(di.colId, di.folderId, colId, targetFolderId);
       }
     }
-    setDragItem(null);
-    setDropTarget(null);
-  }, [collections, onMoveFolderTo, onMoveFolderToCollection, onMergeCollectionInto, onMoveRequest, onMoveRequestToCollection, onMoveToGroup, setDragItem]);
+    finishDrag();
+  }, [collections, finishDrag, onMoveFolderTo, onMoveFolderToCollection, onMergeCollectionInto, onMoveRequest, onMoveRequestToCollection, onMoveToGroup, resolveDragItem]);
 
   const handleGroupDrop = useCallback((e: React.DragEvent, groupId: string) => {
     e.preventDefault();
     e.stopPropagation();
-    const di = dragItemRef.current;
+    const di = resolveDragItem(e);
     if (!di) return;
     if (di.kind === 'collection' && di.colId !== groupId) {
       onMoveToGroup(di.colId, groupId);
     }
-    setDragItem(null);
-    setDropTarget(null);
-  }, [onMoveToGroup, setDragItem]);
+    finishDrag();
+  }, [finishDrag, onMoveToGroup, resolveDragItem]);
 
   const handleFolderDrop = useCallback((e: React.DragEvent, colId: string, targetFolderId: string) => {
     e.preventDefault();
     e.stopPropagation();
-    const di = dragItemRef.current;
+    const di = resolveDragItem(e);
     if (!di) return;
     if (di.kind === 'request') {
       if (di.colId === colId) {
@@ -139,9 +226,8 @@ export function useRequestsSidebarDnD({
         onMoveFolderToCollection(di.colId, di.folderId, colId, targetFolderId);
       }
     }
-    setDragItem(null);
-    setDropTarget(null);
-  }, [onMoveFolderTo, onMoveFolderToCollection, onMoveRequest, onMoveRequestToCollection, setDragItem]);
+    finishDrag();
+  }, [finishDrag, onMoveFolderTo, onMoveFolderToCollection, onMoveRequest, onMoveRequestToCollection, resolveDragItem]);
 
   const handleDragEnd = useCallback(() => {
     setDragItem(null);
@@ -151,10 +237,15 @@ export function useRequestsSidebarDnD({
       clearTimeout(autoExpandTimerRef.current);
       autoExpandTimerRef.current = null;
     }
+    if (lastDragClearTimerRef.current) clearTimeout(lastDragClearTimerRef.current);
+    lastDragClearTimerRef.current = setTimeout(() => {
+      lastDragRef.current = null;
+      lastDragClearTimerRef.current = null;
+    }, 100);
   }, [setDragItem]);
 
   const handleReqDragOver = useCallback((e: React.DragEvent, _colId: string, reqId: string, folderId: string | undefined) => {
-    const di = dragItemRef.current;
+    const di = resolveDragItem(e);
     if (!di || di.kind !== 'request') return;
     if (di.reqId === reqId) return;
     e.preventDefault();
@@ -167,17 +258,15 @@ export function useRequestsSidebarDnD({
     } else {
       setDropInsert({ beforeReqId: `${reqId}:after`, folderId: folderId ?? null });
     }
-  }, []);
+  }, [resolveDragItem]);
 
   const handleReqDrop = useCallback((e: React.DragEvent, colId: string, folderId: string | undefined, requests: { id: string }[]) => {
     e.preventDefault();
     e.stopPropagation();
-    const di = dragItemRef.current;
+    const di = resolveDragItem(e);
     if (!di || di.kind !== 'request') return;
     const ins = dropInsert;
-    setDragItem(null);
-    setDropTarget(null);
-    setDropInsert(null);
+    finishDrag();
     if (!ins) {
       if (di.colId === colId) onMoveRequest(colId, di.reqId, folderId ?? null);
       else onMoveRequestToCollection(di.colId, di.reqId, colId, folderId ?? null);
@@ -190,22 +279,22 @@ export function useRequestsSidebarDnD({
     const beforeId = nextReq?.id;
     if (di.colId === colId) onMoveRequest(colId, di.reqId, folderId ?? null, beforeId);
     else onMoveRequestToCollection(di.colId, di.reqId, colId, folderId ?? null);
-  }, [dropInsert, onMoveRequest, onMoveRequestToCollection, setDragItem]);
+  }, [dropInsert, finishDrag, onMoveRequest, onMoveRequestToCollection, resolveDragItem]);
 
   const handleRootDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    const di = dragItemRef.current;
+    const di = resolveDragItem(e);
     if (!di || di.kind !== 'collection') return;
     const col = collections.find(c => c.id === di.colId);
     if (col?.groupId) onMoveToGroup(di.colId, undefined);
-    setDragItem(null);
-    setDropTarget(null);
-  }, [collections, onMoveToGroup, setDragItem]);
+    finishDrag();
+  }, [collections, finishDrag, onMoveToGroup, resolveDragItem]);
 
   return {
     dragItem,
     dragItemRef,
+    lastDragRef,
     dropTarget,
     setDropTarget,
     dropInsert,

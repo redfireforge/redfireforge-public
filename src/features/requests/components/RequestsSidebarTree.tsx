@@ -38,6 +38,7 @@ export interface RequestsSidebarTreeProps {
   dropTarget: string | null;
   dragItem: { kind: string; reqId?: string; folderId?: string; colId?: string } | null;
   dragItemRef: MutableRefObject<{ kind: string; reqId?: string; folderId?: string; colId?: string } | null>;
+  lastDragRef?: MutableRefObject<{ kind: string; reqId?: string; folderId?: string; colId?: string } | null>;
   autoExpandTimerRef: MutableRefObject<ReturnType<typeof setTimeout> | null>;
   handleContainerDragLeave: (e: React.DragEvent) => void;
   handleDragOver: (e: React.DragEvent, targetId: string) => void;
@@ -77,6 +78,10 @@ export interface RequestsSidebarTreeProps {
   dismissContextMenus: () => void;
 }
 
+function activeSidebarDrag(props: RequestsSidebarTreeProps) {
+  return props.dragItemRef.current ?? props.lastDragRef?.current ?? null;
+}
+
 export function RequestsSidebarTree(props: RequestsSidebarTreeProps) {
   const renderRequest = (colId: string, reqId: string, method: string, name: string, url: string, inFolderId?: string, siblingRequests?: { id: string }[], meta?: CatalogRequestMeta) => {
     const isDragging = props.dragItem?.kind === 'request' && props.dragItem.reqId === reqId;
@@ -95,7 +100,7 @@ export function RequestsSidebarTree(props: RequestsSidebarTreeProps) {
           onDragLeave={() => props.setDropInsert(null)}
           onDrop={(e) => props.handleReqDrop(e, colId, inFolderId, siblingRequests ?? [])}
           data-testid="req-req-item" data-req-name={name || url || 'Untitled'} data-req-id={reqId}
-          draggable onDragStart={(e) => props.handleReqDragStart(e, colId, reqId)} onDragEnd={props.handleDragEnd}>
+          draggable onDragStart={(e) => { e.stopPropagation(); props.handleReqDragStart(e, colId, reqId); }} onDragEnd={props.handleDragEnd}>
           <span
             className={`req-bulk-check ${isChecked ? 'checked' : ''}`}
             role="checkbox"
@@ -136,7 +141,16 @@ export function RequestsSidebarTree(props: RequestsSidebarTreeProps) {
         <div className="req-folder-header"
           onClick={() => props.toggleFolder(folder.id)}
           onContextMenu={(e) => props.handleContext(e, 'folder', col.id, folder.id)}
-          draggable onDragStart={(e) => props.handleFolderDragStart(e, col.id, folder.id)} onDragEnd={props.handleDragEnd}>
+          onDragOver={(e) => { e.stopPropagation(); props.handleDragOver(e, folder.id); }}
+          onDrop={(e) => { e.preventDefault(); e.stopPropagation(); props.handleFolderDrop(e, col.id, folder.id); }}
+          draggable onDragStart={(e) => {
+            if (activeSidebarDrag(props)?.kind === 'request') {
+              e.preventDefault();
+              return;
+            }
+            e.stopPropagation();
+            props.handleFolderDragStart(e, col.id, folder.id);
+          }} onDragEnd={props.handleDragEnd}>
           <span className="req-folder-arrow">{isExpanded ? '▾' : '▸'}</span>
           <span className="req-folder-icon">{folder.isSubCollection ? '📦' : '📁'}</span>
           {isRenaming ? (
@@ -169,7 +183,7 @@ export function RequestsSidebarTree(props: RequestsSidebarTreeProps) {
       <div key={col.id} className={`req-col-group ${props.dropTarget === `col-header-${col.id}` ? 'col-drop-target' : ''}`}
         style={{ paddingLeft: depth > 0 ? 12 : 0 }}
         onDragOver={(e) => {
-          const di = props.dragItemRef.current;
+          const di = activeSidebarDrag(props);
           if (!di) return;
           e.preventDefault();
           e.dataTransfer.dropEffect = 'move';
@@ -180,7 +194,7 @@ export function RequestsSidebarTree(props: RequestsSidebarTreeProps) {
         onDragLeave={props.handleContainerDragLeave}
         onDrop={(e) => {
           e.preventDefault();
-          const di = props.dragItemRef.current;
+          const di = activeSidebarDrag(props);
           if (!di) return;
           if (di.kind === 'collection' && di.colId === col.id) return;
           if (props.autoExpandTimerRef.current) { clearTimeout(props.autoExpandTimerRef.current); props.autoExpandTimerRef.current = null; }
@@ -224,7 +238,7 @@ export function RequestsSidebarTree(props: RequestsSidebarTreeProps) {
 
         {isExpCol && (
           <div className="req-req-list"
-            onDragOver={(e) => { if (props.dragItemRef.current) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } }}
+            onDragOver={(e) => { if (activeSidebarDrag(props)) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } }}
             onDrop={(e) => { e.preventDefault(); props.handleDrop(e, col.id, null); }}>
             <div className={`req-root-drop ${isRootDropTarget ? 'drop-target' : ''}`}
               onDragOver={(e) => props.handleDragOver(e, `root-${col.id}`)}
@@ -255,7 +269,7 @@ export function RequestsSidebarTree(props: RequestsSidebarTreeProps) {
         className={`req-group-wrapper ${isDropTgt ? 'drop-target' : ''} ${isDraggingThis ? 'dragging' : ''}`}
         style={{ paddingLeft: depth > 0 ? 12 : 0 }}
         onDragOver={(e) => {
-          const di = props.dragItemRef.current;
+          const di = activeSidebarDrag(props);
           if (!di || di.kind !== 'collection') return;
           if (di.colId === group.id) return;
           e.preventDefault();
@@ -307,7 +321,7 @@ export function RequestsSidebarTree(props: RequestsSidebarTreeProps) {
     <div className="req-sidebar-list"
       onClick={() => props.dismissContextMenus()}
       onDragOver={(e) => {
-        const di = props.dragItemRef.current;
+        const di = activeSidebarDrag(props);
         if (!di || di.kind !== 'collection') return;
         const col = props.collections.find(c => c.id === di.colId);
         if (col?.groupId) {

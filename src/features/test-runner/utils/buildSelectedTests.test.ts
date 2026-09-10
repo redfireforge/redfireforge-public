@@ -180,7 +180,7 @@ describe('buildSelectedTests', () => {
       expect(result[0].url).toBe('https://custom.com/api/test');
     });
 
-    it('preserves absolute URLs (does not replace host)', () => {
+    it('rewrites absolute URLs onto the Settings host', () => {
       const fg = makeFg({
         scenarios: [{
           id: 'sc-1', name: 'S', kind: 'standard',
@@ -188,7 +188,7 @@ describe('buildSelectedTests', () => {
         }],
       });
       const result = buildSelectedTests([fg], selectAll(fg), 'settings', '', 'https://jsonplaceholder.typicode.com', false, false, 'default', 'default', []);
-      expect(result[0].url).toBe('https://httpbin.org/status/204');
+      expect(result[0].url).toBe('https://jsonplaceholder.typicode.com/status/204');
     });
 
     it('does not replace host for gallery feature groups', () => {

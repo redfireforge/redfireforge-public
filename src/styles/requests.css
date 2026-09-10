@@ -515,6 +515,7 @@
   font-size: 0.8rem;
   border-radius: 4px;
   transition: background 0.12s;
+  -webkit-user-drag: element;
 }
 .req-req-item:hover {
   background: var(--surface-hover);
@@ -576,6 +577,7 @@
   font-size: 0.8rem;
   transition: background 0.12s;
   user-select: none;
+  -webkit-user-drag: element;
 }
 .req-folder-header:hover { background: var(--surface-hover); }
 .req-folder-arrow { font-size: 0.6rem; color: var(--text-muted); width: 10px; flex-shrink: 0; }
@@ -610,6 +612,16 @@
 }
 .req-new-folder-row {
   display: flex; align-items: center; gap: 5px; padding: 4px 10px 4px 20px;
+}
+/* className lands on .cs-wrapper — the bordered box is .cs-trigger (avoid double box). */
+.req-subcol-env-select {
+  flex: 1;
+  min-width: 0;
+}
+.req-subcol-env-select .cs-trigger {
+  padding: 2px 6px;
+  font-size: 0.78rem;
+  border-radius: 3px;
 }
 
 /* Root drop zone */
