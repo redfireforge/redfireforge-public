@@ -15,6 +15,19 @@
   font-size: 1.1rem;
   font-weight: 600;
 }
+.settings-page-footer {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 28px;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+.settings-page-footer .settings-section-desc {
+  margin: 0;
+}
 .settings-split {
   display: flex;
   flex: 1;
