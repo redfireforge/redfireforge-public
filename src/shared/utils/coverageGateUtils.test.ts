@@ -28,6 +28,9 @@ describe('coverageGateUtils', () => {
     expect(isProductGateSourcePath('/repo/src-server/foo.ts')).toBe(true);
     expect(isProductGateSourcePath('/repo/cli/foo.ts')).toBe(true);
     expect(isProductGateSourcePath('/repo/scripts/foo.ts')).toBe(false);
+    expect(isProductGateSourcePath('/repo/packages/demo-hub/src/utils/checkEndpoint.ts')).toBe(false);
+    expect(isProductGateSourcePath('/repo/src/styles/demo-hub.css')).toBe(false);
+    expect(isProductGateSourcePath('/repo/src/shared/foo.test.ts')).toBe(false);
   });
 
   it('skips expected product gate helper/test paths', () => {
@@ -41,6 +44,9 @@ describe('coverageGateUtils', () => {
     expect(shouldSkipProductGateFile('/repo/src/features/foo.css')).toBe(true);
     expect(shouldSkipProductGateFile('/repo/src/test-utils/factories.ts')).toBe(true);
     expect(shouldSkipProductGateFile('/repo/src/shared/foo.ts')).toBe(false);
+    expect(shouldSkipProductGateFile('/home/runner/work/repo/packages/demo-hub/src/DemoHub.tsx')).toBe(true);
+    expect(shouldSkipProductGateFile('/home/runner/work/repo/src/styles/demo-hub.css')).toBe(true);
+    expect(shouldSkipProductGateFile('/home/runner/work/repo/src/test-utils/factories.ts')).toBe(true);
   });
 
   it('matches both prefix and exact allowlist patterns', () => {

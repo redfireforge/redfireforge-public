@@ -37,11 +37,31 @@ export const COMMON_TEST_EXCLUDE = [
 ] as const;
 
 /**
+ * Vitest applies coverage.exclude after remapping to absolute paths
+ * (/home/runner/work/.../src/styles/foo.css). A **.css glob does not match
+ * a leading slash, so CSS, demo-hub, and tests leak into the shard text
+ * report. Duplicate each recursive glob with a leading slash.
+ */
+export function expandCoverageGlobs(patterns: readonly string[]): string[] {
+  const out: string[] = [];
+  for (const pattern of patterns) {
+    out.push(pattern);
+    if (pattern.startsWith('**/')) {
+      out.push(`/${pattern}`);
+    } else if (!pattern.startsWith('/') && !pattern.startsWith('**')) {
+      out.push(`**/${pattern}`);
+      out.push(`/**/${pattern}`);
+    }
+  }
+  return out;
+}
+
+/**
  * Coverage excludes for the production (`product`) gate.
  * Vitest 4 ships `coverageConfigDefaults.exclude` as [] — we must list these
  * ourselves so demo, CSS, and test files never enter the product report.
  */
-export const PRODUCT_COVERAGE_EXCLUDE = [
+const PRODUCT_COVERAGE_EXCLUDE_PATTERNS = [
   '**/__test-utils__/**',
   '**/__mocks__/**',
   '**/test-helpers/**',
@@ -73,6 +93,8 @@ export const PRODUCT_COVERAGE_EXCLUDE = [
   'e2e',
   'scripts/**',
 ] as const;
+
+export const PRODUCT_COVERAGE_EXCLUDE = expandCoverageGlobs(PRODUCT_COVERAGE_EXCLUDE_PATTERNS);
 
 export function matchesGlob(path: string, pattern: string): boolean {
   const normalized = path.replace(/\\/g, '/');
