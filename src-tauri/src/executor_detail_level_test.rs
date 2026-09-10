@@ -1,6 +1,5 @@
 #[cfg(test)]
 mod tests {
-    use crate::executor::*;
     use crate::types::*;
 
     // ── DetailLevel ─────────────────────────────────────────
