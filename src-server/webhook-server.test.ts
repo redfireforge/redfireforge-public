@@ -140,6 +140,7 @@ describe('webhook-server', { timeout: 30_000 }, () => {
       expect(res.body.status).toBe('ok');
       expect(res.body.port).toBe(3001);
       expect(res.body.timestamp).toBeDefined();
+      expect(res.body.probes).toEqual(expect.arrayContaining(['demo-http', 'api-mock-echo']));
     });
   });
 

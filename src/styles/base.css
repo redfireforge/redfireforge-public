@@ -420,13 +420,9 @@
 /* ─── Header environment/service selectors ──── */
 .header-select-group { display: flex; align-items: center; flex-shrink: 0; }
 .header-select-group select { background: var(--surface-hover); color: var(--text); border: 1px solid var(--border); padding: 5px 10px; border-radius: var(--radius); font-size: 0.78rem; min-width: 120px; }
-/* Fixed widths so env / svc / hostname don't jump when labels change length. */
+/* Same fixed width so env and microservice stay aligned when labels change. */
 .header-select-group--env .cs-wrapper,
-.header-env-select.cs-wrapper {
-  width: 112px;
-  min-width: 112px;
-  max-width: 112px;
-}
+.header-env-select.cs-wrapper,
 .header-select-group--svc .cs-wrapper,
 .header-svc-select.cs-wrapper {
   width: 200px;

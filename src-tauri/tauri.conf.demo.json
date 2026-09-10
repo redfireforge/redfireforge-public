@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "RedfireForge Learning Hub",
-  "version": "0.8.6",
+  "version": "0.8.7-alpha.2",
   "identifier": "com.redfireforge.desktop.demo",
   "build": {
     "frontendDist": "../dist",

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { isTauri, isLocalhost } from '@shared/utils/platform';
 import {
   fetchLatestRelease,
@@ -29,33 +29,83 @@ function dismissKey(version: string) {
   return `rff-update-dismissed-v${version}`;
 }
 
+function readDismissed(version: string): boolean {
+  try {
+    if (localStorage.getItem(dismissKey(version))) return true;
+  } catch {
+    /* storage blocked */
+  }
+  try {
+    if (sessionStorage.getItem(dismissKey(version))) return true;
+  } catch {
+    /* storage blocked */
+  }
+  return false;
+}
+
+function rememberDismissed(version: string): void {
+  try {
+    localStorage.setItem(dismissKey(version), '1');
+  } catch {
+    /* storage blocked */
+  }
+  try {
+    sessionStorage.setItem(dismissKey(version), '1');
+  } catch {
+    /* storage blocked */
+  }
+  void import('@shared/utils/storage').then(({ writeKey }) => {
+    void writeKey(dismissKey(version), '1');
+  }).catch(() => {
+    /* Tauri store unavailable */
+  });
+}
+
+function shouldSkipDevDesktopUpdater(): boolean {
+  return Boolean(import.meta.env.DEV) && isTauri() && import.meta.env.MODE !== 'test';
+}
+
 export function useAppUpdater(): AppUpdaterState {
   const [status, setStatus] = useState<UpdateStatus>('idle');
   const [mode, setMode] = useState<UpdateMode>('tauri');
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const checkGen = useRef(0);
+  const updateInfoRef = useRef<UpdateInfo | null>(null);
+  updateInfoRef.current = updateInfo;
 
   useEffect(() => {
+    // `tauri:dev` must not prompt to install a GitHub release over a debug build.
+    if (shouldSkipDevDesktopUpdater()) return;
+
     const CHECK_DELAY_MS = 3000;
+    const gen = ++checkGen.current;
 
     if (isTauri()) {
-      const timer = setTimeout(() => checkTauriUpdate(), CHECK_DELAY_MS);
-      return () => clearTimeout(timer);
+      const timer = setTimeout(() => { void checkTauriUpdate(gen); }, CHECK_DELAY_MS);
+      return () => {
+        checkGen.current += 1;
+        clearTimeout(timer);
+      };
     }
 
     if (isLocalhost()) {
       setMode('localhost');
-      const timer = setTimeout(() => checkLocalhostUpdate(), CHECK_DELAY_MS);
-      return () => clearTimeout(timer);
+      const timer = setTimeout(() => { void checkLocalhostUpdate(gen); }, CHECK_DELAY_MS);
+      return () => {
+        checkGen.current += 1;
+        clearTimeout(timer);
+      };
     }
   }, []);
 
-  async function checkTauriUpdate() {
+  async function checkTauriUpdate(gen: number) {
     try {
       setStatus('checking');
       const { check } = await import('@tauri-apps/plugin-updater');
       const update = await check();
+      if (gen !== checkGen.current) return;
       if (update?.available) {
         // Only notify for official stable tags — never alpha/beta/rc
         if (!isOfficialStableRelease(update.version)) {
@@ -63,7 +113,7 @@ export function useAppUpdater(): AppUpdaterState {
           return;
         }
         const info = { version: update.version, body: update.body ?? null };
-        if (localStorage.getItem(dismissKey(info.version))) {
+        if (readDismissed(info.version)) {
           setStatus('idle');
           return;
         }
@@ -73,16 +123,17 @@ export function useAppUpdater(): AppUpdaterState {
         setStatus('idle');
       }
     } catch {
-      setStatus('idle');
+      if (gen === checkGen.current) setStatus('idle');
     }
   }
 
-  async function checkLocalhostUpdate() {
+  async function checkLocalhostUpdate(gen: number) {
     try {
       setStatus('checking');
       const release = await fetchLatestRelease();
+      if (gen !== checkGen.current) return;
       if (release && isNewerVersion(getCurrentVersion(), release.version)) {
-        if (localStorage.getItem(dismissKey(release.version))) {
+        if (readDismissed(release.version)) {
           setStatus('idle');
           return;
         }
@@ -92,7 +143,7 @@ export function useAppUpdater(): AppUpdaterState {
         setStatus('idle');
       }
     } catch {
-      setStatus('idle');
+      if (gen === checkGen.current) setStatus('idle');
     }
   }
 
@@ -127,17 +178,13 @@ export function useAppUpdater(): AppUpdaterState {
     }
   }
 
-  function dismissUpdate() {
-    if (updateInfo) {
-      try {
-        localStorage.setItem(dismissKey(updateInfo.version), '1');
-      } catch {
-        // localStorage unavailable — ignore
-      }
-    }
+  const dismissUpdate = useCallback(() => {
+    checkGen.current += 1;
+    const info = updateInfoRef.current;
+    if (info) rememberDismissed(info.version);
     setStatus('idle');
     setUpdateInfo(null);
-  }
+  }, []);
 
   return { status, mode, updateInfo, downloadProgress, errorMessage, installUpdate, dismissUpdate };
 }

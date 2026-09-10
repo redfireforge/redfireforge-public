@@ -333,6 +333,7 @@ export default function PrerequisiteGate({
         <DockerStackControls
           stackKey={stackKey}
           buildOnStart={lessonWantsComposeBuild(dockerCommand)}
+          servicesReachable={probeState === 'up'}
         />
       )}
 
