@@ -1,8 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::executor::*;
     use crate::executor_test_helpers::make_execution_result;
-    use crate::histogram::MetricsSnapshot;
     use crate::types::*;
 
     // ── filter_batch ──────────────────────────────────────
