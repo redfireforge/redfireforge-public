@@ -23,11 +23,15 @@ vi.mock('../../shared/utils/latestRelease', () => ({
 
 const mockCheck = vi.fn();
 const mockRelaunch = vi.fn();
+const mockWriteKey = vi.fn(async () => undefined);
 vi.mock('@tauri-apps/plugin-updater', () => ({
   check: (...args: unknown[]) => mockCheck(...args),
 }));
 vi.mock('@tauri-apps/plugin-process', () => ({
   relaunch: (...args: unknown[]) => mockRelaunch(...args),
+}));
+vi.mock('../../shared/utils/storage', () => ({
+  writeKey: (...args: unknown[]) => mockWriteKey(...args),
 }));
 
 const CHECK_DELAY_MS = 3000;
@@ -48,11 +52,26 @@ describe('useAppUpdater', () => {
     mockRelaunch.mockReset();
     mockFetchLatestRelease.mockReset();
     mockIsNewerVersion.mockReturnValue(false);
+    mockWriteKey.mockReset();
+    mockWriteKey.mockResolvedValue(undefined);
     localStorage.clear();
+    sessionStorage.clear();
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.useRealTimers();
+  });
+
+  it('does not schedule a Tauri update check in non-test desktop dev', async () => {
+    vi.stubEnv('MODE', 'development');
+    mockIsTauri.mockReturnValue(true);
+    const { result } = renderHook(() => useAppUpdater());
+    await act(async () => { vi.advanceTimersByTime(CHECK_DELAY_MS); });
+    await flush();
+    expect(mockCheck).not.toHaveBeenCalled();
+    expect(result.current.status).toBe('idle');
+    vi.unstubAllEnvs();
   });
 
   it('does not schedule an update check outside of Tauri or localhost', async () => {
@@ -115,6 +134,16 @@ describe('useAppUpdater', () => {
   it('stays idle when the check throws', async () => {
     mockIsTauri.mockReturnValue(true);
     mockCheck.mockRejectedValue(new Error('network down'));
+    const { result } = renderHook(() => useAppUpdater());
+    await act(async () => { vi.advanceTimersByTime(CHECK_DELAY_MS); });
+    await flush();
+    expect(result.current.status).toBe('idle');
+  });
+
+  it('skips showing a version dismissed only in sessionStorage (Tauri)', async () => {
+    mockIsTauri.mockReturnValue(true);
+    sessionStorage.setItem('rff-update-dismissed-v1.2.3', '1');
+    mockCheck.mockResolvedValue({ available: true, version: '1.2.3', body: null });
     const { result } = renderHook(() => useAppUpdater());
     await act(async () => { vi.advanceTimersByTime(CHECK_DELAY_MS); });
     await flush();
@@ -233,6 +262,19 @@ describe('useAppUpdater', () => {
     expect(result.current.errorMessage).toBe('Update failed');
   });
 
+  it('keeps dismiss working when the Tauri store write fails', async () => {
+    mockIsTauri.mockReturnValue(true);
+    mockWriteKey.mockRejectedValue(new Error('no store'));
+    mockCheck.mockResolvedValue({ available: true, version: '1.2.3', body: null });
+    const { result } = renderHook(() => useAppUpdater());
+    await act(async () => { vi.advanceTimersByTime(CHECK_DELAY_MS); });
+    await flush();
+    act(() => { result.current.dismissUpdate(); });
+    await flush();
+    expect(result.current.status).toBe('idle');
+    expect(mockWriteKey).toHaveBeenCalled();
+  });
+
   it('dismissUpdate resets status, clears updateInfo, and stores dismiss key in localStorage', async () => {
     mockIsTauri.mockReturnValue(true);
     mockCheck.mockResolvedValue({ available: true, version: '1.2.3', body: null });
@@ -246,6 +288,45 @@ describe('useAppUpdater', () => {
     expect(result.current.status).toBe('idle');
     expect(result.current.updateInfo).toBeNull();
     expect(localStorage.getItem('rff-update-dismissed-v1.2.3')).toBe('1');
+    expect(sessionStorage.getItem('rff-update-dismissed-v1.2.3')).toBe('1');
+  });
+
+  it('does not resurrect a dismissed banner when a late check resolves', async () => {
+    mockIsTauri.mockReturnValue(true);
+    let finishCheck: (value: { available: boolean; version: string; body: string | null }) => void = () => {};
+    mockCheck.mockReturnValue(new Promise((resolve) => {
+      finishCheck = resolve;
+    }));
+    const { result } = renderHook(() => useAppUpdater());
+    await act(async () => { vi.advanceTimersByTime(CHECK_DELAY_MS); });
+    await flush();
+
+    act(() => { result.current.dismissUpdate(); });
+    expect(result.current.status).toBe('idle');
+
+    await act(async () => {
+      finishCheck({ available: true, version: '9.9.9', body: null });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(result.current.status).toBe('idle');
+    expect(result.current.updateInfo).toBeNull();
+  });
+
+  it('stays dismissed across remount when the version was already dismissed', async () => {
+    mockIsTauri.mockReturnValue(true);
+    mockCheck.mockResolvedValue({ available: true, version: '1.2.3', body: null });
+    const first = renderHook(() => useAppUpdater());
+    await act(async () => { vi.advanceTimersByTime(CHECK_DELAY_MS); });
+    await flush();
+    act(() => { first.result.current.dismissUpdate(); });
+    first.unmount();
+
+    const second = renderHook(() => useAppUpdater());
+    await act(async () => { vi.advanceTimersByTime(CHECK_DELAY_MS); });
+    await flush();
+    expect(second.result.current.status).toBe('idle');
+    expect(second.result.current.updateInfo).toBeNull();
   });
 
   describe('localhost path', () => {

@@ -117,11 +117,41 @@ describe('checkEndpoint', () => {
       .mockRejectedValueOnce(new Error('localhost unreachable'))
       .mockResolvedValueOnce(new Response(null, { status: 200 }));
 
+    const promise = checkEndpoint('http://localhost:4100/health');
+    await vi.advanceTimersByTimeAsync(100);
+    expect(await promise).toBe(true);
+    expect(spy).toHaveBeenNthCalledWith(1, 'http://localhost:4100/health', expect.any(Object));
+    expect(spy).toHaveBeenNthCalledWith(2, 'http://127.0.0.1:4100/health', expect.any(Object));
+  });
+
+  it('routes companion :3001/health through same-origin /health (no browser fetch to :3001)', async () => {
+    const spy = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ status: 'ok' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }));
+
     const promise = checkEndpoint('http://localhost:3001/health');
     await vi.advanceTimersByTimeAsync(100);
     expect(await promise).toBe(true);
-    expect(spy).toHaveBeenNthCalledWith(1, 'http://localhost:3001/health', expect.any(Object));
-    expect(spy).toHaveBeenNthCalledWith(2, 'http://127.0.0.1:3001/health', expect.any(Object));
+    expect(spy).toHaveBeenCalledWith('/health', expect.any(Object));
+    expect(spy).not.toHaveBeenCalledWith('http://localhost:3001/health', expect.any(Object));
+    expect(spy).not.toHaveBeenCalledWith('http://127.0.0.1:3001/health', expect.any(Object));
+  });
+
+  it('treats companion /health status:down as unreachable without a :3001 fetch', async () => {
+    const spy = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ status: 'down' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }));
+
+    const promise = checkEndpoint('http://127.0.0.1:3001/health');
+    await vi.advanceTimersByTimeAsync(100);
+    expect(await promise).toBe(false);
+    expect(spy).toHaveBeenCalledWith('/health', expect.any(Object));
+    expect(spy).not.toHaveBeenCalledWith('http://localhost:3001/health', expect.any(Object));
+    expect(spy).not.toHaveBeenCalledWith('http://127.0.0.1:3001/health', expect.any(Object));
   });
 
   it('uses Express Spring health proxy for actuator checks when available', async () => {
@@ -162,17 +192,23 @@ describe('checkEndpoint', () => {
   });
 
   it('routes Schema Registry probes through Express /health/schema-registry', async () => {
-    const spy = vi.spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(new Response(JSON.stringify({ status: 'ok' }), {
+    const spy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
+      new Response(JSON.stringify({ status: 'ok' }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
-      }));
+      }),
+    );
 
     const promise = checkEndpoint('http://localhost:8085');
     await vi.advanceTimersByTimeAsync(100);
     expect(await promise).toBe(true);
     expect(spy).toHaveBeenCalledWith(
       '/health/schema-registry?url=http%3A%2F%2Flocalhost%3A8085',
+      expect.any(Object),
+    );
+    expect(await checkEndpoint('http://localhost:8081')).toBe(true);
+    expect(spy).toHaveBeenCalledWith(
+      '/health/schema-registry?url=http%3A%2F%2Flocalhost%3A8081',
       expect.any(Object),
     );
   });
@@ -286,7 +322,7 @@ describe('checkEndpoint', () => {
     expect(spy).toHaveBeenCalledWith('/health/api-mock-echo', expect.any(Object));
   });
 
-  it('on Tauri, probes AM-17 echo via native httpFetch to the companion (not webview fetch)', async () => {
+  it('on Tauri, probes AM-17 echo on the Docker port (not companion /health/api-mock-echo)', async () => {
     vi.mocked(isTauri).mockReturnValue(true);
     vi.mocked(httpFetch).mockResolvedValue({
       status: 200,
@@ -300,7 +336,285 @@ describe('checkEndpoint', () => {
     await vi.advanceTimersByTimeAsync(100);
     expect(await promise).toBe(true);
     expect(httpFetch).toHaveBeenCalledWith(
-      'http://localhost:3001/health/api-mock-echo',
+      'http://localhost:4017/health',
+      'GET',
+      {},
+      undefined,
+      expect.any(AbortSignal),
+    );
+    expect(httpFetch).not.toHaveBeenCalledWith(
+      expect.stringContaining('/health/api-mock-echo'),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+    );
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('on Tauri, probes GraphQL :4010 on the Docker port (not companion /health/demo-http)', async () => {
+    vi.mocked(isTauri).mockReturnValue(true);
+    vi.mocked(httpFetch).mockResolvedValue({
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      body: JSON.stringify({ status: 'ok' }),
+    });
+    const spy = vi.spyOn(globalThis, 'fetch');
+
+    expect(await checkEndpoint('http://localhost:4010/graphql')).toBe(true);
+    expect(httpFetch).toHaveBeenCalledWith(
+      'http://localhost:4010/health',
+      'GET',
+      {},
+      undefined,
+      expect.any(AbortSignal),
+    );
+    expect(httpFetch).not.toHaveBeenCalledWith(
+      expect.stringContaining('/health/demo-http'),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+    );
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('on Tauri, treats Envoy HTTP 415 as reachable without the companion proxy', async () => {
+    vi.mocked(isTauri).mockReturnValue(true);
+    vi.mocked(httpFetch).mockResolvedValue({
+      status: 415,
+      statusText: 'Unsupported Media Type',
+      headers: {},
+      body: '',
+    });
+
+    expect(await checkEndpoint('http://localhost:50055/')).toBe(true);
+    expect(httpFetch).toHaveBeenCalledWith(
+      'http://localhost:50055/',
+      'GET',
+      {},
+      undefined,
+      expect.any(AbortSignal),
+    );
+    expect(httpFetch).not.toHaveBeenCalledWith(
+      expect.stringContaining('/health/envoy'),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
+  it('on Tauri, Kafka Console :18080 probes the Console root, not companion', async () => {
+    vi.mocked(isTauri).mockReturnValue(true);
+    vi.mocked(httpFetch).mockResolvedValue({
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      body: '<html></html>',
+    });
+
+    expect(await checkEndpoint('http://localhost:18080')).toBe(true);
+    expect(httpFetch).toHaveBeenCalledWith(
+      'http://localhost:18080/',
+      'GET',
+      {},
+      undefined,
+      expect.any(AbortSignal),
+    );
+    expect(httpFetch).not.toHaveBeenCalledWith(
+      expect.stringContaining('/health/demo-http'),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
+  it('routes Redpanda admin :19644 probes through Express /health/kafka-admin', async () => {
+    const spy = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ status: 'ok' }), { status: 200 }));
+
+    const promise = checkEndpoint('http://localhost:19644/');
+    await vi.advanceTimersByTimeAsync(100);
+    expect(await promise).toBe(true);
+    expect(spy).toHaveBeenCalledWith('/health/kafka-admin?port=19644', expect.any(Object));
+    expect(spy).not.toHaveBeenCalledWith('http://localhost:19644/', expect.any(Object));
+  });
+
+  it('treats Redpanda admin proxy status:down as unreachable', async () => {
+    const spy = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ status: 'down' }), { status: 200 }));
+
+    expect(await checkEndpoint('http://127.0.0.1:19645/v1')).toBe(false);
+    expect(spy).toHaveBeenCalledWith('/health/kafka-admin?port=19645', expect.any(Object));
+  });
+
+  it('on Tauri, Redpanda admin probes /v1 on the Docker port (404 still counts as up)', async () => {
+    vi.mocked(isTauri).mockReturnValue(true);
+    vi.mocked(httpFetch).mockResolvedValue({
+      status: 404,
+      statusText: 'Not Found',
+      headers: {},
+      body: '',
+    });
+    const spy = vi.spyOn(globalThis, 'fetch');
+
+    expect(await checkEndpoint('http://localhost:19648/')).toBe(true);
+    vi.mocked(httpFetch).mockResolvedValueOnce({
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      body: '{}',
+    });
+    expect(await checkEndpoint('http://localhost:19644/')).toBe(true);
+    expect(httpFetch).toHaveBeenCalledWith(
+      'http://localhost:19648/v1',
+      'GET',
+      {},
+      undefined,
+      expect.any(AbortSignal),
+    );
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('does not treat non-loopback :3001/health as the companion probe', async () => {
+    const spy = mockFetch(true);
+    expect(await checkEndpoint('http://example.com:3001/health')).toBe(true);
+    expect(spy).toHaveBeenCalledWith('http://example.com:3001/health', expect.any(Object));
+    expect(spy).not.toHaveBeenCalledWith('/health', expect.any(Object));
+  });
+
+  it('falls back when a WS url is not parseable', async () => {
+    mockFetchReject();
+    class FakeWS {
+      onopen: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      constructor(_url: string) { setTimeout(() => this.onerror?.(), 50); }
+      close() {}
+    }
+    vi.stubGlobal('WebSocket', FakeWS);
+
+    const promise = checkEndpoint('not-a-url', 3000);
+    await vi.advanceTimersByTimeAsync(200);
+    expect(await promise).toBe(false);
+    vi.unstubAllGlobals();
+  });
+
+  it('treats non-JSON companion proxy bodies as down', async () => {
+    const spy = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response('not-json', { status: 200 }));
+    expect(await checkEndpoint('http://localhost:3001/health')).toBe(false);
+    expect(spy).toHaveBeenCalledWith('/health', expect.any(Object));
+  });
+
+  it('treats companion proxy HTTP errors as down', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response('nope', { status: 502 }));
+    expect(await checkEndpoint('http://localhost:3001/health')).toBe(false);
+  });
+
+  it('treats companion proxy network errors as down', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(new Error('offline'));
+    expect(await checkEndpoint('http://localhost:3001/health')).toBe(false);
+  });
+
+  it('aborts a hanging web fetch after the probe timeout', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation((_url, init) =>
+      new Promise((_, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+      }),
+    );
+    const promise = checkEndpoint('http://localhost:4100/health', 50);
+    await vi.advanceTimersByTimeAsync(200);
+    expect(await promise).toBe(false);
+  });
+
+  it('aborts a hanging companion proxy fetch after the probe timeout', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation((_url, init) =>
+      new Promise((_, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+      }),
+    );
+    const promise = checkEndpoint('http://localhost:3001/health', 50);
+    await vi.advanceTimersByTimeAsync(80);
+    expect(await promise).toBe(false);
+  });
+
+  it('aborts a hanging native probe after the probe timeout', async () => {
+    vi.mocked(isTauri).mockReturnValue(true);
+    vi.mocked(httpFetch).mockImplementation((_url, _method, _headers, _body, signal) =>
+      new Promise((_, reject) => {
+        signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+      }),
+    );
+    const promise = checkEndpoint('http://localhost:4100/health', 50);
+    await vi.advanceTimersByTimeAsync(200);
+    expect(await promise).toBe(false);
+  });
+
+  it('on Tauri, native httpFetch errors are unreachable', async () => {
+    vi.mocked(isTauri).mockReturnValue(true);
+    vi.mocked(httpFetch).mockRejectedValue(new Error('native fail'));
+    expect(await checkEndpoint('http://localhost:4100/health')).toBe(false);
+  });
+
+  it('on Tauri, loops through localhost then 127.0.0.1 when the first native probe fails', async () => {
+    vi.mocked(isTauri).mockReturnValue(true);
+    vi.mocked(httpFetch)
+      .mockRejectedValueOnce(new Error('localhost fail'))
+      .mockResolvedValueOnce({
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        body: 'ok',
+      });
+    expect(await checkEndpoint('http://localhost:4100/health')).toBe(true);
+    expect(httpFetch).toHaveBeenNthCalledWith(
+      1,
+      'http://localhost:4100/health',
+      'GET',
+      {},
+      undefined,
+      expect.any(AbortSignal),
+    );
+    expect(httpFetch).toHaveBeenNthCalledWith(
+      2,
+      'http://127.0.0.1:4100/health',
+      'GET',
+      {},
+      undefined,
+      expect.any(AbortSignal),
+    );
+  });
+
+  it('probes IPv6 loopback candidates as localhost then 127.0.0.1', async () => {
+    const spy = mockFetch(true);
+    expect(await checkEndpoint('http://[::1]:4100/health')).toBe(true);
+    expect(spy).toHaveBeenCalledWith('http://localhost:4100/health', expect.any(Object));
+  });
+
+  it('treats malformed http URLs as a generic HTTP probe', async () => {
+    const spy = mockFetch(true);
+    expect(await checkEndpoint('http://[bad')).toBe(true);
+    expect(spy).toHaveBeenCalledWith('http://[bad', expect.any(Object));
+  });
+
+  it('on Tauri, companion :3001/health uses native httpFetch (not webview fetch)', async () => {
+    vi.mocked(isTauri).mockReturnValue(true);
+    vi.mocked(httpFetch).mockResolvedValue({
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      body: JSON.stringify({ status: 'ok' }),
+    });
+    const spy = vi.spyOn(globalThis, 'fetch');
+
+    const promise = checkEndpoint('http://localhost:3001/health');
+    await vi.advanceTimersByTimeAsync(100);
+    expect(await promise).toBe(true);
+    expect(httpFetch).toHaveBeenCalledWith(
+      'http://localhost:3001/health',
       'GET',
       {},
       undefined,

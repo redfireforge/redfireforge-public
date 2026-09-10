@@ -24,7 +24,12 @@ vi.mock('@shared/utils/platform', () => ({
 }));
 
 vi.mock('./DockerStackControls', () => ({
-  default: () => <div data-testid="docker-stack-controls" />,
+  default: ({ servicesReachable }: { servicesReachable?: boolean }) => (
+    <div
+      data-testid="docker-stack-controls"
+      data-reachable={servicesReachable ? 'true' : 'false'}
+    />
+  ),
 }));
 
 vi.mock('../hooks/useLocalDockerHelper', () => ({
@@ -590,9 +595,23 @@ describe('PrerequisiteGate', () => {
     );
     await act(() => vi.advanceTimersByTimeAsync(100));
     expect(screen.getByTestId('docker-stack-controls')).toBeTruthy();
+    expect(screen.getByTestId('docker-stack-controls')).toHaveAttribute('data-reachable', 'false');
     expect(screen.getByText('Or run this command in a terminal:')).toBeTruthy();
     const text = screen.getByTestId('prereq-command').textContent ?? '';
     expect(text).toContain('git clone https://github.com/redfireforge/redfireforge-public.git');
+  });
+
+  it('marks Start Stack as services-reachable after a successful probe', async () => {
+    mockCheck.mockResolvedValue(true);
+    vi.mocked(useLocalDockerHelper).mockReturnValue({ enabled: true, helperOk: true });
+    render(
+      <PrerequisiteGate
+        {...DEFAULT_PROPS}
+        stackKey="graphql"
+      />,
+    );
+    await act(() => vi.advanceTimersByTimeAsync(100));
+    expect(screen.getByTestId('docker-stack-controls')).toHaveAttribute('data-reachable', 'true');
   });
 
   it('shows clone preamble on first paint on web even when stackKey is set', () => {

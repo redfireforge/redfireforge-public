@@ -9,11 +9,21 @@ export function UpdateNotificationBanner() {
   if (status === 'error') {
     return (
       <div className="update-banner update-banner--error" role="alert">
-        <span className="update-banner__icon">⚠</span>
-        <span className="update-banner__text">Update failed: {errorMessage}</span>
-        <button className="update-banner__dismiss" onClick={dismissUpdate} aria-label="Dismiss">
+        <button
+          type="button"
+          className="update-banner__dismiss"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dismissUpdate();
+          }}
+          aria-label="Dismiss"
+          data-testid="update-banner-dismiss"
+        >
           ✕
         </button>
+        <span className="update-banner__icon">⚠</span>
+        <span className="update-banner__text">Update failed: {errorMessage}</span>
       </div>
     );
   }
@@ -21,14 +31,24 @@ export function UpdateNotificationBanner() {
   if (status === 'available' && updateInfo && mode === 'localhost') {
     return (
       <div className="update-banner update-banner--localhost" role="status">
+        <button
+          type="button"
+          className="update-banner__dismiss"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dismissUpdate();
+          }}
+          aria-label="Dismiss"
+          data-testid="update-banner-dismiss"
+        >
+          ✕
+        </button>
         <span className="update-banner__icon">ℹ</span>
         <span className="update-banner__text">
           <strong>v{updateInfo.version}</strong> is available on GitHub —
           run: <code className="update-banner__code">git pull origin master</code>
         </span>
-        <button className="update-banner__dismiss" onClick={dismissUpdate} aria-label="Dismiss">
-          ✕
-        </button>
       </div>
     );
   }
@@ -50,16 +70,26 @@ export function UpdateNotificationBanner() {
   if (status === 'available' && updateInfo) {
     return (
       <div className="update-banner update-banner--available" role="status">
+        <button
+          type="button"
+          className="update-banner__dismiss"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dismissUpdate();
+          }}
+          aria-label="Dismiss"
+          data-testid="update-banner-dismiss"
+        >
+          ✕
+        </button>
         <span className="update-banner__icon">↑</span>
         <span className="update-banner__text">
           <strong>RedfireForge {updateInfo.version}</strong> is available
           {updateInfo.body ? ` — ${updateInfo.body.split('\n')[0]}` : ''}
         </span>
-        <button className="update-banner__action" onClick={installUpdate}>
+        <button type="button" className="update-banner__action" onClick={installUpdate}>
           Install &amp; Restart
-        </button>
-        <button className="update-banner__dismiss" onClick={dismissUpdate} aria-label="Dismiss">
-          ✕
         </button>
       </div>
     );
