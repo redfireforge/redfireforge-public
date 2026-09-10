@@ -1,4 +1,5 @@
 import type { CoverageMapData } from 'istanbul-lib-coverage';
+import { isIgnoredProductCoveragePath } from '../vitest.projectPatterns';
 
 export type CoverageMetrics = {
   stmts: number;
@@ -14,9 +15,12 @@ export function pct(covered: number, total: number): number {
 /** True for product gate source roots: src/, src-server/, cli/. */
 export function isProductGateSourcePath(file: string): boolean {
   const normalized = file.replace(/\\/g, '/');
-  return normalized.includes('/src/')
-    || normalized.includes('/src-server/')
-    || normalized.includes('/cli/');
+  // `packages/demo-hub/src/...` contains `/src/` — that is not product source.
+  if (isIgnoredProductCoveragePath(normalized)) return false;
+  if (/(?:^|\/)packages\/demo-hub\//.test(normalized)) return false;
+  return normalized.includes('/src-server/')
+    || /(?:^|\/)cli\//.test(normalized)
+    || /(?:^|\/)src\//.test(normalized);
 }
 
 /** Short display path for gate output (src/…, src-server/…, cli/…). */
@@ -40,15 +44,17 @@ export function toSrcPath(file: string): string {
 }
 
 export function shouldSkipProductGateFile(file: string): boolean {
-  if (!isProductGateSourcePath(file)) return true;
-  if (file.includes('/src/test-utils/')) return true;
-  if (file.includes('/src/styles/')) return true;
-  if (file.includes('__test-utils__')) return true;
-  if (file.includes('.test-utils.')) return true;
-  if (file.endsWith('shared/types/index.ts')) return true;
-  if (file.includes('.test.')) return true;
-  if (file.includes('.testHelpers.')) return true;
-  if (file.endsWith('.css') || file.endsWith('.scss') || file.endsWith('.d.ts')) return true;
+  const normalized = file.replace(/\\/g, '/');
+  if (isIgnoredProductCoveragePath(normalized)) return true;
+  if (!isProductGateSourcePath(normalized)) return true;
+  if (normalized.includes('/src/test-utils/')) return true;
+  if (normalized.includes('/src/styles/')) return true;
+  if (normalized.includes('__test-utils__')) return true;
+  if (normalized.includes('.test-utils.')) return true;
+  if (normalized.endsWith('shared/types/index.ts')) return true;
+  if (normalized.includes('.test.')) return true;
+  if (normalized.includes('.testHelpers.')) return true;
+  if (normalized.endsWith('.css') || normalized.endsWith('.scss') || normalized.endsWith('.d.ts')) return true;
   return false;
 }
 

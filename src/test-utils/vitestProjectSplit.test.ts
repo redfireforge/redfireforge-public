@@ -5,8 +5,10 @@ import {
   DEMO_TEST_GLOBS,
   isDemoCoveragePath,
   isDemoTestFile,
+  expandCoverageGlobs,
   isIgnoredProductCoveragePath,
   isProductTestFile,
+  matchesGlob,
   PRODUCT_COVERAGE_EXCLUDE,
   PRODUCT_TEST_EXCLUDE,
 } from '../../vitest.projectPatterns';
@@ -164,10 +166,35 @@ describe('vitest project split (Phase 1)', () => {
     expect(isIgnoredProductCoveragePath('/repo/src/shared/utils/platform.ts')).toBe(false);
     expect(PRODUCT_COVERAGE_EXCLUDE).toEqual(expect.arrayContaining([
       '**/*.css',
+      '/**/*.css',
       '**/*.test.{ts,tsx}',
+      '/**/*.test.{ts,tsx}',
       '**/packages/demo-hub/**',
+      '/**/packages/demo-hub/**',
       '**/src/styles/**',
       '**/src/test-utils/**',
     ]));
+  });
+
+  it('expands **/ globs so remapped absolute CI paths are excluded', () => {
+    expect(expandCoverageGlobs(['**/*.css', 'src/app/main.tsx'])).toEqual([
+      '**/*.css',
+      '/**/*.css',
+      'src/app/main.tsx',
+      '**/src/app/main.tsx',
+      '/**/src/app/main.tsx',
+    ]);
+
+    const absCss = '/home/runner/work/redfireforge-public/redfireforge-public/src/styles/demo-hub.css';
+    const absDemo = '/home/runner/work/redfireforge-public/redfireforge-public/packages/demo-hub/src/utils/checkEndpoint.ts';
+    const absTest = '/home/runner/work/redfireforge-public/redfireforge-public/src/shared/foo.test.ts';
+    const absUtils = '/home/runner/work/redfireforge-public/redfireforge-public/src/test-utils/factories.ts';
+    const absProduct = '/home/runner/work/redfireforge-public/redfireforge-public/src/shared/utils/platform.ts';
+
+    expect(PRODUCT_COVERAGE_EXCLUDE.some((p) => matchesGlob(absCss, p))).toBe(true);
+    expect(PRODUCT_COVERAGE_EXCLUDE.some((p) => matchesGlob(absDemo, p))).toBe(true);
+    expect(PRODUCT_COVERAGE_EXCLUDE.some((p) => matchesGlob(absTest, p))).toBe(true);
+    expect(PRODUCT_COVERAGE_EXCLUDE.some((p) => matchesGlob(absUtils, p))).toBe(true);
+    expect(PRODUCT_COVERAGE_EXCLUDE.some((p) => matchesGlob(absProduct, p))).toBe(false);
   });
 });
