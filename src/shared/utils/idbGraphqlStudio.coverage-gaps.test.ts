@@ -21,17 +21,30 @@ import {
   migrateGraphqlStudioFromLocalStorage,
   purgeGraphqlStudioLocalStorageDuplicates,
 } from './idbGraphqlStudio';
+import { DB_NAME, resetIdbOpenStateForTests } from './idbOpen';
 
 vi.mock('./platform', () => ({ isTauri: () => false }));
 
+async function resetGraphqlStudioIdb(): Promise<void> {
+  localStorage.clear();
+  resetIdbOpenStateForTests();
+  await new Promise<void>((resolve) => {
+    const req = indexedDB.deleteDatabase(DB_NAME);
+    req.onsuccess = () => resolve();
+    req.onerror = () => resolve();
+    req.onblocked = () => resolve();
+  });
+  resetIdbOpenStateForTests();
+}
+
 describe('idbGraphqlStudio — coverage gaps', () => {
-  beforeEach(() => {
-    localStorage.clear();
-    indexedDB.deleteDatabase('redfireforge');
+  beforeEach(async () => {
+    await resetGraphqlStudioIdb();
   });
 
-  afterEach(() => {
-    localStorage.clear();
+  afterEach(async () => {
+    vi.doUnmock('./idbHelpers');
+    await resetGraphqlStudioIdb();
   });
 
   it('idbMigrateTabsFromLocalStorage returns false when no data', async () => {
@@ -113,6 +126,11 @@ describe('idbGraphqlStudio — coverage gaps', () => {
       environmentsKey: 'gql_environments_v1',
       profilesKey: 'gql_profiles_v1',
     };
+
+    expect(await idbLoadStudioEnvironments()).not.toBeNull();
+    expect(await idbLoadPageAuthRaw()).not.toBeNull();
+    expect(await idbLoadConnectionProfiles()).not.toBeNull();
+    expect(await idbLoadTabsPersisted()).not.toBeNull();
 
     const removed = await purgeGraphqlStudioLocalStorageDuplicates(keys);
     expect(removed).toBeGreaterThanOrEqual(3);
