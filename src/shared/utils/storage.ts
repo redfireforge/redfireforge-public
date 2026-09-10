@@ -707,6 +707,7 @@ export async function loadRunnerConfig(contextKey?: string): Promise<unknown | n
 }
 
 export { loadPreviewSampleId, savePreviewSampleId } from './storageUiPrefs';
+export { resetPreferences, isPreferenceStorageKey } from './storagePreferences';
 export { saveTheme, loadTheme, getStorageDiagnostics } from './storageThemeDiagnostics';
 export {
   loadRequests,

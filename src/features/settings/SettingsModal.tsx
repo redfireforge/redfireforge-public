@@ -3,7 +3,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { CustomSelect } from '@shared/components/CustomSelect';
 import type { GlobalAuthProfile, AuthType, Environment, Microservice, FeatureGroup } from '@shared/types';
 import { useAuthVerify } from '../requests/hooks/useAuthVerify';
-import { getStorageUsage, getMaxRuns } from '@shared/utils/storage';
+import { getStorageUsage, getMaxRuns, resetPreferences } from '@shared/utils/storage';
+import ConfirmModal from '@shared/components/ConfirmModal';
 import SettingsStorageTab from './SettingsStorageTab';
 import SettingsExportImportTab from './SettingsExportImportTab';
 import AuditLogPanel from '../audit/components/AuditLogPanel';
@@ -53,7 +54,14 @@ export default function SettingsPage({
   const [editingGlobalAuth, setEditingGlobalAuth] = useState<string | null>(null);
   const [newGlobalProfileName, setNewGlobalProfileName] = useState('');
   const [showSecret, setShowSecret] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const { authVerifying, authVerifyResult, setAuthVerifyResult, verifyAuth: verifyProfileAuth } = useAuthVerify();
+
+  const handleResetPreferences = async () => {
+    setShowResetConfirm(false);
+    await resetPreferences();
+    window.location.reload();
+  };
 
   useEffect(() => {
     void (async () => {
@@ -353,6 +361,27 @@ export default function SettingsPage({
         )}
       </div>
       </div>
+      <div className="settings-page-footer">
+        <p className="settings-section-desc">Reset theme, layout, and editor preferences. Test data is kept.</p>
+        <button
+          type="button"
+          className="btn btn-danger"
+          data-testid="reset-preferences-btn"
+          onClick={() => setShowResetConfirm(true)}
+        >
+          Reset to defaults
+        </button>
+      </div>
+      {showResetConfirm && (
+        <ConfirmModal
+          title="Reset to defaults"
+          variant="danger"
+          message="This will clear all preferences and reload. Your test data will not be affected."
+          confirmLabel="Reset to defaults"
+          onConfirm={() => { void handleResetPreferences(); }}
+          onCancel={() => setShowResetConfirm(false)}
+        />
+      )}
     </div>
   );
 }

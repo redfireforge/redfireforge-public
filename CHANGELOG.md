@@ -8,6 +8,9 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Added
+- **Reset to defaults** — Preferences footer button clears theme, layout, and editor preference keys (not test data) after Confirm, then reloads.
+
 ## [0.8.7] — 2026-09-09
 
 ### Fixed
