@@ -64,4 +64,12 @@ describe('DockerStackControls on local web + helper', () => {
     });
     expect(screen.getByTestId('prereq-start-stack')).not.toBeDisabled();
   });
+
+  it('disables Start Stack on web when lesson services are already reachable', async () => {
+    render(<DockerStackControls stackKey="kafka-plaintext" servicesReachable />);
+    await waitFor(() => {
+      expect(screen.getByTestId('prereq-start-stack')).toBeDisabled();
+    });
+    expect(screen.getByTestId('prereq-stack-status').textContent).toContain('not started by this app');
+  });
 });

@@ -41,10 +41,20 @@ const MEMORY_DOCS_URL = 'https://docs.docker.com/desktop/settings/resources/';
 interface DockerStackControlsProps {
   stackKey: DockerStackKey;
   buildOnStart?: boolean;
+  /** Lesson health probes are up, but this app's Compose project may not be. */
+  servicesReachable?: boolean;
 }
 
-export default function DockerStackControls({ stackKey, buildOnStart }: DockerStackControlsProps) {
+export default function DockerStackControls({
+  stackKey,
+  buildOnStart,
+  servicesReachable = false,
+}: DockerStackControlsProps) {
   const s = useDockerStack(stackKey, { buildOnStart });
+  const alreadyServing =
+    servicesReachable
+    && s.controlState !== 'stack-running'
+    && s.controlState !== 'stack-starting';
   const startDisabled =
     !s.certReady
     || s.certExpired
@@ -54,7 +64,8 @@ export default function DockerStackControls({ stackKey, buildOnStart }: DockerSt
     || s.controlState === 'stack-starting'
     || s.controlState === 'stack-running'
     || s.controlState === 'checking'
-    || s.stopBusy;
+    || s.stopBusy
+    || alreadyServing;
 
   return (
     <div className="prereq-docker-controls" data-testid="prereq-docker-controls">
@@ -120,9 +131,14 @@ export default function DockerStackControls({ stackKey, buildOnStart }: DockerSt
         </div>
       )}
 
-      {s.controlState === 'stack-stopped' && (
+      {s.controlState === 'stack-stopped' && !alreadyServing && (
         <div className={`prereq-stack-status prereq-stack-status--stack-stopped`} data-testid="prereq-stack-status">
           ● Stack not running
+        </div>
+      )}
+      {alreadyServing && (
+        <div className="prereq-stack-status prereq-stack-status--stack-running" data-testid="prereq-stack-status">
+          ● Services already reachable — not started by this app
         </div>
       )}
       {s.controlState === 'stack-starting' && (
@@ -135,12 +151,12 @@ export default function DockerStackControls({ stackKey, buildOnStart }: DockerSt
           All services running
         </div>
       )}
-      {s.controlState === 'start-failed' && (
+      {s.controlState === 'start-failed' && !alreadyServing && (
         <div className="prereq-stack-status prereq-stack-status--start-failed" data-testid="prereq-stack-status">
           Failed to start stack
         </div>
       )}
-      {s.controlState === 'port-conflict' && (
+      {s.controlState === 'port-conflict' && !alreadyServing && (
         <div className="prereq-stack-status prereq-stack-status--start-failed" data-testid="prereq-port-conflict">
           <PortConflictMessage entries={s.conflictEntries} fallbackPorts={s.conflictPorts} />
         </div>
@@ -175,13 +191,21 @@ export default function DockerStackControls({ stackKey, buildOnStart }: DockerSt
         </div>
       )}
 
-      {s.otherRunning.length > 0 && s.controlState === 'stack-stopped' && (
+      {alreadyServing && (
+        <p className="prereq-stack-hint" data-testid="prereq-already-reachable">
+          Start Demo can run now. Start Stack is disabled because another Docker or broker
+          is already using these ports, so this app cannot start or stop that stack.
+          To let this app manage it, stop the other containers, then Start Stack.
+        </p>
+      )}
+
+      {s.otherRunning.length > 0 && s.controlState === 'stack-stopped' && !alreadyServing && (
         <p className="prereq-stack-hint" data-testid="prereq-other-stack">
           {formatOtherRunningStacks(s.otherRunning)}
         </p>
       )}
 
-      {s.lowMemory && s.controlState === 'stack-stopped' && (
+      {s.lowMemory && s.controlState === 'stack-stopped' && !alreadyServing && (
         <p className="prereq-stack-hint" data-testid="prereq-low-memory">
           Docker has only {(s.lowMemory.availableMb / 1024).toFixed(1)} GB — this stack recommends{' '}
           {(s.lowMemory.recommendedMb / 1024).toFixed(1)} GB.{' '}
@@ -196,6 +220,9 @@ export default function DockerStackControls({ stackKey, buildOnStart }: DockerSt
             className="prereq-start-btn"
             data-testid="prereq-start-stack"
             disabled={startDisabled}
+            title={alreadyServing
+              ? 'Another process is already serving the lesson ports. Use Start Demo, or stop that process first.'
+              : undefined}
             onClick={() => { void s.startStack(); }}
           >
             {s.controlState === 'start-failed'

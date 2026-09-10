@@ -79,12 +79,23 @@ app.use((req, res, next) => {
   next();
 });
 
-// Health check endpoint
+// Health check endpoint.
+// `probes` lists PrerequisiteGate proxy routes this build implements. Desktop
+// no longer needs these for Docker reachability, but web and older sidecars
+// can detect a current companion instead of treating a 404 as "server down".
 app.get('/health', (req: Request, res: Response) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     port: 3001,
+    probes: [
+      'demo-http',
+      'spring',
+      'envoy',
+      'schema-registry',
+      'kafka-admin',
+      'api-mock-echo',
+    ],
   });
 });
 

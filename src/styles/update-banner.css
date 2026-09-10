@@ -2,12 +2,14 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 14px;
+  padding: 8px 48px 8px 14px;
   font-size: 0.82rem;
   font-weight: 500;
   border-bottom: 1px solid var(--border);
   z-index: 9999;
   flex-shrink: 0;
+  pointer-events: auto;
+  position: relative;
 }
 
 .update-banner--available {
@@ -101,14 +103,19 @@
 }
 
 .update-banner__dismiss {
+  position: relative;
+  z-index: 1;
   background: none;
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 0.9rem;
-  padding: 2px 4px;
+  font-size: 1rem;
+  width: 32px;
+  height: 32px;
+  padding: 0;
   flex-shrink: 0;
   line-height: 1;
+  pointer-events: auto;
   transition: color 0.15s;
 }
 

@@ -86,7 +86,8 @@ function writeSoftBackendFallback(
   }
 
   // Demo Hub health proxies expect HTTP 200 + { status: 'ok' | 'down' }.
-  if (url.startsWith('/health/')) {
+  // Exact `/health` is the companion probe (gRPC Express gate); `/health/*` are Docker proxies.
+  if (url === '/health' || url.startsWith('/health/') || url.startsWith('/health?')) {
     serverRes.writeHead(200, headers);
     serverRes.end(JSON.stringify({ status: 'down', reason: 'backend unreachable' }));
     return;

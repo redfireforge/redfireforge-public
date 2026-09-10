@@ -1,14 +1,17 @@
 /**
  * Probes whether a server endpoint is reachable before starting a Docker-dependent lesson.
  *
- * Strategy (in order):
- *  1. HTTP GET to `<httpBase>/health` — fast, reliable, works for servers that expose it.
- *  2. WebSocket handshake to the raw URL — fallback for WS-only endpoints.
+ * Desktop (Tauri): native plugin-http to the Docker/service port. Reachability
+ * must not depend on whichever process owns :3001 (installed app, stale sidecar,
+ * or `server:dev`).
  *
- * Returns true as soon as either probe succeeds, false if both time out or error.
+ * Web: same-origin `/health` and `/health/*` proxies so Chrome does not log
+ * ERR_CONNECTION_REFUSED every 3s while Docker or the companion is down.
+ *
+ * WS lessons: HTTP `/health` first, then a WebSocket handshake.
  */
 import { isTauri } from '@shared/utils/platform';
-import { httpFetch, resolveCompanionServerUrl, type HttpResponse } from '@shared/utils/httpClient';
+import { httpFetch, type HttpResponse } from '@shared/utils/httpClient';
 import { GRPC_SPRING_FIXTURE_HTTP_PORT } from '@shared/grpc/grpcSpringFixturePorts';
 import { isDemoHttpHealthUrl } from '@shared/utils/demoHttpHealthPorts';
 function loopbackProbeCandidates(url: string): string[] {
@@ -65,6 +68,19 @@ function isApiMockEchoHealthUrl(url: string): boolean {
   }
 }
 
+/** Express companion `GET /health` — gRPC lessons list this as a gate URL. */
+function isCompanionHealthUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    const isLoopback = host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]';
+    const path = parsed.pathname === '/health' || parsed.pathname === '/health/';
+    return isLoopback && parsed.port === '3001' && path;
+  } catch {
+    return false;
+  }
+}
+
 /** Envoy gRPC-Web sidecar (:50055) — bare GET returns 415; probe via Express proxy. */
 function isEnvoyGrpcWebProbeUrl(url: string): boolean {
   try {
@@ -96,26 +112,53 @@ function isRedpandaAdminUrl(url: string): boolean {
   }
 }
 
-function companionStatusOk(body: string): boolean {
-  try {
-    const parsed = JSON.parse(body) as { status?: unknown };
-    return parsed?.status === 'ok';
-  } catch {
-    return false;
-  }
+type AcceptStatus = (status: number) => boolean;
+const is2xx: AcceptStatus = (status) => status >= 200 && status < 300;
+/** Any HTTP response means the listener accepted the connection (e.g. Envoy 415). */
+const isHttpResponse: AcceptStatus = (status) => status > 0;
+const isKafkaAdminOk: AcceptStatus = (status) => is2xx(status) || status === 404;
+
+function withPath(url: string, pathname: string): string {
+  const parsed = new URL(url);
+  parsed.pathname = pathname;
+  parsed.search = '';
+  parsed.hash = '';
+  return parsed.toString();
 }
 
-async function checkHttpNative(url: string, timeoutMs: number): Promise<boolean> {
+/** Same path the Express `/health/demo-http` proxy forwards (Console `/`, else `/health`). */
+function demoHttpProbeUrl(url: string): string {
+  const parsed = new URL(url);
+  const path = parsed.pathname === '/' || parsed.pathname === '' ? '/' : '/health';
+  return withPath(url, path);
+}
+
+async function checkHttpNative(
+  url: string,
+  timeoutMs: number,
+  acceptStatus: AcceptStatus = is2xx,
+): Promise<boolean> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res: HttpResponse = await httpFetch(url, 'GET', {}, undefined, controller.signal);
-    return !res.error && res.status >= 200 && res.status < 300;
+    return !res.error && acceptStatus(res.status);
   } catch {
     return false;
   } finally {
     clearTimeout(timer);
   }
+}
+
+async function checkHttpDirect(
+  url: string,
+  timeoutMs: number,
+  acceptStatus: AcceptStatus = is2xx,
+): Promise<boolean> {
+  for (const probeUrl of loopbackProbeCandidates(url)) {
+    if (await checkHttpNative(probeUrl, timeoutMs, acceptStatus)) return true;
+  }
+  return false;
 }
 
 /** Try an HTTP GET health check. Resolves true on any 2xx response. */
@@ -124,10 +167,7 @@ async function checkHttp(url: string, timeoutMs: number): Promise<boolean> {
   // WKWebView fetch cannot reach loopback Docker ports (and 127.0.0.1 is
   // intercepted by ALL_PROXY on this network). Desktop uses native plugin-http.
   if (isTauri()) {
-    for (const probeUrl of candidates) {
-      if (await checkHttpNative(probeUrl, timeoutMs)) return true;
-    }
-    return false;
+    return checkHttpDirect(url, timeoutMs);
   }
   for (const probeUrl of candidates) {
     const controller = new AbortController();
@@ -146,15 +186,26 @@ async function checkHttp(url: string, timeoutMs: number): Promise<boolean> {
   return false;
 }
 
+/**
+ * Desktop talks to the real service port. Web keeps the same-origin proxy so
+ * DevTools stays quiet and corporate proxies cannot intercept 127.0.0.1.
+ */
+async function checkDockerReachable(
+  directUrl: string,
+  proxyPath: string,
+  timeoutMs: number,
+  acceptStatus: AcceptStatus = is2xx,
+): Promise<boolean> {
+  if (isTauri()) {
+    return checkHttpDirect(directUrl, timeoutMs, acceptStatus);
+  }
+  return readCompanionHealth(proxyPath, timeoutMs);
+}
+
 async function readCompanionHealth(probeUrl: string, timeoutMs: number): Promise<boolean> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    if (isTauri()) {
-      const res = await httpFetch(probeUrl, 'GET', {}, undefined, controller.signal);
-      if (res.error || res.status < 200 || res.status >= 300) return false;
-      return companionStatusOk(res.body);
-    }
     const res = await fetch(probeUrl, { signal: controller.signal });
     if (!res.ok) return false;
     try {
@@ -168,26 +219,6 @@ async function readCompanionHealth(probeUrl: string, timeoutMs: number): Promise
   } finally {
     clearTimeout(timer);
   }
-}
-
-/**
- * Same-origin Express health-proxy check.
- * Proxies always respond HTTP 200 with `{ status: 'ok' | 'down' }` so DevTools
- * stays quiet while Docker is offline. Treat legacy non-2xx as down too.
- *
- * Web: relative `/health/...` hits Vite middleware (or the Vite→:3001 proxy).
- * Tauri: there is no Vite origin — rewrite to the companion and probe with
- * native plugin-http. WKWebView `fetch()` cannot reach loopback servers.
- */
-async function checkProxyHealth(url: string, timeoutMs: number): Promise<boolean> {
-  if (!isTauri()) {
-    return readCompanionHealth(url, timeoutMs);
-  }
-  const absolute = resolveCompanionServerUrl(url);
-  for (const probeUrl of loopbackProbeCandidates(absolute)) {
-    if (await readCompanionHealth(probeUrl, timeoutMs)) return true;
-  }
-  return false;
 }
 
 /** Try a WebSocket handshake. Resolves true on open, false on error or timeout. */
@@ -236,40 +267,45 @@ export async function checkEndpoint(url: string, timeoutMs = 3000): Promise<bool
     // Spring actuator (:8081) — probe via Express so the browser never hits :8081
     // directly. Read JSON `status` (proxies return HTTP 200 even when down).
     if (isSpringActuatorHealthUrl(url)) {
-      return checkProxyHealth('/health/spring', timeoutMs);
+      return checkDockerReachable(url, '/health/spring', timeoutMs);
     }
-    // Schema Registry probes are unreliable via browser no-cors; route through server proxy.
-    // Use relative URL so Vite proxy handles it (same-origin, no CORS).
+    // Schema Registry: web uses Express; desktop hits /subjects directly.
     if (isSchemaRegistryUrl(url)) {
-      return checkProxyHealth(
+      return checkDockerReachable(
+        withPath(url, '/subjects'),
         `/health/schema-registry?url=${encodeURIComponent(url)}`,
         timeoutMs,
       );
     }
-    // Envoy :50055 returns HTTP 415 on GET / — browser probes log Failed-to-load.
-    // Route through Express so PrerequisiteGate stays quiet in DevTools.
+    // Envoy :50055 returns HTTP 415 on GET / — that still means it is up.
     if (isEnvoyGrpcWebProbeUrl(url)) {
-      return checkProxyHealth('/health/envoy', timeoutMs);
+      return checkDockerReachable(url, '/health/envoy', timeoutMs, isHttpResponse);
     }
-    // AM-17 echo :4017 — same-origin proxy so DevTools stays quiet and the
-    // corporate proxy cannot intercept 127.0.0.1 loopback candidates.
     if (isApiMockEchoHealthUrl(url)) {
-      return checkProxyHealth('/health/api-mock-echo', timeoutMs);
+      return checkDockerReachable(url, '/health/api-mock-echo', timeoutMs);
     }
-    // GraphQL / gRPC / Kafka Console demo HTTP — same-origin proxy so a
-    // stopped Docker stack does not flood Chrome with ERR_CONNECTION_REFUSED.
+    // Companion :3001/health — web must not fetch :3001 (Chrome ERR_CONNECTION_REFUSED).
+    if (isCompanionHealthUrl(url)) {
+      return checkDockerReachable(url, '/health', timeoutMs);
+    }
+    // GraphQL / gRPC echo / Kafka Console.
     if (isDemoHttpHealthUrl(url)) {
-      const parsed = new URL(url);
-      const path = parsed.pathname === '/' || parsed.pathname === '' ? '/' : '/health';
-      return checkProxyHealth(
-        `/health/demo-http?port=${parsed.port}&path=${encodeURIComponent(path)}`,
+      const probeUrl = demoHttpProbeUrl(url);
+      const parsed = new URL(probeUrl);
+      return checkDockerReachable(
+        probeUrl,
+        `/health/demo-http?port=${parsed.port}&path=${encodeURIComponent(parsed.pathname)}`,
         timeoutMs,
       );
     }
-    // Redpanda Admin API probes are routed through the server proxy for the same reason.
     if (isRedpandaAdminUrl(url)) {
       const port = new URL(url).port;
-      return checkProxyHealth(`/health/kafka-admin?port=${port}`, timeoutMs);
+      return checkDockerReachable(
+        withPath(url, '/v1'),
+        `/health/kafka-admin?port=${port}`,
+        timeoutMs,
+        isKafkaAdminOk,
+      );
     }
     return checkHttp(url, timeoutMs);
   }
