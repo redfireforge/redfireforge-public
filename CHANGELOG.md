@@ -10,6 +10,7 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ### Fixed
 - **Linux AppImage white / blank window** — Official `.AppImage` launches still painted a solid white (Standard) or navy (Learning Hub) window on Wayland and VMware. Force X11 and unset `WAYLAND_DISPLAY` whenever the session is Wayland (AppRun’s `GDK_BACKEND=x11` is ignored while that variable stays set), detect VMware via PCI `15ad` as well as DMI, and disable the WebKit sandbox on AppImage FUSE mounts.
+- **Linux AppImage bundled EGL** — CI AppImages load Ubuntu 22.04 WebKit/EGL from AppRun’s `LD_LIBRARY_PATH`, which fails on VMware (`EGL_BAD_PARAMETER`) even after the sandbox/X11 workaround. Re-exec once with `/usr/lib/x86_64-linux-gnu` first, and prefer cairo / llvmpipe on Wayland and VMware.
 
 ### Changed
 - **Homebrew cask workflow** — Use `actions/checkout@v5` so the post-release tap bump no longer warns that Node.js 20 is deprecated.

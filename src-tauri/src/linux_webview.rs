@@ -6,11 +6,26 @@
 //! the webview is created. Existing user values are left alone except
 //! `GDK_BACKEND` / `WAYLAND_DISPLAY`: AppRun often exports `GDK_BACKEND=x11`
 //! while leaving `WAYLAND_DISPLAY` set, and GDK still prefers Wayland.
+//!
+//! Official AppImages also bundle Ubuntu 22.04 WebKit/EGL via AppRun's
+//! `LD_LIBRARY_PATH`. Those libraries fail to create an EGL display on VMware
+//! (`EGL_BAD_PARAMETER`) and the window stays white. After applying env
+//! patches we re-exec once with the system lib dir prepended so the webview
+//! process loads host WebKit/GL.
 
 #[cfg(target_os = "linux")]
 use std::env;
 #[cfg(target_os = "linux")]
 use std::fs;
+#[cfg(target_os = "linux")]
+use std::os::unix::process::CommandExt;
+#[cfg(target_os = "linux")]
+use std::path::Path;
+#[cfg(target_os = "linux")]
+use std::process::Command;
+
+pub(crate) const RFF_LINUX_WEBVIEW_REEXEC: &str = "RFF_LINUX_WEBVIEW_REEXEC";
+pub(crate) const SYSTEM_GL_LIB_DIR: &str = "/usr/lib/x86_64-linux-gnu";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct LinuxDisplayHints {
@@ -32,6 +47,7 @@ pub fn apply_linux_webview_workarounds() {
         let hints = LinuxDisplayHints::detect();
         let patch = compute_linux_webview_env_patch(&hints, |key| env::var_os(key).is_some());
         apply_linux_webview_env_patch(&patch);
+        maybe_reexec_appimage_with_system_gl(&hints);
     }
 }
 
@@ -51,6 +67,32 @@ pub(crate) fn is_appimage_env(appimage: Option<&str>, appdir: Option<&str>) -> b
 pub(crate) fn is_wayland_session(wayland_display: Option<&str>, xdg_session_type: Option<&str>) -> bool {
     wayland_display.map(|v| !v.is_empty()).unwrap_or(false)
         || xdg_session_type.is_some_and(|v| v.eq_ignore_ascii_case("wayland"))
+}
+
+/// Prepend `system_lib` to `LD_LIBRARY_PATH`. `None` if it is already first.
+pub(crate) fn prefixed_ld_library_path(current: Option<&str>, system_lib: &str) -> Option<String> {
+    let current = current.unwrap_or("");
+    if current.split(':').next() == Some(system_lib) {
+        return None;
+    }
+    if current.is_empty() {
+        Some(system_lib.to_string())
+    } else {
+        Some(format!("{system_lib}:{current}"))
+    }
+}
+
+pub(crate) fn should_reexec_appimage_for_system_gl(
+    appimage: bool,
+    already_reexec: bool,
+    system_lib_available: bool,
+    current_ld: Option<&str>,
+    system_lib: &str,
+) -> bool {
+    appimage
+        && !already_reexec
+        && system_lib_available
+        && prefixed_ld_library_path(current_ld, system_lib).is_some()
 }
 
 fn needs_x11_backend(hints: &LinuxDisplayHints) -> bool {
@@ -80,12 +122,25 @@ pub(crate) fn compute_linux_webview_env_patch(
         // binds Wayland while WAYLAND_DISPLAY remains in the environment.
         patch.set.push(("GDK_BACKEND".into(), "x11".into()));
         patch.unset.push("WAYLAND_DISPLAY".into());
+        if !already_set("GSK_RENDERER") {
+            patch.set.push(("GSK_RENDERER".into(), "cairo".into()));
+        }
     }
 
-    if hints.vmware && !already_set("LIBGL_ALWAYS_SOFTWARE") {
-        patch
-            .set
-            .push(("LIBGL_ALWAYS_SOFTWARE".into(), "1".into()));
+    if hints.vmware {
+        if !already_set("LIBGL_ALWAYS_SOFTWARE") {
+            patch
+                .set
+                .push(("LIBGL_ALWAYS_SOFTWARE".into(), "1".into()));
+        }
+        if !already_set("GALLIUM_DRIVER") {
+            patch.set.push(("GALLIUM_DRIVER".into(), "llvmpipe".into()));
+        }
+        if !already_set("MESA_LOADER_DRIVER_OVERRIDE") {
+            patch
+                .set
+                .push(("MESA_LOADER_DRIVER_OVERRIDE".into(), "llvmpipe".into()));
+        }
     }
 
     // WebKit's sandbox cannot see an AppImage FUSE/squashfs mount, so the
@@ -108,6 +163,45 @@ fn apply_linux_webview_env_patch(patch: &LinuxWebviewEnvPatch) {
     for key in &patch.unset {
         unsafe { env::remove_var(key) };
     }
+}
+
+#[cfg(target_os = "linux")]
+fn system_gl_lib_dir_available(dir: &str) -> bool {
+    let path = Path::new(dir);
+    path.join("libwebkit2gtk-4.1.so.0").exists() || path.join("libEGL.so.1").exists()
+}
+
+#[cfg(target_os = "linux")]
+fn maybe_reexec_appimage_with_system_gl(hints: &LinuxDisplayHints) {
+    let current_ld = env::var("LD_LIBRARY_PATH").ok();
+    if !should_reexec_appimage_for_system_gl(
+        hints.appimage,
+        env::var_os(RFF_LINUX_WEBVIEW_REEXEC).is_some(),
+        system_gl_lib_dir_available(SYSTEM_GL_LIB_DIR),
+        current_ld.as_deref(),
+        SYSTEM_GL_LIB_DIR,
+    ) {
+        return;
+    }
+    if let Some(new_ld) = prefixed_ld_library_path(current_ld.as_deref(), SYSTEM_GL_LIB_DIR) {
+        unsafe { env::set_var("LD_LIBRARY_PATH", new_ld) };
+    }
+    let dri = Path::new(SYSTEM_GL_LIB_DIR).join("dri");
+    if dri.is_dir() && env::var_os("LIBGL_DRIVERS_PATH").is_none() {
+        unsafe { env::set_var("LIBGL_DRIVERS_PATH", dri.as_os_str()) };
+    }
+    let mesa = Path::new("/usr/share/glvnd/egl_vendor.d/50_mesa.json");
+    if mesa.is_file() && env::var_os("__EGL_VENDOR_LIBRARY_FILENAMES").is_none() {
+        unsafe { env::set_var("__EGL_VENDOR_LIBRARY_FILENAMES", mesa.as_os_str()) };
+    }
+    unsafe { env::set_var(RFF_LINUX_WEBVIEW_REEXEC, "1") };
+    let Ok(exe) = env::current_exe() else {
+        return;
+    };
+    let args: Vec<_> = env::args_os().skip(1).collect();
+    let err = Command::new(exe).args(args).exec();
+    // exec only returns on failure; continue with the current process.
+    let _ = err;
 }
 
 impl LinuxDisplayHints {
@@ -232,6 +326,7 @@ mod tests {
             .iter()
             .any(|(k, v)| k == "WEBKIT_DISABLE_COMPOSITING_MODE" && v == "1"));
         assert!(patch.set.iter().any(|(k, v)| k == "GDK_BACKEND" && v == "x11"));
+        assert!(patch.set.iter().any(|(k, v)| k == "GSK_RENDERER" && v == "cairo"));
         assert!(!patch.set.iter().any(|(k, _)| k == "LIBGL_ALWAYS_SOFTWARE"));
         assert!(!patch.set.iter().any(|(k, _)| k == "WEBKIT_DISABLE_SANDBOX"));
         assert_eq!(patch.unset, vec!["WAYLAND_DISPLAY".to_string()]);
@@ -244,7 +339,10 @@ mod tests {
         assert!(keys.contains(&"WEBKIT_DISABLE_DMABUF_RENDERER"));
         assert!(keys.contains(&"WEBKIT_DISABLE_COMPOSITING_MODE"));
         assert!(keys.contains(&"GDK_BACKEND"));
+        assert!(keys.contains(&"GSK_RENDERER"));
         assert!(keys.contains(&"LIBGL_ALWAYS_SOFTWARE"));
+        assert!(keys.contains(&"GALLIUM_DRIVER"));
+        assert!(keys.contains(&"MESA_LOADER_DRIVER_OVERRIDE"));
         assert!(!keys.contains(&"WEBKIT_DISABLE_SANDBOX"));
         assert_eq!(patch.unset, vec!["WAYLAND_DISPLAY".to_string()]);
     }
@@ -269,9 +367,70 @@ mod tests {
                     | "GDK_BACKEND"
                     | "LIBGL_ALWAYS_SOFTWARE"
                     | "WEBKIT_DISABLE_SANDBOX"
+                    | "GSK_RENDERER"
+                    | "GALLIUM_DRIVER"
+                    | "MESA_LOADER_DRIVER_OVERRIDE"
             )
         });
         assert_eq!(patch.set, vec![("GDK_BACKEND".into(), "x11".into())]);
         assert_eq!(patch.unset, vec!["WAYLAND_DISPLAY".to_string()]);
+    }
+
+    #[test]
+    fn prefixed_ld_library_path_prepends_once() {
+        assert_eq!(
+            prefixed_ld_library_path(None, SYSTEM_GL_LIB_DIR),
+            Some(SYSTEM_GL_LIB_DIR.to_string())
+        );
+        assert_eq!(
+            prefixed_ld_library_path(Some("/opt/app/usr/lib"), SYSTEM_GL_LIB_DIR),
+            Some(format!("{SYSTEM_GL_LIB_DIR}:/opt/app/usr/lib"))
+        );
+        assert_eq!(
+            prefixed_ld_library_path(
+                Some(&format!("{SYSTEM_GL_LIB_DIR}:/opt/app/usr/lib")),
+                SYSTEM_GL_LIB_DIR
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn reexec_only_once_for_appimage_with_system_gl() {
+        assert!(should_reexec_appimage_for_system_gl(
+            true,
+            false,
+            true,
+            Some("/tmp/.mount/usr/lib"),
+            SYSTEM_GL_LIB_DIR
+        ));
+        assert!(!should_reexec_appimage_for_system_gl(
+            true,
+            true,
+            true,
+            Some("/tmp/.mount/usr/lib"),
+            SYSTEM_GL_LIB_DIR
+        ));
+        assert!(!should_reexec_appimage_for_system_gl(
+            false,
+            false,
+            true,
+            Some("/tmp/.mount/usr/lib"),
+            SYSTEM_GL_LIB_DIR
+        ));
+        assert!(!should_reexec_appimage_for_system_gl(
+            true,
+            false,
+            false,
+            Some("/tmp/.mount/usr/lib"),
+            SYSTEM_GL_LIB_DIR
+        ));
+        assert!(!should_reexec_appimage_for_system_gl(
+            true,
+            false,
+            true,
+            Some(SYSTEM_GL_LIB_DIR),
+            SYSTEM_GL_LIB_DIR
+        ));
     }
 }
