@@ -1,5 +1,11 @@
 import type { Environment, Microservice, RequestCollection, RequestFolder, RequestItem } from '@shared/types';
-import { computeEligibleSubColEnvs, type SubColEnvOption } from '../utils/subCollectionEnvs';
+import {
+  computeEligibleSubColEnvs,
+  getSubColAddBlockReason,
+  subColAddDisabledTitle,
+  type SubColAddBlockReason,
+  type SubColEnvOption,
+} from '../utils/subCollectionEnvs';
 import { findFolderDeep, findReqFolderAncestors, findRequestInCollection, findReqParentFolder } from '../utils/requestTree';
 
 export function hasAuth(col: RequestCollection): boolean {
@@ -59,14 +65,33 @@ export function getSubColEligibleEnvsForCollection(
   environments: Environment[],
   microservices: Microservice[],
   colId: string,
-  parentFolderId?: string,
+  _parentFolderId?: string,
 ): SubColEnvOption[] {
   const col = collections.find(c => c.id === colId);
   if (!col) return [];
-  const siblings = parentFolderId
-    ? findFolderDeep(col.folders ?? [], parentFolderId)?.folders ?? []
-    : col.folders ?? [];
-  return computeEligibleSubColEnvs(col, siblings, environments, microservices);
+  return computeEligibleSubColEnvs(col, environments, microservices);
+}
+
+export function getSubColAddBlockReasonForCollection(
+  collections: RequestCollection[],
+  environments: Environment[],
+  microservices: Microservice[],
+  colId: string,
+): SubColAddBlockReason | null {
+  const col = collections.find(c => c.id === colId);
+  if (!col) return 'no-base-urls';
+  return getSubColAddBlockReason(col, environments, microservices);
+}
+
+export function getSubColAddDisabledTitleForCollection(
+  collections: RequestCollection[],
+  environments: Environment[],
+  microservices: Microservice[],
+  colId: string,
+): string | undefined {
+  return subColAddDisabledTitle(
+    getSubColAddBlockReasonForCollection(collections, environments, microservices, colId),
+  );
 }
 
 export function resolveSubCollectionEnv(target: { colId: string; parentFolderId?: string } | null, envId: string, environments: Environment[]) {

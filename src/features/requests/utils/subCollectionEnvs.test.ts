@@ -5,6 +5,11 @@ import {
   collectSubCollections,
   usedEnvIdsInCollection,
   computeEligibleSubColEnvs,
+  getSubColAddBlockReason,
+  resolveSubColBoundEnvId,
+  subColAddDisabledTitle,
+  SUB_COL_ALL_USED_TITLE,
+  SUB_COL_NO_BASE_URLS_TITLE,
   type NamedEnv,
 } from './subCollectionEnvs';
 import type { RequestCollection, RequestFolder, Microservice } from '@shared/types';
@@ -117,9 +122,26 @@ describe('usedSubColEnvIds', () => {
     expect([...usedSubColEnvIds(siblings, envs)]).toEqual(['e-dev', 'e-prod']);
   });
 
+  it('resolves selectedEnvId stored as an environment name', () => {
+    const siblings = [subCol({ id: 'a', name: 'Dev folder', selectedEnvId: 'dev' })];
+    expect([...usedSubColEnvIds(siblings, envs)]).toEqual(['e-dev']);
+  });
+
+  it('falls back to folder name when selectedEnvId is stale', () => {
+    const siblings = [subCol({ id: 'a', name: 'staging', selectedEnvId: 'legacy-stg' })];
+    expect([...usedSubColEnvIds(siblings, envs)]).toEqual(['e-stg']);
+  });
+
   it('falls back to name match for legacy sub-collections without selectedEnvId', () => {
     const siblings = [subCol({ id: 'a', name: 'Staging' })];
     expect([...usedSubColEnvIds(siblings, envs)]).toEqual(['e-stg']);
+  });
+
+  it('resolveSubColBoundEnvId prefers Settings id then name then folder name', () => {
+    expect(resolveSubColBoundEnvId(subCol({ selectedEnvId: 'e-prod' }), envs)).toBe('e-prod');
+    expect(resolveSubColBoundEnvId(subCol({ selectedEnvId: 'staging' }), envs)).toBe('e-stg');
+    expect(resolveSubColBoundEnvId(subCol({ name: 'dev', selectedEnvId: 'gone' }), envs)).toBe('e-dev');
+    expect(resolveSubColBoundEnvId(subCol({ name: 'orphan' }), envs)).toBeUndefined();
   });
 
   it('ignores non-sub-collection folders and the excluded folder', () => {
@@ -182,27 +204,45 @@ describe('collectSubCollections / usedEnvIdsInCollection', () => {
 
 describe('computeEligibleSubColEnvs', () => {
   it('returns empty for non-multi-env collections', () => {
-    expect(computeEligibleSubColEnvs(collection({ mode: 'direct' }), [], envs, [])).toEqual([]);
+    expect(computeEligibleSubColEnvs(collection({ mode: 'direct' }), envs, [])).toEqual([]);
   });
 
   it('lists envs with a configured base URL, in environments order', () => {
     const col = collection({ baseUrls: { 'e-prod': 'https://p', 'e-dev': 'https://d' } });
-    expect(computeEligibleSubColEnvs(col, [], envs, [])).toEqual([
+    expect(computeEligibleSubColEnvs(col, envs, [])).toEqual([
       { id: 'e-dev', name: 'dev' },
       { id: 'e-prod', name: 'prod' },
     ]);
   });
 
-  it('excludes envs already used by a sibling sub-collection (one-per-env)', () => {
-    const col = collection({ baseUrls: { 'e-dev': 'https://d', 'e-prod': 'https://p' } });
-    const siblings = [subCol({ id: 'a', selectedEnvId: 'e-dev' })];
-    expect(computeEligibleSubColEnvs(col, siblings, envs, [])).toEqual([
+  it('excludes envs already used by any sub-collection in the collection (one-per-env)', () => {
+    const col = collection({
+      baseUrls: { 'e-dev': 'https://d', 'e-prod': 'https://p' },
+      folders: [subCol({ id: 'a', selectedEnvId: 'e-dev' })],
+    });
+    expect(computeEligibleSubColEnvs(col, envs, [])).toEqual([
+      { id: 'e-prod', name: 'prod' },
+    ]);
+  });
+
+  it('excludes a nested sub-collection env when adding at the collection root', () => {
+    const col = collection({
+      baseUrls: { 'e-dev': 'https://d', 'e-prod': 'https://p' },
+      folders: [{
+        id: 'wrap',
+        name: 'Regular',
+        isSubCollection: false,
+        requests: [],
+        folders: [subCol({ id: 'nested', name: 'dev' })],
+      }],
+    });
+    expect(computeEligibleSubColEnvs(col, envs, [])).toEqual([
       { id: 'e-prod', name: 'prod' },
     ]);
   });
 
   it('returns empty when no env has a configured base URL', () => {
-    expect(computeEligibleSubColEnvs(collection(), [], envs, [])).toEqual([]);
+    expect(computeEligibleSubColEnvs(collection(), envs, [])).toEqual([]);
   });
 
   it('works for linked-microservice collections', () => {
@@ -211,10 +251,42 @@ describe('computeEligibleSubColEnvs', () => {
       name: 'Orders',
       baseUrls: { 'e-dev': 'https://svc-dev', 'e-stg': 'https://svc-stg' },
     };
-    const col = collection({ microserviceId: 'svc1' });
-    const siblings = [subCol({ id: 'a', selectedEnvId: 'e-stg' })];
-    expect(computeEligibleSubColEnvs(col, siblings, envs, [svc])).toEqual([
+    const col = collection({
+      microserviceId: 'svc1',
+      folders: [subCol({ id: 'a', selectedEnvId: 'e-stg' })],
+    });
+    expect(computeEligibleSubColEnvs(col, envs, [svc])).toEqual([
       { id: 'e-dev', name: 'dev' },
     ]);
+  });
+});
+
+describe('getSubColAddBlockReason', () => {
+  it('returns no-base-urls when the collection has no configured hosts', () => {
+    expect(getSubColAddBlockReason(collection({ mode: 'direct' }), envs, [])).toBe('no-base-urls');
+    expect(getSubColAddBlockReason(collection({ mode: 'multi-env' }), envs, [])).toBe('no-base-urls');
+  });
+
+  it('returns all-used when every configured env already has a sub-collection', () => {
+    const col = collection({
+      baseUrls: { 'e-dev': 'https://d', 'e-prod': 'https://p' },
+      folders: [
+        subCol({ id: 'a', name: 'dev', selectedEnvId: 'e-dev' }),
+        subCol({ id: 'b', name: 'prod', selectedEnvId: 'e-prod' }),
+      ],
+    });
+    expect(getSubColAddBlockReason(col, envs, [])).toBe('all-used');
+    expect(computeEligibleSubColEnvs(col, envs, [])).toEqual([]);
+  });
+
+  it('returns null when at least one env is still free', () => {
+    const col = collection({ baseUrls: { 'e-dev': 'https://d' } });
+    expect(getSubColAddBlockReason(col, envs, [])).toBeNull();
+  });
+
+  it('maps block reasons to menu titles', () => {
+    expect(subColAddDisabledTitle(null)).toBeUndefined();
+    expect(subColAddDisabledTitle('no-base-urls')).toBe(SUB_COL_NO_BASE_URLS_TITLE);
+    expect(subColAddDisabledTitle('all-used')).toBe(SUB_COL_ALL_USED_TITLE);
   });
 });

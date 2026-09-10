@@ -44,6 +44,34 @@ export function resolveCollectionBaseUrls(
   return collection.baseUrls ?? {};
 }
 
+/** Toast / menu copy when no collection env has a base URL yet. */
+export const SUB_COL_NO_BASE_URLS_TOAST = 'Configure a base URL for at least one environment in this collection before adding a sub-collection.';
+export const SUB_COL_NO_BASE_URLS_TITLE = 'Configure a base URL for an environment first';
+/** Toast / menu copy when every configured env already has a sub-collection. */
+export const SUB_COL_ALL_USED_TOAST = 'Every environment already has a sub-collection. Remove or rebind one before adding another.';
+export const SUB_COL_ALL_USED_TITLE = 'Every environment already has a sub-collection';
+
+export type SubColAddBlockReason = 'no-base-urls' | 'all-used';
+
+/**
+ * Map a sub-collection to a Settings environment ID.
+ * Prefers `selectedEnvId` (id or name), then the folder name — so a stale or
+ * microservice-scoped id still excludes the env the user already bound.
+ */
+export function resolveSubColBoundEnvId(
+  folder: RequestFolder,
+  environments: NamedEnv[],
+): string | undefined {
+  if (folder.selectedEnvId) {
+    const raw = folder.selectedEnvId;
+    const byId = environments.find(e => e.id === raw);
+    if (byId) return byId.id;
+    const byStoredName = environments.find(e => e.name.toLowerCase() === raw.toLowerCase());
+    if (byStoredName) return byStoredName.id;
+  }
+  return environments.find(e => e.name.toLowerCase() === folder.name.toLowerCase())?.id;
+}
+
 /**
  * Environment IDs already bound to a sibling sub-collection at a given tree level. Used to enforce
  * **one sub-collection per environment**. Falls back to a name match for legacy sub-collections
@@ -58,12 +86,8 @@ export function usedSubColEnvIds(
   for (const f of siblings) {
     if (!f.isSubCollection) continue;
     if (excludeFolderId && f.id === excludeFolderId) continue;
-    if (f.selectedEnvId) {
-      used.add(f.selectedEnvId);
-      continue;
-    }
-    const matched = environments.find(e => e.name.toLowerCase() === f.name.toLowerCase());
-    if (matched) used.add(matched.id);
+    const envId = resolveSubColBoundEnvId(f, environments);
+    if (envId) used.add(envId);
   }
   return used;
 }
@@ -91,25 +115,42 @@ export function usedEnvIdsInCollection(
 }
 
 /**
- * Compute the environments eligible for a **new** sub-collection under `collection` at the tree
- * level whose sibling folders are `siblings`:
+ * Compute the environments eligible for a **new** sub-collection under `collection`:
  *
  * - Eligible = Settings envs that have a configured base URL for the collection
  *   (`resolveCollectionBaseUrls`).
- * - Minus envs already used by a sibling sub-collection (one-per-env).
+ * - Minus envs already used by any sub-collection in the collection (one-per-env).
  *
  * Order follows `environments`.
  */
 export function computeEligibleSubColEnvs(
   collection: RequestCollection,
-  siblings: RequestFolder[],
   environments: NamedEnv[],
   microservices: Microservice[] | undefined,
 ): SubColEnvOption[] {
   if (collection.mode !== 'multi-env') return [];
   const resolved = resolveCollectionBaseUrls(collection, environments, microservices);
-  const used = usedSubColEnvIds(siblings, environments);
+  const used = usedEnvIdsInCollection(collection, environments);
   return environments
     .filter(e => resolved[e.id] && !used.has(e.id))
     .map(e => ({ id: e.id, name: e.name }));
+}
+
+/** Why Add Sub-Collection is blocked, or `null` when at least one env is eligible. */
+export function getSubColAddBlockReason(
+  collection: RequestCollection,
+  environments: NamedEnv[],
+  microservices: Microservice[] | undefined,
+): SubColAddBlockReason | null {
+  if (collection.mode !== 'multi-env') return 'no-base-urls';
+  const resolved = resolveCollectionBaseUrls(collection, environments, microservices);
+  if (Object.keys(resolved).length === 0) return 'no-base-urls';
+  if (computeEligibleSubColEnvs(collection, environments, microservices).length === 0) return 'all-used';
+  return null;
+}
+
+export function subColAddDisabledTitle(reason: SubColAddBlockReason | null): string | undefined {
+  if (reason === 'all-used') return SUB_COL_ALL_USED_TITLE;
+  if (reason === 'no-base-urls') return SUB_COL_NO_BASE_URLS_TITLE;
+  return undefined;
 }
