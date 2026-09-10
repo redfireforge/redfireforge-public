@@ -74,7 +74,7 @@ describe('buildSelectedTests', () => {
     expect(result[1].url).toBe('https://staging.example.com/users/1');
   });
 
-  it('preserves absolute URLs when settings mode is used', () => {
+  it('rewrites absolute URLs when settings mode is used', () => {
     const result = buildSelectedTests(
       mockFeatureGroups,
       new Set(['sc1']),
@@ -87,10 +87,9 @@ describe('buildSelectedTests', () => {
       false,
       [],
     );
-    
-    // Absolute URLs are preserved, not replaced
-    expect(result[0].url).toBe('https://api.example.com/users');
-    expect(result[1].url).toBe('https://api.example.com/users/1');
+
+    expect(result[0].url).toBe('https://staging.example.com/users');
+    expect(result[1].url).toBe('https://staging.example.com/users/1');
   });
 
   it('replaces host when custom mode is used with relative URLs', () => {
