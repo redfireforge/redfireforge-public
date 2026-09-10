@@ -11,7 +11,11 @@ import type {
   TestScenario,
 } from '@shared/types';
 import type { PromotionContext, PromotionOptions } from '../utils/requestToScenario';
-import { createScenarioFromRequest } from '../utils/requestToScenario';
+import {
+  createScenarioFromRequest,
+  resolveDefaultPromotionEnvId,
+  resolveDefaultPromotionSvcId,
+} from '../utils/requestToScenario';
 import { CascadeSelect } from './CascadeSelect';
 import { useEscapeKey } from '@shared/hooks/useEscapeKey';
 import { useHarnessEnvironmentCascade } from '../hooks/useHarnessEnvironmentCascade';
@@ -46,9 +50,22 @@ export default function SendToHarnessModal({
   const [step, setStep] = useState<Step>('target');
   const { modalStyle, onPointerDragStart } = useModalDrag(true, { constrainToViewport: true });
 
-  // Cascade selections
-  const [envId, setEnvId] = useState('');
-  const [svcId, setSvcId] = useState('');
+  const inferredEnvId = useMemo(
+    () => resolveDefaultPromotionEnvId(request, {
+      collection: promotionContext.collection,
+      folderId: promotionContext.folderId,
+      selectedEnvId: promotionContext.selectedEnvId,
+      appEnvironments: promotionContext.appEnvironments ?? environments,
+    }),
+    [request, promotionContext, environments],
+  );
+
+  // Cascade selections — start on the request’s current env/svc so a leftover
+  // workbench env (e.g. t01 after moving into local-t01) is not the default.
+  const [envId, setEnvId] = useState(inferredEnvId ?? '');
+  const [svcId, setSvcId] = useState(
+    () => resolveDefaultPromotionSvcId(promotionContext.collection, microservices, inferredEnvId) ?? '',
+  );
   const [groupId, setGroupId] = useState('');
   const [scenarioId, setScenarioId] = useState('');
 
@@ -88,12 +105,18 @@ export default function SendToHarnessModal({
   // Reset child selections when parent changes
   const handleEnvChange = (id: string) => {
     setEnvId(id);
-    setSvcId('');
+    setSvcId(resolveDefaultPromotionSvcId(promotionContext.collection, microservices, id) ?? '');
     setGroupId('');
     setScenarioId('');
     setNewGroupName('');
     setNewScenarioName('');
   };
+
+  const activePromotionContext = useMemo((): PromotionContext => ({
+    ...promotionContext,
+    selectedEnvId: envId || inferredEnvId || promotionContext.selectedEnvId,
+    appEnvironments: promotionContext.appEnvironments ?? environments,
+  }), [promotionContext, envId, inferredEnvId, environments]);
 
   const handleSvcChange = (id: string) => {
     setSvcId(id);
@@ -131,12 +154,12 @@ export default function SendToHarnessModal({
 
   const previewScenario = useMemo(() => {
     const options: PromotionOptions = { validationPreset, authMode };
-    return createScenarioFromRequest(request, promotionContext, options);
-  }, [request, promotionContext, validationPreset, authMode]);
+    return createScenarioFromRequest(request, activePromotionContext, options);
+  }, [request, activePromotionContext, validationPreset, authMode]);
 
   const handleConfirm = useCallback(() => {
     const options: PromotionOptions = { validationPreset, authMode };
-    const scenario = createScenarioFromRequest(request, promotionContext, options);
+    const scenario = createScenarioFromRequest(request, activePromotionContext, options);
 
     onConfirm({
       scenario,
@@ -149,7 +172,7 @@ export default function SendToHarnessModal({
       microserviceId: svcId || undefined,
     });
   }, [
-    request, promotionContext, validationPreset, authMode,
+    request, activePromotionContext, validationPreset, authMode,
     envId, svcId, groupId, scenarioId,
     isNewGroup, isNewScenario,
     newGroupName, newScenarioName,

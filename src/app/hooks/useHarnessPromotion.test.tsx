@@ -62,6 +62,20 @@ describe('useHarnessPromotion', () => {
     expect(r2.current.harnessPromotionContext).toBeNull();
   });
 
+  it('sets folderId from the selected request parent folder', () => {
+    const req = makeCollections()[0].requests[0];
+    const col: RequestCollection = {
+      id: 'col-nested',
+      name: 'Nested',
+      mode: 'direct',
+      requests: [],
+      folders: [{ id: 'fold-local', name: 'local-t01', requests: [req], folders: [] }],
+    };
+    const wb = makeWb({ collections: [col], selectedCollection: col, selectedRequest: req });
+    const { result } = renderHook(() => useHarnessPromotion(baseParams(wb)));
+    expect(result.current.harnessPromotionContext?.folderId).toBe('fold-local');
+  });
+
   it('handleSendToHarnessConfirm applies promotion result, switches env/svc/tab, resets catalog endpoint', () => {
     promoteToFeatureGroups.mockReturnValue({
       featureGroups: [{ id: 'fg', name: 'G', scenarios: [], environmentId: 'e-new', microserviceId: 's-new' }] as FeatureGroup[],

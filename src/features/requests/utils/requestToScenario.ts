@@ -10,8 +10,14 @@ import type {
   Scenario,
   ValidationConfig,
 } from '@shared/types';
-import { resolveBaseUrl } from './requestUrlResolver';
-import type { UrlResolverContext } from './requestUrlResolver';
+import {
+  collectKnownHostBases,
+  resolveBaseUrl,
+  stripKnownBaseToRelative,
+  type UrlResolverContext,
+} from './requestUrlResolver';
+import { findAncestorSubCollection, findReqParentFolder } from './requestTree';
+import { resolveCollectionBaseUrls, resolveSubColBoundEnvId } from './subCollectionEnvs';
 
 export interface PromotionContext {
   collection: RequestCollection;
@@ -87,38 +93,62 @@ function findParentFolder(
   return undefined;
 }
 
+function isHostFolder(folder: RequestFolder | undefined): folder is RequestFolder {
+  if (!folder) return false;
+  return !!folder.isSubCollection || (!!folder.baseUrls && Object.keys(folder.baseUrls).length > 0);
+}
+
+function resolvePromotionFolders(
+  request: Pick<RequestItem, 'id'>,
+  collection: RequestCollection,
+  folderId?: string,
+): { containingFolder: RequestFolder | undefined; parentSub: RequestFolder | undefined } {
+  const byRequest = findReqParentFolder(collection.folders ?? [], request.id) ?? undefined;
+  const byFolderId = folderId ? findParentFolder(collection.folders, folderId) : undefined;
+  const containingFolder = byRequest ?? byFolderId;
+  const parentSub = findAncestorSubCollection(collection.folders ?? [], request.id)
+    ?? (isHostFolder(containingFolder) ? containingFolder : undefined)
+    ?? undefined;
+  return { containingFolder, parentSub };
+}
+
 function resolveAbsoluteUrl(
   request: RequestItem,
   collection: RequestCollection,
-  parentFolder: RequestFolder | undefined,
+  parentSub: RequestFolder | undefined,
   selectedEnvId: string | undefined,
+  subColEnvId: string | undefined,
+  resolvedColBaseUrls: Record<string, string>,
+  microservices: { id: string; baseUrls?: Record<string, string> }[],
 ): string {
-  const url = request.url;
-  if (url.startsWith('http://') || url.startsWith('https://')) {
-    return bakeQueryParams(url, request.savedQueryParams);
+  const knownBases = collectKnownHostBases(resolvedColBaseUrls, collection, microservices);
+  const pathOrUrl = stripKnownBaseToRelative(request.url, collection.mode, knownBases);
+
+  if (pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://')) {
+    return bakeQueryParams(pathOrUrl, request.savedQueryParams);
   }
 
   const ctx: UrlResolverContext = {
     collectionMode: collection.mode,
-    resolvedColBaseUrls: collection.baseUrls ?? {},
-    parentSubCollection: parentFolder?.isSubCollection ? parentFolder : undefined,
-    subColEnvId: parentFolder?.selectedEnvId,
+    resolvedColBaseUrls,
+    parentSubCollection: parentSub,
+    subColEnvId,
     selectedEnvId,
   };
 
   let base = resolveBaseUrl(ctx);
 
   if (!base) {
-    const subUrls = parentFolder?.isSubCollection ? parentFolder.baseUrls : undefined;
-    const fallbackMap = subUrls ?? collection.baseUrls;
+    const subUrls = parentSub?.baseUrls;
+    const fallbackMap = subUrls && Object.keys(subUrls).length > 0 ? subUrls : collection.baseUrls;
     if (fallbackMap) {
       const first = Object.values(fallbackMap)[0];
       if (first) base = first.replace(/\/+$/, '');
     }
   }
 
-  const path = url.startsWith('/') ? url : `/${url}`;
-  const absolute = base ? `${base}${path}` : url;
+  const path = pathOrUrl.startsWith('/') ? pathOrUrl : `/${pathOrUrl}`;
+  const absolute = base ? `${base}${path}` : pathOrUrl;
   return bakeQueryParams(absolute, request.savedQueryParams);
 }
 
@@ -176,6 +206,36 @@ function resolveMicroserviceBaseUrl(
   return first ? first.replace(/\/+$/, '') : null;
 }
 
+/**
+ * Default Environment for Send to Harness: the request’s sub-collection binding,
+ * then the workbench/collection selection.
+ */
+export function resolveDefaultPromotionEnvId(
+  request: Pick<RequestItem, 'id'>,
+  context: Pick<PromotionContext, 'collection' | 'folderId' | 'selectedEnvId' | 'appEnvironments'>,
+): string | undefined {
+  const settingsEnvs = context.appEnvironments ?? [];
+  const { parentSub } = resolvePromotionFolders(request, context.collection, context.folderId);
+  if (parentSub) {
+    return resolveSubColBoundEnvId(parentSub, settingsEnvs) ?? parentSub.selectedEnvId ?? context.selectedEnvId;
+  }
+  return context.selectedEnvId;
+}
+
+export function resolveDefaultPromotionSvcId(
+  collection: Pick<RequestCollection, 'microserviceId'>,
+  microservices: Pick<Microservice, 'id' | 'baseUrls' | 'customEnvs'>[],
+  envId: string | undefined,
+): string | undefined {
+  const id = collection.microserviceId;
+  if (!id) return undefined;
+  const svc = microservices.find(s => s.id === id);
+  if (!svc) return undefined;
+  if (!envId) return id;
+  if (envId in (svc.baseUrls ?? {}) || (svc.customEnvs ?? []).some(ce => ce.id === envId)) return id;
+  return undefined;
+}
+
 function buildValidation(preset?: 'none' | 'status-200'): ValidationConfig {
   if (preset === 'status-200') {
     return {
@@ -195,9 +255,28 @@ export function createScenarioFromRequest(
   context: PromotionContext,
   options?: PromotionOptions,
 ): Scenario {
-  const parentFolder = context.folderId
-    ? findParentFolder(context.collection.folders, context.folderId)
+  const settingsEnvs = context.appEnvironments ?? [];
+  const { containingFolder, parentSub } = resolvePromotionFolders(
+    request,
+    context.collection,
+    context.folderId,
+  );
+
+  const boundEnvId = parentSub
+    ? resolveSubColBoundEnvId(parentSub, settingsEnvs)
     : undefined;
+  const subColEnvId = boundEnvId ?? parentSub?.selectedEnvId;
+  // Send to Harness Environment picker wins when set; otherwise the current sub-collection.
+  const effectiveEnvId = context.selectedEnvId ?? subColEnvId;
+  const useSubColHost = !!parentSub && (!context.selectedEnvId || context.selectedEnvId === subColEnvId);
+  const hostFolder = useSubColHost ? parentSub : undefined;
+  const hostSubColEnvId = useSubColHost ? subColEnvId : undefined;
+
+  const resolvedColBaseUrls = resolveCollectionBaseUrls(
+    context.collection,
+    settingsEnvs,
+    context.microservices,
+  );
 
   const authMode = options?.authMode ?? 'concrete';
 
@@ -206,8 +285,8 @@ export function createScenarioFromRequest(
     : resolveRequestAuth(
         request,
         context.collection,
-        parentFolder,
-        context.selectedEnvId,
+        containingFolder,
+        effectiveEnvId,
         context.microservices,
         context.globalAuthProfiles,
       );
@@ -215,13 +294,16 @@ export function createScenarioFromRequest(
   let resolvedUrl = resolveAbsoluteUrl(
     request,
     context.collection,
-    parentFolder,
-    context.selectedEnvId,
+    hostFolder,
+    effectiveEnvId,
+    hostSubColEnvId,
+    resolvedColBaseUrls,
+    context.microservices,
   );
 
   if (!resolvedUrl.startsWith('http://') && !resolvedUrl.startsWith('https://')) {
     const svcBase = resolveMicroserviceBaseUrl(
-      context.collection, context.microservices, context.selectedEnvId, context.appEnvironments,
+      context.collection, context.microservices, effectiveEnvId, context.appEnvironments,
     );
     if (svcBase) {
       const path = resolvedUrl.startsWith('/') ? resolvedUrl : `/${resolvedUrl}`;
