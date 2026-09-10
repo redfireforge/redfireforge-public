@@ -59,6 +59,11 @@ describe('resolveCollectionBaseUrls', () => {
     expect(resolveCollectionBaseUrls(collection(), envs, [])).toEqual({});
   });
 
+  it('returns empty when the linked microservice has no baseUrls map', () => {
+    const svc = { id: 'svc-nil', name: 'Empty' } as Microservice;
+    expect(resolveCollectionBaseUrls(collection({ microserviceId: 'svc-nil' }), envs, [svc])).toEqual({});
+  });
+
   it('maps microservice base URLs by env name for linked collections', () => {
     const svc: Microservice = {
       id: 'svc1',

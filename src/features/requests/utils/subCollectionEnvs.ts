@@ -31,7 +31,7 @@ export function resolveCollectionBaseUrls(
     if (!svc) return {};
     const knownEnvs = [...environments, ...(svc.customEnvs ?? [])];
     const mapped: Record<string, string> = {};
-    for (const [svcEnvId, url] of Object.entries(svc.baseUrls)) {
+    for (const [svcEnvId, url] of Object.entries(svc.baseUrls ?? {})) {
       if (!url) continue;
       const svcEnv = knownEnvs.find(e => e.id === svcEnvId);
       if (!svcEnv) continue;
