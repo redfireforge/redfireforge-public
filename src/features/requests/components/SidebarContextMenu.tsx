@@ -64,6 +64,7 @@ interface Props {
   countAllRequests: (col: RequestCollection) => number;
   startAddFolder: (colId: string, parentFolderId: string | undefined, isSubCollection: boolean) => void;
   getSubColEligibleCount: (colId: string, parentFolderId?: string) => number;
+  getSubColAddDisabledTitle?: (colId: string, parentFolderId?: string) => string | undefined;
   startRenameFolder: (colId: string, folderId: string, currentName: string) => void;
   handleExportCollection: (colId: string) => void;
   handleExportFolder: (colId: string, folderId: string) => void;
@@ -140,7 +141,7 @@ export default function SidebarContextMenu({
   onDeleteFolder, onDeleteRequest,
   onMoveFolder, onMoveFolderTo, onMoveRequest,
   onMoveRequestToCollection, onMoveFolderToCollection, onMergeCollectionInto,
-  countAllRequests, startAddFolder, getSubColEligibleCount, startRenameFolder,
+  countAllRequests, startAddFolder, getSubColEligibleCount, getSubColAddDisabledTitle, startRenameFolder,
   handleExportCollection, handleExportFolder,
   handleImportToCollection, handleImportToFolder,
   setConfirmDelete,
@@ -239,7 +240,9 @@ export default function SidebarContextMenu({
           return (
             <button
               disabled={eligible === 0}
-              title={eligible === 0 ? 'Configure a base URL for an environment first' : undefined}
+              title={eligible === 0
+                ? (getSubColAddDisabledTitle?.(contextMenu.colId) ?? 'Configure a base URL for an environment first')
+                : undefined}
               onClick={() => startAddFolder(contextMenu.colId, undefined, true)}
             >Add Sub-Collection</button>
           );
@@ -305,7 +308,9 @@ export default function SidebarContextMenu({
             return (
               <button
                 disabled={eligible === 0}
-                title={eligible === 0 ? 'Configure a base URL for an environment first' : undefined}
+                title={eligible === 0
+                  ? (getSubColAddDisabledTitle?.(contextMenu.colId, contextMenu.folderId) ?? 'Configure a base URL for an environment first')
+                  : undefined}
                 onClick={() => startAddFolder(contextMenu.colId, contextMenu.folderId, true)}
               >Add Sub-Collection</button>
             );

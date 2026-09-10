@@ -8,6 +8,72 @@ export interface UrlResolverContext {
   selectedEnvId?: string;
 }
 
+function trimTrailingSlash(url: string): string {
+  return url.replace(/\/+$/, '');
+}
+
+/** True when `url` is `base` or `base` followed by `/`, `?`, or `#`. */
+export function urlStartsWithHostBase(url: string, base: string): boolean {
+  if (!url.startsWith(base)) return false;
+  const rest = url.slice(base.length);
+  return rest === '' || rest.startsWith('/') || rest.startsWith('?') || rest.startsWith('#');
+}
+
+/**
+ * Every hostname this collection can send to — mapped collection bases, raw collection
+ * bases, linked microservice bases, and every folder override. Used to strip a stale
+ * env host after a request is moved between sub-collections.
+ */
+export function collectKnownHostBases(
+  resolvedColBaseUrls: Record<string, string>,
+  collection: Pick<RequestCollection, 'baseUrls' | 'microserviceId' | 'folders'>,
+  microservices: { id: string; baseUrls?: Record<string, string> }[],
+): string[] {
+  const urls: string[] = [];
+  const add = (raw?: string) => {
+    if (!raw) return;
+    const trimmed = trimTrailingSlash(raw);
+    if (trimmed) urls.push(trimmed);
+  };
+  for (const u of Object.values(resolvedColBaseUrls)) add(u);
+  for (const u of Object.values(collection.baseUrls ?? {})) add(u);
+  const svc = collection.microserviceId
+    ? microservices.find(s => s.id === collection.microserviceId)
+    : undefined;
+  if (svc?.baseUrls) {
+    for (const u of Object.values(svc.baseUrls)) add(u);
+  }
+  const walk = (folders: RequestFolder[] | undefined) => {
+    if (!folders) return;
+    for (const f of folders) {
+      if (f.baseUrls) {
+        for (const u of Object.values(f.baseUrls)) add(u);
+      }
+      walk(f.folders);
+    }
+  };
+  walk(collection.folders);
+  return [...new Set(urls)].sort((a, b) => b.length - a.length);
+}
+
+/**
+ * Multi-env Requests store a path (or an absolute URL from another env). If the host
+ * matches a known collection/microservice/folder base, strip it so the current
+ * sub-collection host can be applied. Unknown hosts stay absolute.
+ */
+export function stripKnownBaseToRelative(
+  url: string,
+  collectionMode: RequestCollection['mode'],
+  knownBases: string[],
+): string {
+  if (!url.startsWith('http://') && !url.startsWith('https://')) return url;
+  if (collectionMode !== 'multi-env') return url;
+  const matched = knownBases.find(b => urlStartsWithHostBase(url, b));
+  if (!matched) return url;
+  const rest = url.slice(matched.length);
+  return rest.startsWith('/') ? rest : `/${rest}`;
+}
+
 export function resolveBaseUrl(ctx: UrlResolverContext): string | null {
   // Inside a sub-collection, resolve strictly via its bound env (`subColEnvId`). Never silently
   // fall back to the workbench's active env — that produced wrong base URLs for orphaned

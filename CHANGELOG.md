@@ -8,9 +8,24 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Added
+- **Reset to defaults** — Preferences footer button clears theme, layout, and editor preference keys (not test data) after Confirm, then reloads.
+
+### Fixed
+- **Send to Harness host** — Promoting a request snapshots the host for the Environment chosen in the modal (preview and created test). The picker defaults to the current sub-collection (so a request moved to local-t01 no longer keeps a leftover t01 host); choosing t01 or any other env rebuilds that host.
+- **Add Sub-Collection picker** — Single-box environment select (no wrapper border). Already-bound environments are omitted; when every configured env is used the menu is disabled and explains why.
+- **Requests sidebar drag-and-drop (desktop)** — Tauri/WKWebView can fire `dragend` before `drop`, which cancelled the move. Persist the drag payload and still accept the drop after the in-memory item is cleared.
+- **Test Runner Settings / Custom host** — Promoted harness tests store an absolute URL, so the runner badge could show `http://localhost:8080` while the send still hit the original host. Settings and Custom now rewrite that origin and keep the path.
+
+## [0.8.7] — 2026-09-09
+
 ### Fixed
 - **Linux AppImage white / blank window** — Official `.AppImage` launches still painted a solid white (Standard) or navy (Learning Hub) window on Wayland and VMware. Force X11 and unset `WAYLAND_DISPLAY` whenever the session is Wayland (AppRun’s `GDK_BACKEND=x11` is ignored while that variable stays set), detect VMware via PCI `15ad` as well as DMI, and disable the WebKit sandbox on AppImage FUSE mounts.
 - **Linux AppImage bundled EGL** — CI AppImages load Ubuntu 22.04 WebKit/EGL from AppRun’s `LD_LIBRARY_PATH`, which fails on VMware (`EGL_BAD_PARAMETER`) even after the sandbox/X11 workaround. Re-exec once with `/usr/lib/x86_64-linux-gnu` first, and prefer cairo / llvmpipe on Wayland and VMware.
+- **Lesson health probes** — Desktop Start Demo probes real Docker/service ports, so the gate no longer depends on whoever owns `:3001`. Web gRPC lessons check same-origin `/health`, which stops Chrome `ERR_CONNECTION_REFUSED` spam when the companion is down.
+- **Dev desktop updater** — Skip the GitHub updater prompt in `tauri:dev`. Persist dismiss and move the banner close control off the Windows caption buttons.
+- **Product coverage excludes** — Vitest remaps coverage globs to absolute CI paths. CSS, demo-hub, and test-utils no longer leak into the 90% product gate.
+- **GraphQL IndexedDB test flake** — Await `deleteDatabase` and reset the cached `openDB` handle between cases so purge tests do not see a blocked or session-disabled store.
 
 ### Changed
 - **Homebrew cask workflow** — Use `actions/checkout@v5` so the post-release tap bump no longer warns that Node.js 20 is deprecated.

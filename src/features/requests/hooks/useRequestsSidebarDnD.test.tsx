@@ -6,18 +6,38 @@ import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { RequestCollection } from '@shared/types';
-import { useRequestsSidebarDnD } from './useRequestsSidebarDnD';
+import {
+  parseSidebarDrag,
+  serializeSidebarDrag,
+  SIDEBAR_DRAG_MIME,
+  useRequestsSidebarDnD,
+} from './useRequestsSidebarDnD';
 
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
 });
 
+function makeDataTransfer() {
+  const store: Record<string, string> = {};
+  const dt = {
+    effectAllowed: '',
+    dropEffect: '',
+    types: [] as string[],
+    setData: vi.fn((type: string, val: string) => {
+      store[type] = val;
+      if (!dt.types.includes(type)) dt.types.push(type);
+    }),
+    getData: vi.fn((type: string) => store[type] ?? ''),
+  };
+  return dt;
+}
+
 function evt(partial?: Partial<React.DragEvent>): React.DragEvent {
   return {
     preventDefault: vi.fn(),
     stopPropagation: vi.fn(),
-    dataTransfer: { effectAllowed: '', setData: vi.fn(), dropEffect: '' } as unknown as DataTransfer,
+    dataTransfer: makeDataTransfer() as unknown as DataTransfer,
     ...partial,
   } as React.DragEvent;
 }
@@ -40,6 +60,8 @@ describe('useRequestsSidebarDnD', () => {
     expect(result.current.dropTarget).toBeNull();
     expect(result.current.dropInsert).toBeNull();
     expect(result.current.autoExpandTimerRef.current).toBeNull();
+    act(() => { vi.advanceTimersByTime(150); });
+    expect(result.current.lastDragRef.current).toBeNull();
     vi.useRealTimers();
   });
 
@@ -583,6 +605,148 @@ describe('useRequestsSidebarDnD', () => {
     const { result } = renderHook(() => useRequestsSidebarDnD({ ...makeParams(), onMoveRequest }));
     act(() => result.current.handleReqDrop(evt(), 'c1', null, [{ id: 'r1' }]));
     expect(onMoveRequest).not.toHaveBeenCalled();
+  });
+
+  it('serializes and parses sidebar drag payloads', () => {
+    expect(parseSidebarDrag(serializeSidebarDrag({ kind: 'request', colId: 'c1', reqId: 'r1' })))
+      .toEqual({ kind: 'request', colId: 'c1', reqId: 'r1' });
+    expect(parseSidebarDrag(serializeSidebarDrag({ kind: 'folder', colId: 'c1', folderId: 'f1' })))
+      .toEqual({ kind: 'folder', colId: 'c1', folderId: 'f1' });
+    expect(parseSidebarDrag(serializeSidebarDrag({ kind: 'collection', colId: 'c1' })))
+      .toEqual({ kind: 'collection', colId: 'c1' });
+    expect(parseSidebarDrag('plain-id')).toBeNull();
+    expect(parseSidebarDrag('rff-sidebar:unknown:x')).toBeNull();
+    expect(parseSidebarDrag('rff-sidebar:nocolon')).toBeNull();
+    expect(parseSidebarDrag('rff-sidebar:collection:')).toBeNull();
+    expect(parseSidebarDrag('rff-sidebar:request:col:')).toBeNull();
+    expect(parseSidebarDrag('rff-sidebar:widget:c1:id1')).toBeNull();
+  });
+
+  it('blocks folder drag-start while a request drag is in progress', () => {
+    const { result } = renderHook(() => useRequestsSidebarDnD(makeParams()));
+    act(() => result.current.handleReqDragStart(evt(), 'c1', 'r1'));
+    const folderStart = evt();
+    act(() => result.current.handleFolderDragStart(folderStart, 'c1', 'f1'));
+    expect(folderStart.preventDefault).toHaveBeenCalled();
+    expect(result.current.dragItem).toEqual({ kind: 'request', reqId: 'r1', colId: 'c1' });
+  });
+
+  it('blocks folder drag-start from last-drag after dragend', () => {
+    const { result } = renderHook(() => useRequestsSidebarDnD(makeParams()));
+    act(() => result.current.handleReqDragStart(evt(), 'c1', 'r1'));
+    act(() => result.current.handleDragEnd());
+    const folderStart = evt();
+    act(() => result.current.handleFolderDragStart(folderStart, 'c1', 'f1'));
+    expect(folderStart.preventDefault).toHaveBeenCalled();
+  });
+
+  it('clears a pending last-drag timer when a new drag starts', () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useRequestsSidebarDnD(makeParams()));
+    act(() => result.current.handleReqDragStart(evt(), 'c1', 'r1'));
+    act(() => result.current.handleDragEnd());
+    act(() => result.current.handleReqDragStart(evt(), 'c1', 'r2'));
+    expect(result.current.dragItem).toEqual({ kind: 'request', reqId: 'r2', colId: 'c1' });
+    act(() => { vi.advanceTimersByTime(150); });
+    expect(result.current.lastDragRef.current).toEqual({ kind: 'request', reqId: 'r2', colId: 'c1' });
+    vi.useRealTimers();
+  });
+
+  it('replaces a pending last-drag timer on a second dragend', () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useRequestsSidebarDnD(makeParams()));
+    act(() => result.current.handleReqDragStart(evt(), 'c1', 'r1'));
+    act(() => result.current.handleDragEnd());
+    act(() => result.current.handleDragEnd());
+    act(() => { vi.advanceTimersByTime(150); });
+    expect(result.current.lastDragRef.current).toBeNull();
+    vi.useRealTimers();
+  });
+
+  it('clears drag timers on unmount', () => {
+    vi.useFakeTimers();
+    const { result, unmount } = renderHook(() => useRequestsSidebarDnD(makeParams()));
+    act(() => result.current.handleReqDragStart(evt(), 'c1', 'r1'));
+    act(() => result.current.handleDragEnd());
+    result.current.autoExpandTimerRef.current = setTimeout(() => { /* cleanup target */ }, 5000);
+    unmount();
+    vi.useRealTimers();
+  });
+
+  it('group and folder drops no-op when nothing is being dragged', () => {
+    const onMoveToGroup = vi.fn();
+    const onMoveRequest = vi.fn();
+    const { result } = renderHook(() =>
+      useRequestsSidebarDnD({ ...makeParams(), onMoveToGroup, onMoveRequest }));
+    act(() => result.current.handleGroupDrop(evt(), 'g1'));
+    act(() => result.current.handleFolderDrop(evt(), 'c1', 'f1'));
+    expect(onMoveToGroup).not.toHaveBeenCalled();
+    expect(onMoveRequest).not.toHaveBeenCalled();
+  });
+
+  it('request drop without insert marker moves across collections', () => {
+    const onMoveRequestToCollection = vi.fn();
+    const { result } = renderHook(() =>
+      useRequestsSidebarDnD({ ...makeParams(), onMoveRequestToCollection }));
+    act(() => result.current.handleReqDragStart(evt(), 'c1', 'r1'));
+    act(() => result.current.handleReqDrop(evt(), 'c2', 'f9', [{ id: 'r9' }]));
+    expect(onMoveRequestToCollection).toHaveBeenCalledWith('c1', 'r1', 'c2', 'f9');
+  });
+
+  it('request drop with insert marker moves across collections', () => {
+    const onMoveRequestToCollection = vi.fn();
+    const { result } = renderHook(() =>
+      useRequestsSidebarDnD({ ...makeParams(), onMoveRequestToCollection }));
+    act(() => result.current.handleReqDragStart(evt(), 'c1', 'moving'));
+    act(() => { result.current.setDropInsert({ beforeReqId: 'r2', folderId: 'froot' }); });
+    act(() => result.current.handleReqDrop(evt(), 'c2', 'froot', [{ id: 'r2' }]));
+    expect(onMoveRequestToCollection).toHaveBeenCalledWith('c1', 'moving', 'c2', 'froot');
+  });
+
+  it('folder drop still moves after dragend cleared the in-memory item (WKWebView order)', () => {
+    const onMoveRequest = vi.fn();
+    const { result } = renderHook(() => useRequestsSidebarDnD({ ...makeParams(), onMoveRequest }));
+
+    act(() => result.current.handleReqDragStart(evt(), 'c1', 'r1'));
+    act(() => result.current.handleDragEnd());
+    expect(result.current.dragItem).toBeNull();
+
+    act(() => result.current.handleFolderDrop(evt(), 'c1', 't01'));
+    expect(onMoveRequest).toHaveBeenCalledWith('c1', 'r1', 't01');
+  });
+
+  it('folder drop reads the persisted payload after last-drag expiry', () => {
+    vi.useFakeTimers();
+    const onMoveRequest = vi.fn();
+    const { result } = renderHook(() => useRequestsSidebarDnD({ ...makeParams(), onMoveRequest }));
+
+    const start = evt();
+    act(() => result.current.handleReqDragStart(start, 'c1', 'r1'));
+    expect(start.dataTransfer.setData).toHaveBeenCalledWith(
+      SIDEBAR_DRAG_MIME,
+      'rff-sidebar:request:c1:r1',
+    );
+
+    act(() => result.current.handleDragEnd());
+    act(() => { vi.advanceTimersByTime(150); });
+    expect(result.current.lastDragRef.current).toBeNull();
+
+    const drop = evt({ dataTransfer: start.dataTransfer });
+    act(() => result.current.handleFolderDrop(drop, 'c1', 't01'));
+    expect(onMoveRequest).toHaveBeenCalledWith('c1', 'r1', 't01');
+    vi.useRealTimers();
+  });
+
+  it('dragover still preventDefault after dragend so WKWebView can fire drop', () => {
+    const { result } = renderHook(() => useRequestsSidebarDnD(makeParams()));
+
+    act(() => result.current.handleReqDragStart(evt(), 'c1', 'r1'));
+    act(() => result.current.handleDragEnd());
+
+    const over = evt();
+    act(() => result.current.handleDragOver(over, 't01'));
+    expect(over.preventDefault).toHaveBeenCalled();
+    expect(result.current.dropTarget).toBe('t01');
   });
 
   it('folder drop ignores reposition requests when the hovered folder equals the dragged folder id', () => {

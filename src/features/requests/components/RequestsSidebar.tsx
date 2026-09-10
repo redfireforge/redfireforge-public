@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { CustomSelect } from '@shared/components/CustomSelect';
 import type { RequestCollection, RequestFolder, Environment, Microservice } from '@shared/types';
 import { findSiblingFolders, collectGroupAncestors } from '../utils/requestTree';
+import { SUB_COL_ALL_USED_TOAST, SUB_COL_NO_BASE_URLS_TOAST } from '../utils/subCollectionEnvs';
 import { toggleSetItem } from '@shared/utils/setToggle';
 import SidebarContextMenu from './SidebarContextMenu';
 import { RequestsSidebarDialogs } from './RequestsSidebarDialogs';
@@ -14,6 +15,8 @@ import {
   getNewRequestSiblings,
   getSelectedRequestCollection,
   getSelectedRequestFolderIds,
+  getSubColAddBlockReasonForCollection,
+  getSubColAddDisabledTitleForCollection,
   getSubColEligibleEnvsForCollection,
   hasAuth,
   mergeExpandedIds,
@@ -204,6 +207,7 @@ export default function RequestsSidebar({
   const {
     dragItem,
     dragItemRef,
+    lastDragRef,
     dropTarget,
     setDropTarget,
     dropInsert,
@@ -296,8 +300,12 @@ export default function RequestsSidebar({
 
   const startAddFolder = (colId: string, parentFolderId?: string, isSubCollection?: boolean) => {
     if (isSubCollection && getSubColEligibleEnvs(colId, parentFolderId).length === 0) {
-      toast.show('info', 'No environments available',
-        'Configure a base URL for at least one environment in this collection before adding a sub-collection.');
+      const reason = getSubColAddBlockReasonForCollection(collections, environments, microservices, colId);
+      if (reason === 'all-used') {
+        toast.show('info', 'All environments in use', SUB_COL_ALL_USED_TOAST);
+      } else {
+        toast.show('info', 'No environments available', SUB_COL_NO_BASE_URLS_TOAST);
+      }
       setContextMenu(null);
       return;
     }
@@ -336,13 +344,15 @@ export default function RequestsSidebar({
         <div className="req-new-folder-row">
           <span className="req-folder-icon">📦</span>
           <CustomSelect
-            className="req-inline-input"
+            className="req-subcol-env-select"
+            size="sm"
             data-testid="req-subcol-env-select"
             value=""
             onChange={commitAddSubCollection}
             options={eligible.map((env) => ({ value: env.id, label: env.name }))}
             placeholder="Select environment…"
             aria-label="Sub-collection environment"
+            menuMatchTriggerWidth
           />
         </div>
       );
@@ -613,6 +623,7 @@ export default function RequestsSidebar({
         dropTarget={dropTarget}
         dragItem={dragItem}
         dragItemRef={dragItemRef}
+        lastDragRef={lastDragRef}
         autoExpandTimerRef={autoExpandTimerRef}
         handleContainerDragLeave={handleContainerDragLeave}
         handleDragOver={handleDragOver}
@@ -680,6 +691,7 @@ export default function RequestsSidebar({
           countAllRequests={countAllRequests}
           startAddFolder={startAddFolder}
           getSubColEligibleCount={(colId, parentFolderId) => getSubColEligibleEnvs(colId, parentFolderId).length}
+          getSubColAddDisabledTitle={(colId) => getSubColAddDisabledTitleForCollection(collections, environments, microservices, colId)}
           startRenameFolder={startRenameFolder}
           handleExportCollection={handleExportCollection}
           handleExportFolder={handleExportFolder}

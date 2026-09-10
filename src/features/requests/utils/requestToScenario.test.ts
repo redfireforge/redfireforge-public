@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { createScenarioFromRequest, resolveRequestAuth } from './requestToScenario';
+import {
+  createScenarioFromRequest,
+  resolveDefaultPromotionEnvId,
+  resolveDefaultPromotionSvcId,
+  resolveRequestAuth,
+} from './requestToScenario';
 import type { PromotionContext } from './requestToScenario';
 import type {
   AuthConfig,
@@ -39,7 +44,7 @@ function makeContext(overrides?: Partial<PromotionContext>): PromotionContext {
   return {
     collection: makeCollection(),
     selectedEnvId: 'env1',
-    environments: [{ id: 'env1', name: 'DEV' }],
+    appEnvironments: [{ id: 'env1', name: 'DEV' }],
     globalAuthProfiles: [],
     microservices: [],
     ...overrides,
@@ -165,10 +170,169 @@ describe('createScenarioFromRequest', () => {
     expect(scenario.url).toBe('https://api.example.com/pets/42/details');
   });
 
-  it('keeps absolute URL unchanged', () => {
+  it('keeps absolute URL unchanged when the host is not a known collection base', () => {
     const req = makeRequest({ url: 'https://other-api.com/health' });
     const scenario = createScenarioFromRequest(req, makeContext());
     expect(scenario.url).toBe('https://other-api.com/health');
+  });
+
+  it('rewrites a t01 absolute URL when promoting as the local-t01 environment', () => {
+    const t01Host = 'https://sales-product-autoassign.apps.gmna.test.cvca.atmosdt.gm.com';
+    const req = makeRequest({
+      id: 'req-digimo',
+      url: `${t01Host}/salesproduct/autoassignment/v1/vehicles/VIN/onboarding/digitalmo/offers`,
+    });
+    const col = makeCollection({
+      mode: 'multi-env',
+      baseUrls: {},
+      microserviceId: 'svc-spa',
+      folders: [{
+        id: 'local-t01',
+        name: 'local-t01',
+        isSubCollection: true,
+        selectedEnvId: 'env-local',
+        baseUrls: { 'env-local': 'http://localhost:8080' },
+        requests: [req],
+        folders: [],
+      }],
+    });
+    const scenario = createScenarioFromRequest(
+      req,
+      makeContext({
+        collection: col,
+        selectedEnvId: 'env-local',
+        appEnvironments: [
+          { id: 'env-t01', name: 't01' },
+          { id: 'env-local', name: 'local-t01' },
+        ],
+        microservices: [{
+          id: 'svc-spa',
+          baseUrls: {
+            'env-t01': t01Host,
+            'env-local': 'http://localhost:8080',
+          },
+          authProfileIds: {},
+        }],
+      }),
+    );
+    expect(scenario.url).toBe(
+      'http://localhost:8080/salesproduct/autoassignment/v1/vehicles/VIN/onboarding/digitalmo/offers',
+    );
+  });
+
+  it('uses the Send to Harness environment when it differs from the parent sub-collection', () => {
+    const t01Host = 'https://t01.example.com';
+    const req = makeRequest({
+      id: 'req-rel',
+      url: '/salesproduct/autoassignment/v1/ping',
+    });
+    const col = makeCollection({
+      mode: 'multi-env',
+      baseUrls: {},
+      microserviceId: 'svc-spa',
+      folders: [{
+        id: 'local-t01',
+        name: 'local-t01',
+        isSubCollection: true,
+        selectedEnvId: 'env-local',
+        baseUrls: { 'env-local': 'http://localhost:8080' },
+        requests: [req],
+        folders: [],
+      }],
+    });
+    const ctx = {
+      collection: col,
+      appEnvironments: [
+        { id: 'env-t01', name: 't01' },
+        { id: 'env-local', name: 'local-t01' },
+      ],
+      microservices: [{
+        id: 'svc-spa',
+        baseUrls: {
+          'env-t01': t01Host,
+          'env-local': 'http://localhost:8080',
+        },
+        authProfileIds: {},
+      }],
+    };
+    expect(createScenarioFromRequest(req, makeContext({ ...ctx, selectedEnvId: 'env-t01' })).url)
+      .toBe(`${t01Host}/salesproduct/autoassignment/v1/ping`);
+    expect(createScenarioFromRequest(req, makeContext({ ...ctx, selectedEnvId: 'env-local' })).url)
+      .toBe('http://localhost:8080/salesproduct/autoassignment/v1/ping');
+  });
+
+  it('falls back to the parent sub-collection host when no promotion env is selected', () => {
+    const req = makeRequest({
+      id: 'req-rel',
+      url: '/salesproduct/autoassignment/v1/ping',
+    });
+    const col = makeCollection({
+      mode: 'multi-env',
+      baseUrls: {},
+      microserviceId: 'svc-spa',
+      folders: [{
+        id: 'local-t01',
+        name: 'local-t01',
+        isSubCollection: true,
+        selectedEnvId: 'env-local',
+        requests: [req],
+        folders: [],
+      }],
+    });
+    const scenario = createScenarioFromRequest(
+      req,
+      makeContext({
+        collection: col,
+        selectedEnvId: undefined,
+        appEnvironments: [
+          { id: 'env-t01', name: 't01' },
+          { id: 'env-local', name: 'local-t01' },
+        ],
+        microservices: [{
+          id: 'svc-spa',
+          baseUrls: {
+            'env-t01': 'https://t01.example.com',
+            'env-local': 'http://localhost:8080',
+          },
+          authProfileIds: {},
+        }],
+      }),
+    );
+    expect(scenario.url).toBe('http://localhost:8080/salesproduct/autoassignment/v1/ping');
+  });
+
+  it('resolves via ancestor sub-collection when the request sits in a nested regular folder', () => {
+    const req = makeRequest({ id: 'req-nested', url: '/inner' });
+    const col = makeCollection({
+      mode: 'multi-env',
+      baseUrls: { 'env-t01': 'https://t01.example.com', 'env-local': 'http://localhost:8080' },
+      folders: [{
+        id: 'local-t01',
+        name: 'local-t01',
+        isSubCollection: true,
+        selectedEnvId: 'env-local',
+        baseUrls: { 'env-local': 'http://localhost:8080' },
+        requests: [],
+        folders: [{
+          id: 'group',
+          name: 'Group',
+          requests: [req],
+          folders: [],
+        }],
+      }],
+    });
+    const scenario = createScenarioFromRequest(
+      req,
+      makeContext({
+        collection: col,
+        selectedEnvId: 'env-local',
+        appEnvironments: [
+          { id: 'env-t01', name: 't01' },
+          { id: 'env-local', name: 'local-t01' },
+        ],
+      }),
+    );
+    expect(scenario.url).toBe('http://localhost:8080/inner');
   });
 
   it('copies bodyType and bodyForm', () => {
@@ -218,7 +382,7 @@ describe('createScenarioFromRequest', () => {
           baseUrls: {},
           microserviceId: 'svc-linked',
         }),
-        environments: [{ id: 'env-ms', name: 'QA' }],
+        appEnvironments: [{ id: 'env-ms', name: 'QA' }],
         microservices: [
           { id: 'svc-linked', baseUrls: { 'env-ms': 'https://ms.service.test' }, authProfileIds: {} },
         ],
@@ -237,7 +401,6 @@ describe('createScenarioFromRequest', () => {
           baseUrls: {},
           microserviceId: 'svc-linked',
         }),
-        environments: [{ id: 'wb-env', name: 'Staging' }],
         microservices: [
           {
             id: 'svc-linked',
@@ -272,7 +435,7 @@ describe('createScenarioFromRequest', () => {
       makeContext({
         collection: col,
         folderId: 'inner',
-        environments: [{ id: 'env1', name: 'DEV' }],
+        appEnvironments: [{ id: 'env1', name: 'DEV' }],
       }),
     );
     expect(scenario.url).toBe('https://sub.example.io/nested');
@@ -614,7 +777,7 @@ describe('createScenarioFromRequest branches', () => {
           baseUrls: {},
           microserviceId: 'svc-linked',
         }),
-        environments: [{ id: 'missing-env', name: 'Ghost' }],
+        appEnvironments: [{ id: 'missing-env', name: 'Ghost' }],
         microservices: [
           {
             id: 'svc-linked',
@@ -651,7 +814,7 @@ describe('createScenarioFromRequest branches', () => {
       makeRequest({ url: '/fallback' }),
       makeContext({
         selectedEnvId: 'missing-key',
-        environments: [{ id: 'missing-key', name: 'Orphan' }],
+        appEnvironments: [{ id: 'missing-key', name: 'Orphan' }],
         collection: makeCollection({
           mode: 'multi-env',
           baseUrls: {},
@@ -678,5 +841,179 @@ describe('createScenarioFromRequest branches', () => {
       }),
     );
     expect(scenario.url).toBe('https://api.example.com/z');
+  });
+
+  it('keeps the URL when saved query params are all disabled', () => {
+    const scenario = createScenarioFromRequest(
+      makeRequest({
+        url: 'https://other-api.com/health',
+        savedQueryParams: [{ key: 'q', value: '1', enabled: false }],
+      }),
+      makeContext(),
+    );
+    expect(scenario.url).toBe('https://other-api.com/health');
+  });
+
+  it('stitches a linked microservice on a direct-mode relative path without a leading slash', () => {
+    const scenario = createScenarioFromRequest(
+      makeRequest({ url: 'v1/ping' }),
+      makeContext({
+        selectedEnvId: 'wb-env',
+        collection: makeCollection({
+          mode: 'direct',
+          baseUrls: {},
+          microserviceId: 'svc-linked',
+        }),
+        appEnvironments: [
+          { id: 'wb-env', name: 'QA' },
+          { id: 'svc-env', name: 'QA' },
+        ],
+        microservices: [
+          { id: 'svc-linked', baseUrls: { 'svc-env': 'https://qa.ms' }, authProfileIds: {} },
+        ],
+      }),
+    );
+    expect(scenario.url).toBe('https://qa.ms/v1/ping');
+  });
+
+  it('leaves a relative URL unchanged when there is no microservice to stitch', () => {
+    const scenario = createScenarioFromRequest(
+      makeRequest({ url: '/only' }),
+      makeContext({
+        selectedEnvId: 'env1',
+        collection: makeCollection({ mode: 'direct', baseUrls: {} }),
+      }),
+    );
+    expect(scenario.url).toBe('/only');
+  });
+
+  it('skips an empty first fallback base URL on a host folder', () => {
+    const req = makeRequest({ id: 'r-empty-base', url: '/z' });
+    const scenario = createScenarioFromRequest(
+      req,
+      makeContext({
+        selectedEnvId: undefined,
+        collection: makeCollection({
+          mode: 'multi-env',
+          baseUrls: { env1: '' },
+          folders: [{
+            id: 'host',
+            name: 'H',
+            isSubCollection: true,
+            selectedEnvId: 'gone',
+            baseUrls: { gone: '' },
+            requests: [req],
+            folders: [],
+          }],
+        }),
+      }),
+    );
+    expect(scenario.url).toBe('/z');
+  });
+});
+
+describe('resolveDefaultPromotionEnvId', () => {
+  it('prefers the parent sub-collection bound env over workbench selection', () => {
+    const req = makeRequest({ id: 'r-sub' });
+    const col = makeCollection({
+      folders: [{
+        id: 'local-t01',
+        name: 'local-t01',
+        isSubCollection: true,
+        selectedEnvId: 'env-local',
+        requests: [req],
+        folders: [],
+      }],
+    });
+    expect(resolveDefaultPromotionEnvId(req, {
+      collection: col,
+      selectedEnvId: 'env-t01',
+      appEnvironments: [
+        { id: 'env-t01', name: 't01' },
+        { id: 'env-local', name: 'local-t01' },
+      ],
+    })).toBe('env-local');
+  });
+
+  it('falls back to selectedEnvId when the request is not in a sub-collection', () => {
+    expect(resolveDefaultPromotionEnvId(makeRequest(), makeContext())).toBe('env1');
+  });
+
+  it('uses folder selectedEnvId when Settings cannot bind the sub-collection', () => {
+    const req = makeRequest({ id: 'r-orphan' });
+    const col = makeCollection({
+      folders: [{
+        id: 'orphan',
+        name: 'orphan',
+        isSubCollection: true,
+        selectedEnvId: 'stale-env',
+        requests: [req],
+        folders: [],
+      }],
+    });
+    expect(resolveDefaultPromotionEnvId(req, {
+      collection: col,
+      selectedEnvId: 'env-t01',
+    })).toBe('stale-env');
+  });
+
+  it('uses folderId host folder with baseUrls when the request is not in the tree', () => {
+    expect(resolveDefaultPromotionEnvId(makeRequest({ id: 'elsewhere' }), {
+      collection: makeCollection({
+        folders: [{
+          id: 'host',
+          name: 'profiles',
+          baseUrls: { env1: 'https://folder.host' },
+          requests: [],
+          folders: [],
+        }],
+      }),
+      folderId: 'host',
+      selectedEnvId: 'env1',
+      appEnvironments: [{ id: 'env1', name: 'DEV' }],
+    })).toBe('env1');
+  });
+});
+
+describe('resolveDefaultPromotionSvcId', () => {
+  it('returns the linked microservice when it has a base for the env', () => {
+    expect(resolveDefaultPromotionSvcId(
+      { microserviceId: 'svc-1' },
+      [{ id: 'svc-1', baseUrls: { e1: 'https://x' } }],
+      'e1',
+    )).toBe('svc-1');
+  });
+
+  it('returns undefined when the linked service has no base for the env', () => {
+    expect(resolveDefaultPromotionSvcId(
+      { microserviceId: 'svc-1' },
+      [{ id: 'svc-1', baseUrls: { e2: 'https://x' } }],
+      'e1',
+    )).toBeUndefined();
+  });
+
+  it('returns the linked id when no env is selected yet', () => {
+    expect(resolveDefaultPromotionSvcId(
+      { microserviceId: 'svc-1' },
+      [{ id: 'svc-1', baseUrls: {} }],
+      undefined,
+    )).toBe('svc-1');
+  });
+
+  it('returns undefined when the collection has no linked microservice', () => {
+    expect(resolveDefaultPromotionSvcId({ microserviceId: undefined }, [{ id: 'svc-1', baseUrls: {} }], 'e1'))
+      .toBeUndefined();
+  });
+
+  it('matches a custom env on the linked microservice', () => {
+    expect(resolveDefaultPromotionSvcId(
+      { microserviceId: 'svc-1' },
+      [{ id: 'svc-1', baseUrls: {}, customEnvs: [{ id: 'ce1', name: 'Local' }] }],
+      'ce1',
+    )).toBe('svc-1');
+  });
+
+  it('returns undefined when the linked microservice is missing from the roster', () => {
+    expect(resolveDefaultPromotionSvcId({ microserviceId: 'gone' }, [], 'e1')).toBeUndefined();
   });
 });

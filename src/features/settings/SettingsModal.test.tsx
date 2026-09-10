@@ -10,6 +10,7 @@ import type { GlobalAuthProfile, AuthType } from '@shared/types';
 vi.mock('../../shared/utils/storage', () => ({
   getStorageUsage: vi.fn().mockResolvedValue({ usedBytes: 0, entries: {} }),
   getMaxRuns: vi.fn().mockResolvedValue(50),
+  resetPreferences: vi.fn().mockResolvedValue([]),
 }));
 
 // ── Mock audit log ──
@@ -622,5 +623,41 @@ describe('SettingsPage — verify auth', () => {
       }
       unmount();
     }
+  });
+});
+
+describe('SettingsPage — reset preferences', () => {
+  it('renders the Reset to defaults button', () => {
+    render(<Harness />);
+    const btn = screen.getByTestId('reset-preferences-btn');
+    expect(btn.textContent).toBe('Reset to defaults');
+    expect(btn.className).toContain('btn-danger');
+  });
+
+  it('opens ConfirmModal and confirms by clearing prefs then reloading', async () => {
+    const { resetPreferences } = await import('../../shared/utils/storage');
+    const reload = vi.fn();
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...window.location, reload },
+    });
+
+    render(<Harness />);
+    fireEvent.click(screen.getByTestId('reset-preferences-btn'));
+    expect(screen.getByText('This will clear all preferences and reload. Your test data will not be affected.')).toBeTruthy();
+
+    const confirmBtns = screen.getAllByRole('button', { name: 'Reset to defaults' });
+    fireEvent.click(confirmBtns[confirmBtns.length - 1]);
+    await waitFor(() => expect(resetPreferences).toHaveBeenCalled());
+    await waitFor(() => expect(reload).toHaveBeenCalled());
+  });
+
+  it('closes the confirm dialog without resetting', async () => {
+    const { resetPreferences } = await import('../../shared/utils/storage');
+    render(<Harness />);
+    fireEvent.click(screen.getByTestId('reset-preferences-btn'));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByText('This will clear all preferences and reload. Your test data will not be affected.')).toBeNull();
+    expect(resetPreferences).not.toHaveBeenCalled();
   });
 });

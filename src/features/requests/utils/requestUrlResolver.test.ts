@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { resolveBaseUrl, buildDisplayUrl, resolveFullSendUrl } from './requestUrlResolver';
+import {
+  resolveBaseUrl,
+  buildDisplayUrl,
+  resolveFullSendUrl,
+  collectKnownHostBases,
+  stripKnownBaseToRelative,
+  urlStartsWithHostBase,
+} from './requestUrlResolver';
 import type { UrlResolverContext } from './requestUrlResolver';
 
 function ctx(overrides: Partial<UrlResolverContext> = {}): UrlResolverContext {
@@ -129,5 +136,77 @@ describe('resolveBaseUrl — additional branches', () => {
       parentSubCollection: { baseUrls: {} },
     });
     expect(resolveBaseUrl(c)).toBeNull();
+  });
+});
+
+describe('urlStartsWithHostBase', () => {
+  it('accepts the base, a path, query, or hash — not a longer hostname', () => {
+    const base = 'https://t01.example.com';
+    expect(urlStartsWithHostBase(`${base}/v1`, base)).toBe(true);
+    expect(urlStartsWithHostBase(`${base}?q=1`, base)).toBe(true);
+    expect(urlStartsWithHostBase(`${base}#top`, base)).toBe(true);
+    expect(urlStartsWithHostBase(base, base)).toBe(true);
+    expect(urlStartsWithHostBase('https://t01.example.com.evil.com/v1', base)).toBe(false);
+  });
+});
+
+describe('collectKnownHostBases', () => {
+  it('collects mapped, collection, microservice, and folder bases, longest first', () => {
+    const bases = collectKnownHostBases(
+      { e1: 'https://mapped.example.com/' },
+      {
+        baseUrls: { e1: 'https://col.example.com' },
+        microserviceId: 'svc',
+        folders: [{
+          id: 'f',
+          name: 'local',
+          requests: [],
+          folders: [{
+            id: 'child',
+            name: 'child',
+            requests: [],
+            folders: [],
+            baseUrls: { e1: 'http://localhost:8080' },
+          }],
+        }],
+      },
+      [{ id: 'svc', baseUrls: { e1: 'https://ms.example.com/api/' } }],
+    );
+    expect(bases[0]).toBe('https://mapped.example.com');
+    expect(bases).toEqual(expect.arrayContaining([
+      'https://mapped.example.com',
+      'https://col.example.com',
+      'https://ms.example.com/api',
+      'http://localhost:8080',
+    ]));
+  });
+
+  it('skips empty strings and unknown microservice ids', () => {
+    expect(collectKnownHostBases(
+      { e1: '' },
+      { baseUrls: { e1: '' }, microserviceId: 'missing', folders: [] },
+      [{ id: 'other', baseUrls: { e1: 'https://nope.example.com' } }],
+    )).toEqual([]);
+  });
+});
+
+describe('stripKnownBaseToRelative', () => {
+  const t01 = 'https://t01.example.com';
+
+  it('leaves relative and direct-mode absolute URLs unchanged', () => {
+    expect(stripKnownBaseToRelative('/v1', 'multi-env', [t01])).toBe('/v1');
+    expect(stripKnownBaseToRelative(`${t01}/v1`, 'direct', [t01])).toBe(`${t01}/v1`);
+  });
+
+  it('strips a known host and keeps query or hash on a bare origin', () => {
+    expect(stripKnownBaseToRelative(`${t01}/v1/ping`, 'multi-env', [t01])).toBe('/v1/ping');
+    expect(stripKnownBaseToRelative(`${t01}?q=1`, 'multi-env', [t01])).toBe('/?q=1');
+    expect(stripKnownBaseToRelative(`${t01}#x`, 'multi-env', [t01])).toBe('/#x');
+    expect(stripKnownBaseToRelative(t01, 'multi-env', [t01])).toBe('/');
+  });
+
+  it('keeps an unknown host absolute', () => {
+    expect(stripKnownBaseToRelative('https://other.example.com/v1', 'multi-env', [t01]))
+      .toBe('https://other.example.com/v1');
   });
 });
