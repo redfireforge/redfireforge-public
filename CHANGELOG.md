@@ -8,6 +8,8 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.8.8-beta.1] — 2026-09-10
+
 ### Added
 - **Reset to defaults** — Preferences footer button clears theme, layout, and editor preference keys (not test data) after Confirm, then reloads.
 
