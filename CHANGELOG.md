@@ -8,6 +8,8 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.8.8] — 2026-09-10
+
 ### Added
 - **Reset to defaults** — Preferences footer button clears theme, layout, and editor preference keys (not test data) after Confirm, then reloads.
 
@@ -18,6 +20,7 @@ Format follows Keep a Changelog and Semantic Versioning.
 - **Requests sidebar drag-and-drop (desktop)** — Tauri/WKWebView can fire `dragend` before `drop`, which cancelled the move. Persist the drag payload and still accept the drop after the in-memory item is cleared.
 - **Requests sidebar drag-and-drop (Tauri / Learning Hub)** — Desktop WKWebView swallowed HTML5 drag events because Tauri’s native file-drop handler is on by default. Turn that handler off so request, folder, and collection rows can be moved, and keep request rows from starting a text-selection drag.
 - **Test Runner Settings / Custom host** — Promoted harness tests store an absolute URL, so the runner badge could show `http://localhost:8080` while the send still hit the original host. Settings and Custom now rewrite that origin and keep the path.
+- **Desktop Windows/macOS build warnings** — Linux WebKit workaround helpers are unused outside Linux, so non-Linux release builds no longer warn about dead code.
 
 ## [0.8.7] — 2026-09-09
 
