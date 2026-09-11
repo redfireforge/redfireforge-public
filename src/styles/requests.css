@@ -412,6 +412,8 @@
   font-size: 0.85rem;
   transition: background 0.12s;
   user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: element;
 }
 .req-col-header:hover {
   background: var(--surface-hover);
@@ -515,7 +517,12 @@
   font-size: 0.8rem;
   border-radius: 4px;
   transition: background 0.12s;
+  user-select: none;
+  -webkit-user-select: none;
   -webkit-user-drag: element;
+}
+.req-req-item * {
+  -webkit-user-drag: none;
 }
 .req-req-item:hover {
   background: var(--surface-hover);

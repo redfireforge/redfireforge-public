@@ -15,6 +15,7 @@ Format follows Keep a Changelog and Semantic Versioning.
 - **Send to Harness host** — Promoting a request snapshots the host for the Environment chosen in the modal (preview and created test). The picker defaults to the current sub-collection (so a request moved to local-t01 no longer keeps a leftover t01 host); choosing t01 or any other env rebuilds that host.
 - **Add Sub-Collection picker** — Single-box environment select (no wrapper border). Already-bound environments are omitted; when every configured env is used the menu is disabled and explains why.
 - **Requests sidebar drag-and-drop (desktop)** — Tauri/WKWebView can fire `dragend` before `drop`, which cancelled the move. Persist the drag payload and still accept the drop after the in-memory item is cleared.
+- **Requests sidebar drag-and-drop (Tauri / Learning Hub)** — Desktop WKWebView swallowed HTML5 drag events because Tauri’s native file-drop handler is on by default. Turn that handler off so request, folder, and collection rows can be moved, and keep request rows from starting a text-selection drag.
 - **Test Runner Settings / Custom host** — Promoted harness tests store an absolute URL, so the runner badge could show `http://localhost:8080` while the send still hit the original host. Settings and Custom now rewrite that origin and keep the path.
 
 ## [0.8.7] — 2026-09-09
