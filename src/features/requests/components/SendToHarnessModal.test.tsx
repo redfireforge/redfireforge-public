@@ -55,9 +55,13 @@ vi.mock('./send-harness-shared/HarnessOptionsGrid', () => ({
 }));
 
 const createScenarioFromRequest = vi.fn();
-vi.mock('../utils/requestToScenario', () => ({
-  createScenarioFromRequest: (...args: unknown[]) => createScenarioFromRequest(...args),
-}));
+vi.mock('../utils/requestToScenario', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../utils/requestToScenario')>();
+  return {
+    ...actual,
+    createScenarioFromRequest: (...args: unknown[]) => createScenarioFromRequest(...args),
+  };
+});
 
 const request: RequestItem = {
   id: 'r1',
@@ -218,7 +222,7 @@ describe('SendToHarnessModal', () => {
     // createScenarioFromRequest invoked with inherit + status-200 options
     expect(createScenarioFromRequest).toHaveBeenCalledWith(
       request,
-      promotionContext,
+      expect.objectContaining({ selectedEnvId: 'e1' }),
       expect.objectContaining({ authMode: 'inherit', validationPreset: 'status-200' }),
     );
   });
@@ -237,7 +241,7 @@ describe('SendToHarnessModal', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send to Harness' }));
     expect(createScenarioFromRequest).toHaveBeenLastCalledWith(
       request,
-      promotionContext,
+      expect.objectContaining({ selectedEnvId: 'e1' }),
       expect.objectContaining({ validationPreset: 'status-200' }),
     );
     expect(onConfirm).toHaveBeenCalled();
@@ -256,6 +260,65 @@ describe('SendToHarnessModal', () => {
     // Change env -> resets svc/group/scenario, disabling Next again
     fireEvent.change(screen.getByLabelText('Environment'), { target: { value: '' } });
     expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+  });
+
+  it('defaults Environment to the request sub-collection and snapshots a later env change', () => {
+    const req = { ...request, id: 'in-local' };
+    const envs: Environment[] = [
+      { id: 'e-t01', name: 't01' },
+      { id: 'e-local', name: 'local-t01' },
+    ];
+    const svcs: Microservice[] = [{
+      id: 'm1',
+      name: 'SPA',
+      baseUrls: { 'e-t01': 'https://t01.example.com', 'e-local': 'http://localhost:8080' },
+    }];
+    const onConfirm = vi.fn();
+    render(
+      <SendToHarnessModal
+        request={req}
+        promotionContext={{
+          collection: {
+            id: 'c1',
+            name: 'API',
+            mode: 'multi-env',
+            microserviceId: 'm1',
+            requests: [],
+            folders: [{
+              id: 'local',
+              name: 'local-t01',
+              isSubCollection: true,
+              selectedEnvId: 'e-local',
+              requests: [req],
+              folders: [],
+            }],
+          },
+          selectedEnvId: 'e-t01',
+          appEnvironments: envs,
+          globalAuthProfiles: [],
+          microservices: svcs,
+        }}
+        featureGroups={featureGroups}
+        environments={envs}
+        microservices={svcs}
+        onConfirm={onConfirm}
+        onClose={vi.fn()}
+      />,
+    );
+    expect((screen.getByLabelText('Environment') as HTMLSelectElement).value).toBe('e-local');
+    expect((screen.getByLabelText('Microservice') as HTMLSelectElement).value).toBe('m1');
+
+    fireEvent.change(screen.getByLabelText('Environment'), { target: { value: 'e-t01' } });
+    fireEvent.change(screen.getByLabelText('Feature Group'), { target: { value: 'g1' } });
+    fireEvent.change(screen.getByLabelText('Test Scenario'), { target: { value: 'sc1' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Send to Harness' }));
+    expect(createScenarioFromRequest).toHaveBeenLastCalledWith(
+      req,
+      expect.objectContaining({ selectedEnvId: 'e-t01' }),
+      expect.anything(),
+    );
+    expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ environmentId: 'e-t01' }));
   });
 
   it('shows catalog version badge when request has an active spec version', () => {

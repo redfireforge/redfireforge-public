@@ -11,6 +11,7 @@ import type { SendToHarnessPayload } from '../../features/requests/components/Se
 import type { BatchSendToHarnessPayload } from '../../features/requests/components/BatchSendToHarnessModal';
 import { batchPromoteCollection, promoteToFeatureGroups } from '../../features/requests/utils/promoteToHarness';
 import type { PromotionContext } from '../../features/requests/utils/requestToScenario';
+import { findReqParentFolder } from '../../features/requests/utils/requestTree';
 import { catalogEndpointToRequest } from '../../features/catalog/utils/catalogEndpointToRequest';
 import type { UseRequestsReturn } from '../../features/requests/hooks/useRequests';
 import type { ToastApi } from '@workflow/components/WorkflowToastProvider';
@@ -80,6 +81,7 @@ export function useHarnessPromotion(params: UseHarnessPromotionParams): UseHarne
     if (!wb.selectedCollection || !wb.selectedRequest) return null;
     return {
       collection: wb.selectedCollection,
+      folderId: findReqParentFolder(wb.selectedCollection.folders ?? [], wb.selectedRequest.id)?.id,
       selectedEnvId: wb.selectedEnvId,
       globalAuthProfiles: appGlobalAuthProfiles,
       microservices,

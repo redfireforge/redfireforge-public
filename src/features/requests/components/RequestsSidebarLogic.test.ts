@@ -11,6 +11,8 @@ import {
   getNewRequestSiblings,
   getSelectedRequestCollection,
   getSelectedRequestFolderIds,
+  getSubColAddBlockReasonForCollection,
+  getSubColAddDisabledTitleForCollection,
   getSubColEligibleEnvsForCollection,
   hasAuth,
   mergeExpandedIds,
@@ -91,6 +93,30 @@ describe('RequestsSidebarLogic', () => {
     });
     expect(getSubColEligibleEnvsForCollection([col], [{ id: 'e1', name: 'dev' } as never], [], 'missing')).toEqual([]);
     expect(getSubColEligibleEnvsForCollection([col], [{ id: 'e1', name: 'dev' } as never], [], 'c1').length).toBeGreaterThanOrEqual(0);
+    expect(getSubColAddBlockReasonForCollection([col], [{ id: 'e1', name: 'dev' } as never], [], 'missing')).toBe('no-base-urls');
+    expect(getSubColAddDisabledTitleForCollection(
+      [makeCollection({ id: 'c1', mode: 'multi-env', baseUrls: { e1: 'https://x' } as never })],
+      [{ id: 'e1', name: 'dev' } as never],
+      [],
+      'c1',
+    )).toBeUndefined();
+    expect(getSubColAddBlockReasonForCollection(
+      [makeCollection({
+        id: 'c1',
+        mode: 'multi-env',
+        baseUrls: { e1: 'https://x' } as never,
+        folders: [{ id: 'f-dev', name: 'dev', isSubCollection: true, selectedEnvId: 'e1', requests: [], folders: [] }] as never,
+      })],
+      [{ id: 'e1', name: 'dev' } as never],
+      [],
+      'c1',
+    )).toBe('all-used');
+    expect(getSubColAddDisabledTitleForCollection(
+      [makeCollection({ id: 'c1', mode: 'multi-env' })],
+      [{ id: 'e1', name: 'dev' } as never],
+      [],
+      'c1',
+    )).toBe('Configure a base URL for an environment first');
     expect(getNewFolderSiblings([col], { colId: 'missing', parentFolderId: 'f1' })).toEqual([]);
     expect(getNewFolderSiblings([col], null)).toEqual([]);
     expect(getNewFolderSiblings([col], { colId: 'c1' })).toEqual(col.folders);

@@ -11,6 +11,7 @@ vi.mock('../../config/features', () => ({
 vi.mock('../../shared/utils/storage', () => ({
   getStorageUsage: vi.fn().mockResolvedValue({ usedBytes: 0, entries: {} }),
   getMaxRuns: vi.fn().mockResolvedValue(50),
+  resetPreferences: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('../audit/utils/auditLog', () => ({

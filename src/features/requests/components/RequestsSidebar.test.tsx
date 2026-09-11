@@ -20,6 +20,7 @@ const h = vi.hoisted(() => ({
   drag: {
     dragItem: null as unknown,
     dragItemRef: { current: null as unknown },
+    lastDragRef: { current: null as unknown },
     autoExpandTimerRef: { current: null as ReturnType<typeof setTimeout> | null },
     dropTarget: null as unknown,
     dropInsert: null as unknown,
@@ -42,6 +43,7 @@ vi.mock('../hooks/useRequestsSidebarDnD', () => ({
   useRequestsSidebarDnD: () => ({
     dragItem: h.drag.dragItem,
     dragItemRef: h.drag.dragItemRef,
+    lastDragRef: h.drag.lastDragRef,
     dropTarget: h.drag.dropTarget,
     setDropTarget: vi.fn(),
     dropInsert: h.drag.dropInsert,
@@ -313,6 +315,37 @@ describe('RequestsSidebar', () => {
     expect(h.toast).toHaveBeenCalledWith('info', 'No environments available', expect.any(String));
     expect(screen.queryByTestId('req-subcol-env-select')).not.toBeInTheDocument();
     expect(props.onAddSubCollection).not.toHaveBeenCalled();
+  });
+
+  it('toasts a different message and blocks add when every env already has a sub-collection', () => {
+    const fullCol = {
+      ...col,
+      folders: [
+        { id: 'f-dev', name: 'dev', isSubCollection: true, selectedEnvId: 'e-dev', requests: [], folders: [] },
+        { id: 'f-stg', name: 'staging', isSubCollection: true, selectedEnvId: 'e-stg', requests: [], folders: [] },
+      ],
+    } as unknown as RequestCollection;
+    const props = setup({ collections: [fullCol], selectedCollectionId: 'c1' });
+    openCollectionCtx();
+    act(() => { (h.ctx.startAddFolder as (c: string, p?: string, s?: boolean) => void)('c1', undefined, true); });
+    expect(h.toast).toHaveBeenCalledWith('info', 'All environments in use', expect.stringMatching(/already has a sub-collection/));
+    expect(screen.queryByTestId('req-subcol-env-select')).not.toBeInTheDocument();
+    expect(props.onAddSubCollection).not.toHaveBeenCalled();
+  });
+
+  it('omits already-bound environments from the add dropdown', () => {
+    const usedCol = {
+      ...col,
+      folders: [
+        { id: 'f-dev', name: 'dev', isSubCollection: true, selectedEnvId: 'e-dev', requests: [], folders: [] },
+      ],
+    } as unknown as RequestCollection;
+    setup({ collections: [usedCol], selectedCollectionId: 'c1' });
+    openCollectionCtx();
+    act(() => { (h.ctx.startAddFolder as (c: string, p?: string, s?: boolean) => void)('c1', undefined, true); });
+    const select = screen.getByTestId('req-subcol-env-select');
+    expect(getCustomSelectOptionLabels(select)).toEqual(['staging']);
+    expect(getCustomSelectOptionLabels(select)).not.toContain('dev');
   });
 
   it('exposes an eligible-env count helper to the context menu', () => {

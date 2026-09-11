@@ -486,6 +486,17 @@ describe('SidebarContextMenu', () => {
     expect(btn).toHaveAttribute('title', 'Configure a base URL for an environment first');
   });
 
+  it('collection menu: uses the all-used title when every env is bound', () => {
+    const col: RequestCollection = { id: 'c1', name: 'C', mode: 'multi-env', requests: [], folders: [] };
+    renderMenu({ x: 0, y: 0, type: 'collection', colId: 'c1' }, [col], {
+      getSubColEligibleCount: vi.fn(() => 0),
+      getSubColAddDisabledTitle: vi.fn(() => 'Every environment already has a sub-collection'),
+    });
+    const btn = screen.getByText('Add Sub-Collection');
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute('title', 'Every environment already has a sub-collection');
+  });
+
   it('request menu: omits move submenu when collection missing', () => {
     renderMenu({ x: 0, y: 0, type: 'request', colId: 'ghost', reqId: 'r1' }, []);
     expect(screen.queryByText('Move to...')).toBeNull();
@@ -760,6 +771,20 @@ describe('SidebarContextMenu', () => {
     const btn = screen.getByText('Add Sub-Collection');
     expect(btn).toBeDisabled();
     expect(btn).toHaveAttribute('title', 'Configure a base URL for an environment first');
+  });
+
+  it('folder menu: uses the all-used title when every env is bound', () => {
+    const col: RequestCollection = {
+      id: 'c1', name: 'C', mode: 'multi-env', requests: [],
+      folders: [{ id: 'f1', name: 'F', requests: [], folders: [] }],
+    };
+    renderMenu({ x: 0, y: 0, type: 'folder', colId: 'c1', folderId: 'f1' }, [col], {
+      getSubColEligibleCount: vi.fn(() => 0),
+      getSubColAddDisabledTitle: vi.fn(() => 'Every environment already has a sub-collection'),
+    });
+    const btn = screen.getByText('Add Sub-Collection');
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute('title', 'Every environment already has a sub-collection');
   });
 
   it('request move submenu handles destination collections with undefined folders', () => {
