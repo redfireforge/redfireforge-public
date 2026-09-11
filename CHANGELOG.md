@@ -8,6 +8,9 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Fixed
+- **Desktop Windows/macOS build warnings** — Linux WebKit workaround helpers are unused outside Linux, so non-Linux release builds no longer warn about dead code.
+
 ## [0.8.8-beta.2] — 2026-09-10
 
 ### Fixed
