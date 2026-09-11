@@ -13,6 +13,10 @@
 //! patches we re-exec once with the system lib dir prepended so the webview
 //! process loads host WebKit/GL.
 
+// Helpers below are used on Linux and by unit tests. Non-Linux release builds
+// only call apply_linux_webview_workarounds(), which is a no-op there.
+#![cfg_attr(not(any(target_os = "linux", test)), allow(dead_code))]
+
 #[cfg(target_os = "linux")]
 use std::env;
 #[cfg(target_os = "linux")]
@@ -24,6 +28,7 @@ use std::path::Path;
 #[cfg(target_os = "linux")]
 use std::process::Command;
 
+#[cfg(target_os = "linux")]
 pub(crate) const RFF_LINUX_WEBVIEW_REEXEC: &str = "RFF_LINUX_WEBVIEW_REEXEC";
 pub(crate) const SYSTEM_GL_LIB_DIR: &str = "/usr/lib/x86_64-linux-gnu";
 

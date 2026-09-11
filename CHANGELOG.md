@@ -12,6 +12,7 @@ Format follows Keep a Changelog and Semantic Versioning.
 - **Reset to defaults** — Preferences footer button clears theme, layout, and editor preference keys (not test data) after Confirm, then reloads.
 
 ### Fixed
+- **Desktop Windows/macOS build warnings** — Linux WebKit workaround helpers are unused outside Linux, so non-Linux release builds no longer warn about dead code.
 - **Send to Harness host** — Promoting a request snapshots the host for the Environment chosen in the modal (preview and created test). The picker defaults to the current sub-collection (so a request moved to local-t01 no longer keeps a leftover t01 host); choosing t01 or any other env rebuilds that host.
 - **Add Sub-Collection picker** — Single-box environment select (no wrapper border). Already-bound environments are omitted; when every configured env is used the menu is disabled and explains why.
 - **Requests sidebar drag-and-drop (desktop)** — Tauri/WKWebView can fire `dragend` before `drop`, which cancelled the move. Persist the drag payload and still accept the drop after the in-memory item is cleared.
