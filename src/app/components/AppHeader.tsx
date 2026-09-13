@@ -11,6 +11,12 @@ import { DesktopDownloadButton } from './DesktopDownloadButton';
 import { useAppShortcuts } from '../hooks/useAppShortcuts';
 import KeyboardShortcutsModal from '@shared/components/KeyboardShortcutsModal';
 
+// Canonical brand flame. Mirrored in public/logo-tile.svg and the Tauri icons —
+// keep the three in sync if the mark ever changes.
+const BRAND_FLAME = 'M37 4.5C37 16.5 47.2 22.8 47.6 35C48 46.2 40.2 54.6 31 54.6'
+  + 'C21.6 54.6 14 46.6 14 36.6C14 29 20.2 24.8 23.6 15.2'
+  + 'C24.6 21.8 27.6 25.4 30.6 26.8C31.2 18.6 34 10.6 37 4.5Z';
+
 interface ThemeItem {
   readonly id: string;
   readonly icon: string;
@@ -99,7 +105,18 @@ export default function AppHeader({
 
   return (
     <header ref={headerRef} className="app-header">
-      <h1>🔥 RedfireForge
+      <h1>
+        <span className="app-brand-mark" aria-hidden>
+          <svg viewBox="0 0 64 64" focusable={false}>
+            <rect width="64" height="64" rx="14.5" fill="#f97316" />
+            <path
+              transform="translate(6.4 6.4) scale(.8)"
+              d={BRAND_FLAME}
+              fill="#fff7ed"
+            />
+          </svg>
+        </span>
+        RedfireForge
         <span style={{ fontSize: '0.4em', fontWeight: 400, opacity: 0.5, marginLeft: '0.6em', verticalAlign: 'middle', background: 'rgba(255,255,255,0.1)', padding: '2px 8px', borderRadius: '10px' }}>v{__APP_VERSION__}</span>
       </h1>
       <div className="header-selectors" data-testid="header-selectors">

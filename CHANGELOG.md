@@ -8,6 +8,12 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Changed
+- **Unified brand identity** — Single flat two-colour flame mark (cream on ember) now used everywhere: app header, favicon, Tauri desktop icons, GitHub avatar, and social preview images. Replaces the four unrelated marks previously in use (Cursor's logo in `public/favicon.svg`, the Tauri default icon in `src-tauri/icons/`, a one-off pentagon avatar, and the `🔥` emoji). Brand masters live in `public/logo-tile.svg` and `public/logo-mark.svg`.
+
+### Removed
+- Unused Vite starter assets `src/assets/react.svg` and `src/assets/vite.svg`.
+
 ## [0.8.8] — 2026-09-10
 
 ### Added
