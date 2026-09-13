@@ -17,7 +17,9 @@
   flex-shrink: 0;
   box-shadow: var(--card-shadow);
 }
-.app-header h1 { font-size: 1.1rem; white-space: nowrap; }
+.app-header h1 { font-size: 1.1rem; white-space: nowrap; display: flex; align-items: center; gap: 8px; }
+.app-brand-mark { display: inline-flex; flex: 0 0 auto; }
+.app-brand-mark svg { width: 22px; height: 22px; display: block; }
 .tab-nav { flex: 0 0 auto; display: flex; gap: 4px; }
 .header-selectors { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 .settings-btn { font-size: 1rem; padding: 4px 8px; line-height: 1; }
