@@ -117,7 +117,9 @@ export default function AppHeader({
           </svg>
         </span>
         RedfireForge
-        <span style={{ fontSize: '0.4em', fontWeight: 400, opacity: 0.5, marginLeft: '0.6em', verticalAlign: 'middle', background: 'rgba(255,255,255,0.1)', padding: '2px 8px', borderRadius: '10px' }}>v{__APP_VERSION__}</span>
+        <span className="app-version" title={`RedfireForge v${__APP_VERSION__}`}>
+          v{__APP_VERSION__}
+        </span>
       </h1>
       <div className="header-selectors" data-testid="header-selectors">
         <div className="header-select-group header-select-group--env">
