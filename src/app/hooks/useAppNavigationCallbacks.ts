@@ -1,9 +1,8 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import type { Tab } from '../utils/appTabUtils';
 import { DEMO_HUB_ENABLED } from '../../config/features';
-import { isDemoUiActionActive } from '@shared/utils/demoUiAction';
 import { demoHubRuntimeRef } from '../demo/demoHubRuntimeRef';
-import { shouldExitLiveDemoForTabChange } from '../demo/liveDemoTabGuard';
+import { isHumanDemoTabExit } from '../demo/liveDemoTabGuard';
 import type { UseRequestsReturn } from '../../features/requests/hooks/useRequests';
 import type { RequestItem } from '@shared/types';
 import { sampleWorkflowCatalog } from '../../data/galleries/workflows';
@@ -33,25 +32,30 @@ export function useAppNavigationCallbacks({
   setGalleryInitialDomain,
   gallery,
 }: UseAppNavigationCallbacksOptions) {
+  const [pendingLeaveTab, setPendingLeaveTab] = useState<Tab | null>(null);
 
   const handleSetActiveTab = useCallback((tab: Tab) => {
-    const hub = demoHubRuntimeRef.current;
-    const inLive = DEMO_HUB_ENABLED && hub.state.view === 'live';
-    const suppressed = hub.suppressLiveTabExitRef?.current === true || isDemoUiActionActive();
-    const shouldExit = inLive
-      && !suppressed
-      && shouldExitLiveDemoForTabChange(tab, activeTab, hub.state.selectedLesson);
-
-    if (shouldExit) {
-      const leave = window.confirm(
-        'Leave the live demo? Navigating away will end the current demo session.',
-      );
-      if (!leave) return;
-      void hub.exitLiveDemo().then(() => setActiveTab(tab));
-    } else {
-      setActiveTab(tab);
+    if (isHumanDemoTabExit(tab, activeTab)) {
+      setPendingLeaveTab(tab);
+      return;
     }
+    setActiveTab(tab);
   }, [setActiveTab, activeTab]);
+
+  const stayInDemo = useCallback(() => {
+    setPendingLeaveTab(null);
+  }, []);
+
+  const leaveDemo = useCallback(() => {
+    const tab = pendingLeaveTab;
+    setPendingLeaveTab(null);
+    if (!tab) return;
+    if (DEMO_HUB_ENABLED) {
+      void demoHubRuntimeRef.current.exitLiveDemo().then(() => setActiveTab(tab));
+      return;
+    }
+    setActiveTab(tab);
+  }, [pendingLeaveTab, setActiveTab]);
 
   const handleCompleteToResults = useCallback((runType?: 'test' | 'workflow') => {
     setResultsRunTypeFilter(runType);
@@ -113,6 +117,9 @@ export function useAppNavigationCallbacks({
 
   return {
     handleSetActiveTab,
+    pendingDemoLeaveTab: pendingLeaveTab,
+    stayInDemo,
+    leaveDemo,
     handleCompleteToResults,
     handleNavigateToKafkaSettings,
     handleUseAsWorkflowInput,

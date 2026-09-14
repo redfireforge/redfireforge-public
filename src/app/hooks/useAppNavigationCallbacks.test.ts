@@ -5,10 +5,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useAppNavigationCallbacks } from './useAppNavigationCallbacks';
 import { demoHubRuntimeRef } from '../demo/demoHubRuntimeRef';
-import { beginDemoUiAction, endDemoUiAction } from '@shared/utils/demoUiAction';
-
-const mockDemoEnabled = vi.hoisted(() => ({ value: false }));
-vi.mock('../../config/features', () => ({ get DEMO_HUB_ENABLED() { return mockDemoEnabled.value; } }));
 vi.mock('../../data/galleries/workflows', () => ({
   sampleWorkflowCatalog: [
     { id: 'wf-sample-1', name: 'Sample 1' },
@@ -17,7 +13,7 @@ vi.mock('../../data/galleries/workflows', () => ({
 }));
 const mockShouldExit = vi.hoisted(() => vi.fn(() => false));
 vi.mock('../demo/liveDemoTabGuard', () => ({
-  shouldExitLiveDemoForTabChange: mockShouldExit,
+  isHumanDemoTabExit: mockShouldExit,
 }));
 
 function makeOptions(overrides: Partial<Parameters<typeof useAppNavigationCallbacks>[0]> = {}) {
@@ -44,7 +40,6 @@ function makeOptions(overrides: Partial<Parameters<typeof useAppNavigationCallba
 describe('useAppNavigationCallbacks', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    mockDemoEnabled.value = false;
     mockShouldExit.mockReturnValue(false);
     demoHubRuntimeRef.current = {
       state: { view: 'idle', selectedLesson: null },
@@ -66,8 +61,7 @@ describe('useAppNavigationCallbacks', () => {
       expect(opts.setActiveTab).toHaveBeenCalledWith('results');
     });
 
-    it('prompts and exits live demo when shouldExit is true and user confirms', async () => {
-      mockDemoEnabled.value = true;
+    it('shows the leave dialog and exits only after Leave demo', async () => {
       mockShouldExit.mockReturnValue(true);
       const exitPromise = Promise.resolve();
       demoHubRuntimeRef.current = {
@@ -75,63 +69,46 @@ describe('useAppNavigationCallbacks', () => {
         suppressLiveTabExitRef: { current: false },
         exitLiveDemo: vi.fn(() => exitPromise),
       } as never;
-      vi.spyOn(window, 'confirm').mockReturnValue(true);
-      const opts = makeOptions();
-      const { result } = renderHook(() => useAppNavigationCallbacks(opts));
-      act(() => result.current.handleSetActiveTab('results'));
-      await act(async () => { await exitPromise; });
-      expect(window.confirm).toHaveBeenCalled();
-      expect(demoHubRuntimeRef.current.exitLiveDemo).toHaveBeenCalled();
-    });
-
-    it('does not navigate when user cancels demo exit', () => {
-      mockDemoEnabled.value = true;
-      mockShouldExit.mockReturnValue(true);
-      demoHubRuntimeRef.current = {
-        state: { view: 'live', selectedLesson: { id: 'l1' } },
-        suppressLiveTabExitRef: { current: false },
-        exitLiveDemo: vi.fn(),
-      } as never;
-      vi.spyOn(window, 'confirm').mockReturnValue(false);
       const opts = makeOptions();
       const { result } = renderHook(() => useAppNavigationCallbacks(opts));
       act(() => result.current.handleSetActiveTab('results'));
       expect(opts.setActiveTab).not.toHaveBeenCalled();
+      expect(result.current.pendingDemoLeaveTab).toBe('results');
+      await act(async () => { result.current.leaveDemo(); });
+      await act(async () => { await exitPromise; });
+      expect(demoHubRuntimeRef.current.exitLiveDemo).toHaveBeenCalled();
+      expect(opts.setActiveTab).toHaveBeenCalledWith('results');
     });
 
-    it('does not prompt when a demo ctx.click is in flight', () => {
-      mockDemoEnabled.value = true;
+    it('does not navigate when Stay is chosen', () => {
       mockShouldExit.mockReturnValue(true);
       demoHubRuntimeRef.current = {
         state: { view: 'live', selectedLesson: { id: 'l1' } },
         suppressLiveTabExitRef: { current: false },
         exitLiveDemo: vi.fn(),
       } as never;
-      const confirmSpy = vi.spyOn(window, 'confirm');
-      beginDemoUiAction();
-      try {
-        const opts = makeOptions();
-        const { result } = renderHook(() => useAppNavigationCallbacks(opts));
-        act(() => result.current.handleSetActiveTab('results'));
-        expect(confirmSpy).not.toHaveBeenCalled();
-        expect(opts.setActiveTab).toHaveBeenCalledWith('results');
-      } finally {
-        endDemoUiAction();
-      }
-    });
-
-    it('does not prompt when suppress ref is true', () => {
-      mockDemoEnabled.value = true;
-      demoHubRuntimeRef.current = {
-        state: { view: 'live', selectedLesson: { id: 'l1' } },
-        suppressLiveTabExitRef: { current: true },
-        exitLiveDemo: vi.fn(),
-      } as never;
-      const confirmSpy = vi.spyOn(window, 'confirm');
       const opts = makeOptions();
       const { result } = renderHook(() => useAppNavigationCallbacks(opts));
       act(() => result.current.handleSetActiveTab('results'));
-      expect(confirmSpy).not.toHaveBeenCalled();
+      act(() => { result.current.stayInDemo(); });
+      expect(opts.setActiveTab).not.toHaveBeenCalled();
+      expect(demoHubRuntimeRef.current.exitLiveDemo).not.toHaveBeenCalled();
+      expect(result.current.pendingDemoLeaveTab).toBeNull();
+    });
+
+    it('does nothing when Leave is invoked with no pending tab', () => {
+      const opts = makeOptions();
+      const { result } = renderHook(() => useAppNavigationCallbacks(opts));
+      act(() => { result.current.leaveDemo(); });
+      expect(opts.setActiveTab).not.toHaveBeenCalled();
+      expect(demoHubRuntimeRef.current.exitLiveDemo).not.toHaveBeenCalled();
+    });
+
+    it('navigates directly when the guard says the click is not a human leave', () => {
+      mockShouldExit.mockReturnValue(false);
+      const opts = makeOptions();
+      const { result } = renderHook(() => useAppNavigationCallbacks(opts));
+      act(() => result.current.handleSetActiveTab('results'));
       expect(opts.setActiveTab).toHaveBeenCalledWith('results');
     });
   });

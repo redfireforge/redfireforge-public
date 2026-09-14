@@ -1,5 +1,6 @@
 import { type Domain, type Tab, domainOf } from '../utils/appTabUtils';
 import { DEMO_HUB_ENABLED } from '../../config/features';
+import { isHumanDemoTabExit } from '../demo/liveDemoTabGuard';
 import MigrationBanner from '../../features/test-runner/components/MigrationBanner';
 import ServerStatusIndicator from '@workflow/components/panels/ServerStatusIndicator';
 
@@ -53,16 +54,20 @@ const DOMAIN_ITEMS: Record<Domain, SubNavItem[]> = {
 };
 
 function renderTabs(items: SubNavItem[], activeTab: Tab, setActiveTab: (tab: Tab) => void) {
-  return items.map(({ tab, label }) => (
-    <button
-      key={tab}
-      className={`sub-nav-tab ${activeTab === tab ? 'active' : ''}`}
-      onClick={() => setActiveTab(tab)}
-      data-testid={`nav-tab-${tab}`}
-    >
-      {label}
-    </button>
-  ));
+  return items.map(({ tab, label }) => {
+    const locked = isHumanDemoTabExit(tab, activeTab);
+    return (
+      <button
+        key={tab}
+        className={`sub-nav-tab${activeTab === tab ? ' active' : ''}${locked ? ' sub-nav-tab--demo-locked' : ''}`}
+        onClick={() => setActiveTab(tab)}
+        title={locked ? `${label} — finish or exit the live demo first` : undefined}
+        data-testid={`nav-tab-${tab}`}
+      >
+        {label}
+      </button>
+    );
+  });
 }
 
 export default function AppSubNav({ activeTab, setActiveTab }: AppSubNavProps) {
