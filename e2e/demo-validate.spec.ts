@@ -7,7 +7,7 @@ test('demo control simplification visual check', async ({ page }) => {
   await page.waitForLoadState('networkidle');
 
   // Navigate to Demo Hub via title="Demo Hub" on the activity bar button
-  await page.locator('[title="Demo Hub"]').click();
+  await page.getByTestId('ab-demo-hub').click();
   await page.waitForTimeout(600);
   await page.screenshot({ path: '/tmp/01-hub.png' });
 

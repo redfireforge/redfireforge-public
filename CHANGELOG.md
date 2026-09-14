@@ -8,6 +8,12 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Changed
+- **Dependency updates** — React / React DOM 19.3, Vite 8.3, Playwright 1.63, and other minor/patch bumps from [#203](https://github.com/redfireforge/redfireforge-public/pull/203).
+
+### Fixed
+- **Live demo navigation lock** — Clicking another activity-bar item (Workflow, Harness, Demo Hub, …) or an off-lesson sub-nav tab during a lesson no longer silently ends the demo. Stay on the lesson, or confirm **Leave demo** in the in-app prompt (replaces `window.confirm`, which Tauri often skipped).
+
 ## [0.8.9] — 2026-09-13
 
 ### Changed

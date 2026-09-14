@@ -1,10 +1,11 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, expect, it, vi, afterEach } from 'vitest';
+import { render, screen, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import AppSubNav from './AppSubNav';
+import { demoHubRuntimeRef } from '../demo/demoHubRuntimeRef';
 
 vi.mock('../../features/test-runner/components/MigrationBanner', () => ({
   default: ({ onNavigateToParamRunner }: { onNavigateToParamRunner: () => void }) => (
@@ -15,6 +16,15 @@ vi.mock('../../features/test-runner/components/MigrationBanner', () => ({
 vi.mock('../../features/workflow/components/panels/ServerStatusIndicator', () => ({
   default: () => <div data-testid="server-status-indicator">Server Status</div>,
 }));
+
+afterEach(() => {
+  cleanup();
+  demoHubRuntimeRef.current = {
+    ...demoHubRuntimeRef.current,
+    state: { ...demoHubRuntimeRef.current.state, view: 'domains', selectedLesson: null },
+    suppressLiveTabExitRef: { current: false },
+  };
+});
 
 describe('AppSubNav', () => {
   it('marks the active tab button in each major domain', () => {
@@ -116,5 +126,22 @@ describe('AppSubNav', () => {
     const setActiveTab = vi.fn();
     const { container } = render(<AppSubNav activeTab="api-mock-studio" setActiveTab={setActiveTab} />);
     expect(container.querySelector('.sub-nav')).toBeNull();
+  });
+
+  it('marks off-lesson sub-nav items as locked during a live demo', () => {
+    demoHubRuntimeRef.current = {
+      ...demoHubRuntimeRef.current,
+      state: {
+        view: 'live',
+        selectedLesson: { initialTab: 'requests', allowedTabs: ['requests', 'environments'] },
+        stepIndex: 0,
+        isPlaying: false,
+        speed: 1,
+      },
+      suppressLiveTabExitRef: { current: false },
+    };
+    render(<AppSubNav activeTab="requests" setActiveTab={vi.fn()} />);
+    expect(screen.getByTestId('nav-tab-catalog').className).toContain('sub-nav-tab--demo-locked');
+    expect(screen.getByTestId('nav-tab-requests').className).not.toContain('sub-nav-tab--demo-locked');
   });
 });
