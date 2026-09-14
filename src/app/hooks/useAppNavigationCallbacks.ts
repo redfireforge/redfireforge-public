@@ -1,7 +1,8 @@
 import { useCallback, useState } from 'react';
 import type { Tab } from '../utils/appTabUtils';
+import { DEMO_HUB_ENABLED } from '../../config/features';
 import { demoHubRuntimeRef } from '../demo/demoHubRuntimeRef';
-import { isHumanLiveDemoTabExit } from '../demo/liveDemoTabGuard';
+import { isHumanDemoTabExit } from '../demo/liveDemoTabGuard';
 import type { UseRequestsReturn } from '../../features/requests/hooks/useRequests';
 import type { RequestItem } from '@shared/types';
 import { sampleWorkflowCatalog } from '../../data/galleries/workflows';
@@ -34,22 +35,26 @@ export function useAppNavigationCallbacks({
   const [pendingLeaveTab, setPendingLeaveTab] = useState<Tab | null>(null);
 
   const handleSetActiveTab = useCallback((tab: Tab) => {
-    if (isHumanLiveDemoTabExit(tab, activeTab)) {
+    if (isHumanDemoTabExit(tab, activeTab)) {
       setPendingLeaveTab(tab);
       return;
     }
     setActiveTab(tab);
   }, [setActiveTab, activeTab]);
 
-  const stayInLiveDemo = useCallback(() => {
+  const stayInDemo = useCallback(() => {
     setPendingLeaveTab(null);
   }, []);
 
-  const leaveLiveDemo = useCallback(() => {
+  const leaveDemo = useCallback(() => {
     const tab = pendingLeaveTab;
     setPendingLeaveTab(null);
     if (!tab) return;
-    void demoHubRuntimeRef.current.exitLiveDemo().then(() => setActiveTab(tab));
+    if (DEMO_HUB_ENABLED) {
+      void demoHubRuntimeRef.current.exitLiveDemo().then(() => setActiveTab(tab));
+      return;
+    }
+    setActiveTab(tab);
   }, [pendingLeaveTab, setActiveTab]);
 
   const handleCompleteToResults = useCallback((runType?: 'test' | 'workflow') => {
@@ -112,9 +117,9 @@ export function useAppNavigationCallbacks({
 
   return {
     handleSetActiveTab,
-    pendingLiveDemoLeaveTab: pendingLeaveTab,
-    stayInLiveDemo,
-    leaveLiveDemo,
+    pendingDemoLeaveTab: pendingLeaveTab,
+    stayInDemo,
+    leaveDemo,
     handleCompleteToResults,
     handleNavigateToKafkaSettings,
     handleUseAsWorkflowInput,

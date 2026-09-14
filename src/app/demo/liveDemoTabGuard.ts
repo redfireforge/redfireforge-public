@@ -8,7 +8,7 @@ import type { DemoHubLessonRef } from './demoHubApi';
  * Returns false for same-tab re-selection (e.g. workflow sidebar pick) and for
  * lesson-declared initial/allowed tabs.
  */
-export function shouldExitLiveDemoForTabChange(
+export function shouldExitDemoForTabChange(
   tab: string,
   activeTab: string,
   lesson: DemoHubLessonRef | null | undefined,
@@ -24,11 +24,11 @@ export function shouldExitLiveDemoForTabChange(
  * Demo `ctx.click` / `ctx.navigateToTab` stay suppressed so lessons can switch
  * allowed surfaces without a prompt.
  */
-export function isHumanLiveDemoTabExit(tab: string, activeTab: string): boolean {
+export function isHumanDemoTabExit(tab: string, activeTab: string): boolean {
   if (!DEMO_HUB_ENABLED) return false;
   const hub = demoHubRuntimeRef.current;
   if (hub.state.view !== 'live') return false;
   if (hub.suppressLiveTabExitRef?.current === true) return false;
   if (isDemoUiActionActive()) return false;
-  return shouldExitLiveDemoForTabChange(tab, activeTab, hub.state.selectedLesson);
+  return shouldExitDemoForTabChange(tab, activeTab, hub.state.selectedLesson);
 }

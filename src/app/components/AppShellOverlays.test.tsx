@@ -51,24 +51,24 @@ function renderOverlays(overrides: Partial<Parameters<typeof AppShellOverlays>[0
       wfFolders={{ folders: [] } as never}
       handleTemplatePickFolder={vi.fn()}
       RustExecutorTestPanel={null}
-      liveDemoLeave={null}
+      demoLeave={null}
       {...overrides}
     />,
   );
 }
 
 describe('AppShellOverlays', () => {
-  it('renders the live-demo leave dialog and wires Stay / Leave', () => {
+  it('renders the live-demo leave dialog and wires Stay / Leave', async () => {
     const onStay = vi.fn();
     const onLeave = vi.fn();
-    renderOverlays({ liveDemoLeave: { onStay, onLeave } });
-    fireEvent.click(screen.getByTestId('live-demo-leave-stay'));
+    renderOverlays({ demoLeave: { onStay, onLeave } });
+    fireEvent.click(await screen.findByTestId('live-demo-leave-stay'));
     fireEvent.click(screen.getByTestId('live-demo-leave-leave'));
     expect(onStay).toHaveBeenCalledTimes(1);
     expect(onLeave).toHaveBeenCalledTimes(1);
   });
 
-  it('hides the leave dialog when liveDemoLeave is null', () => {
+  it('hides the leave dialog when demoLeave is null', () => {
     renderOverlays();
     expect(screen.queryByTestId('live-demo-leave-overlay')).toBeNull();
   });
