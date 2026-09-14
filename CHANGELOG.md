@@ -8,18 +8,25 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Changed
+- **Unified brand identity** — Single flat two-colour flame mark (cream on ember) now used everywhere: app header, favicon, Tauri desktop icons, GitHub avatar, and social preview images. Replaces the four unrelated marks previously in use (Cursor's logo in `public/favicon.svg`, the Tauri default icon in `src-tauri/icons/`, a one-off pentagon avatar, and the `🔥` emoji). Brand masters live in `public/logo-tile.svg` and `public/logo-mark.svg`.
+- **Header version badge** — `vX.Y.Z` next to the product name is a readable pill (was ~7px and 50% opacity).
+
+### Removed
+- Unused Vite starter assets `src/assets/react.svg` and `src/assets/vite.svg`.
+
 ## [0.8.8] — 2026-09-10
 
 ### Added
 - **Reset to defaults** — Preferences footer button clears theme, layout, and editor preference keys (not test data) after Confirm, then reloads.
 
 ### Fixed
+- **Desktop Windows/macOS build warnings** — Linux WebKit workaround helpers are unused outside Linux, so non-Linux release builds no longer warn about dead code.
 - **Send to Harness host** — Promoting a request snapshots the host for the Environment chosen in the modal (preview and created test). The picker defaults to the current sub-collection (so a request moved to local-t01 no longer keeps a leftover t01 host); choosing t01 or any other env rebuilds that host.
 - **Add Sub-Collection picker** — Single-box environment select (no wrapper border). Already-bound environments are omitted; when every configured env is used the menu is disabled and explains why.
 - **Requests sidebar drag-and-drop (desktop)** — Tauri/WKWebView can fire `dragend` before `drop`, which cancelled the move. Persist the drag payload and still accept the drop after the in-memory item is cleared.
 - **Requests sidebar drag-and-drop (Tauri / Learning Hub)** — Desktop WKWebView swallowed HTML5 drag events because Tauri’s native file-drop handler is on by default. Turn that handler off so request, folder, and collection rows can be moved, and keep request rows from starting a text-selection drag.
 - **Test Runner Settings / Custom host** — Promoted harness tests store an absolute URL, so the runner badge could show `http://localhost:8080` while the send still hit the original host. Settings and Custom now rewrite that origin and keep the path.
-- **Desktop Windows/macOS build warnings** — Linux WebKit workaround helpers are unused outside Linux, so non-Linux release builds no longer warn about dead code.
 
 ## [0.8.7] — 2026-09-09
 
