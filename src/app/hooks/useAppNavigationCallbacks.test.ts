@@ -13,7 +13,7 @@ vi.mock('../../data/galleries/workflows', () => ({
 }));
 const mockShouldExit = vi.hoisted(() => vi.fn(() => false));
 vi.mock('../demo/liveDemoTabGuard', () => ({
-  isHumanLiveDemoTabExit: mockShouldExit,
+  isHumanDemoTabExit: mockShouldExit,
 }));
 
 function makeOptions(overrides: Partial<Parameters<typeof useAppNavigationCallbacks>[0]> = {}) {
@@ -73,8 +73,8 @@ describe('useAppNavigationCallbacks', () => {
       const { result } = renderHook(() => useAppNavigationCallbacks(opts));
       act(() => result.current.handleSetActiveTab('results'));
       expect(opts.setActiveTab).not.toHaveBeenCalled();
-      expect(result.current.pendingLiveDemoLeaveTab).toBe('results');
-      await act(async () => { result.current.leaveLiveDemo(); });
+      expect(result.current.pendingDemoLeaveTab).toBe('results');
+      await act(async () => { result.current.leaveDemo(); });
       await act(async () => { await exitPromise; });
       expect(demoHubRuntimeRef.current.exitLiveDemo).toHaveBeenCalled();
       expect(opts.setActiveTab).toHaveBeenCalledWith('results');
@@ -90,16 +90,16 @@ describe('useAppNavigationCallbacks', () => {
       const opts = makeOptions();
       const { result } = renderHook(() => useAppNavigationCallbacks(opts));
       act(() => result.current.handleSetActiveTab('results'));
-      act(() => { result.current.stayInLiveDemo(); });
+      act(() => { result.current.stayInDemo(); });
       expect(opts.setActiveTab).not.toHaveBeenCalled();
       expect(demoHubRuntimeRef.current.exitLiveDemo).not.toHaveBeenCalled();
-      expect(result.current.pendingLiveDemoLeaveTab).toBeNull();
+      expect(result.current.pendingDemoLeaveTab).toBeNull();
     });
 
     it('does nothing when Leave is invoked with no pending tab', () => {
       const opts = makeOptions();
       const { result } = renderHook(() => useAppNavigationCallbacks(opts));
-      act(() => { result.current.leaveLiveDemo(); });
+      act(() => { result.current.leaveDemo(); });
       expect(opts.setActiveTab).not.toHaveBeenCalled();
       expect(demoHubRuntimeRef.current.exitLiveDemo).not.toHaveBeenCalled();
     });

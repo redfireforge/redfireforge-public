@@ -1,14 +1,18 @@
-import type { ComponentType, Dispatch, SetStateAction } from 'react';
+import { lazy, Suspense, type ComponentType, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import type { Environment, GlobalAuthProfile, Microservice, RequestCollection } from '@shared/types';
 import type { Workflow } from '@workflow/types/workflow';
 import type { UseRequestsReturn } from '../../features/requests/hooks/useRequests';
 import type { WorkflowFoldersHook } from '@workflow/hooks/useWorkflowFolders';
 import type { RequestFolder } from '@shared/types';
+import { DEMO_HUB_ENABLED } from '../../config/features';
 import RequestCollectionModal from '../../features/requests/components/RequestCollectionModal';
 import SubCollectionModal from '../../features/requests/components/SubCollectionModal';
 import FolderPickerModal from '@workflow/components/modals/FolderPickerModal';
 import RustTestPanelOverlay from './RustTestPanelOverlay';
-import LiveDemoLeaveDialog from './LiveDemoLeaveDialog';
+
+const DemoLeaveDialog = DEMO_HUB_ENABLED
+  ? lazy(() => import('./DemoLeaveDialog'))
+  : null;
 
 export interface AppShellOverlaysProps {
   showWbCollectionModal: boolean;
@@ -26,13 +30,13 @@ export interface AppShellOverlaysProps {
   editingSubCol: { colId: string; folderId: string } | null;
   setEditingSubCol: (val: { colId: string; folderId: string } | null) => void;
   subColForEdit: { col: RequestCollection; folder: RequestFolder } | null;
-  confirmDialogElement: React.ReactNode;
+  confirmDialogElement: ReactNode;
   pendingTemplateImport: Workflow | null;
   setPendingTemplateImport: Dispatch<SetStateAction<Workflow | null>>;
   wfFolders: WorkflowFoldersHook;
   handleTemplatePickFolder: (folderId: string | null) => void;
   RustExecutorTestPanel: ComponentType | null | undefined;
-  liveDemoLeave: { onStay: () => void; onLeave: () => void } | null;
+  demoLeave: { onStay: () => void; onLeave: () => void } | null;
 }
 
 export default function AppShellOverlays({
@@ -57,7 +61,7 @@ export default function AppShellOverlays({
   wfFolders,
   handleTemplatePickFolder,
   RustExecutorTestPanel,
-  liveDemoLeave,
+  demoLeave,
 }: AppShellOverlaysProps) {
   return (
     <>
@@ -98,7 +102,11 @@ export default function AppShellOverlays({
       />
 
       {RustExecutorTestPanel && <RustTestPanelOverlay Panel={RustExecutorTestPanel} />}
-      {liveDemoLeave && <LiveDemoLeaveDialog onStay={liveDemoLeave.onStay} onLeave={liveDemoLeave.onLeave} />}
+      {DEMO_HUB_ENABLED && DemoLeaveDialog && demoLeave && (
+        <Suspense fallback={null}>
+          <DemoLeaveDialog onStay={demoLeave.onStay} onLeave={demoLeave.onLeave} />
+        </Suspense>
+      )}
     </>
   );
 }

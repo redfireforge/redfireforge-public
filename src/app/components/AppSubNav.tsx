@@ -1,6 +1,6 @@
 import { type Domain, type Tab, domainOf } from '../utils/appTabUtils';
 import { DEMO_HUB_ENABLED } from '../../config/features';
-import { isHumanLiveDemoTabExit } from '../demo/liveDemoTabGuard';
+import { isHumanDemoTabExit } from '../demo/liveDemoTabGuard';
 import MigrationBanner from '../../features/test-runner/components/MigrationBanner';
 import ServerStatusIndicator from '@workflow/components/panels/ServerStatusIndicator';
 
@@ -55,7 +55,7 @@ const DOMAIN_ITEMS: Record<Domain, SubNavItem[]> = {
 
 function renderTabs(items: SubNavItem[], activeTab: Tab, setActiveTab: (tab: Tab) => void) {
   return items.map(({ tab, label }) => {
-    const locked = isHumanLiveDemoTabExit(tab, activeTab);
+    const locked = isHumanDemoTabExit(tab, activeTab);
     return (
       <button
         key={tab}

@@ -1,41 +1,41 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { shouldExitLiveDemoForTabChange, isHumanLiveDemoTabExit } from './liveDemoTabGuard';
+import { shouldExitDemoForTabChange, isHumanDemoTabExit } from './liveDemoTabGuard';
 import { demoHubRuntimeRef } from './demoHubRuntimeRef';
 import { beginDemoUiAction, endDemoUiAction } from '@shared/utils/demoUiAction';
 
 const mockDemoEnabled = vi.hoisted(() => ({ value: true }));
 vi.mock('../../config/features', () => ({ get DEMO_HUB_ENABLED() { return mockDemoEnabled.value; } }));
 
-describe('shouldExitLiveDemoForTabChange', () => {
+describe('shouldExitDemoForTabChange', () => {
   const lesson = {
     initialTab: 'workflow',
     allowedTabs: ['workflow', 'workflow-runner'],
   };
 
   it('returns false when re-selecting the same tab', () => {
-    expect(shouldExitLiveDemoForTabChange('workflow', 'workflow', lesson)).toBe(false);
+    expect(shouldExitDemoForTabChange('workflow', 'workflow', lesson)).toBe(false);
   });
 
   it('returns false for the lesson initial tab', () => {
-    expect(shouldExitLiveDemoForTabChange('workflow', 'demo-hub', lesson)).toBe(false);
+    expect(shouldExitDemoForTabChange('workflow', 'demo-hub', lesson)).toBe(false);
   });
 
   it('returns false for an allowed lesson tab', () => {
-    expect(shouldExitLiveDemoForTabChange('workflow-runner', 'workflow', lesson)).toBe(false);
+    expect(shouldExitDemoForTabChange('workflow-runner', 'workflow', lesson)).toBe(false);
   });
 
   it('returns true when leaving to an unrelated tab', () => {
-    expect(shouldExitLiveDemoForTabChange('requests', 'workflow', lesson)).toBe(true);
-    expect(shouldExitLiveDemoForTabChange('test-runner', 'workflow', lesson)).toBe(true);
+    expect(shouldExitDemoForTabChange('requests', 'workflow', lesson)).toBe(true);
+    expect(shouldExitDemoForTabChange('test-runner', 'workflow', lesson)).toBe(true);
   });
 
   it('returns true when lesson has no tab hints', () => {
-    expect(shouldExitLiveDemoForTabChange('requests', 'workflow', null)).toBe(true);
+    expect(shouldExitDemoForTabChange('requests', 'workflow', null)).toBe(true);
   });
 });
 
-describe('isHumanLiveDemoTabExit', () => {
+describe('isHumanDemoTabExit', () => {
   beforeEach(() => {
     mockDemoEnabled.value = true;
     demoHubRuntimeRef.current = {
@@ -62,32 +62,32 @@ describe('isHumanLiveDemoTabExit', () => {
   });
 
   it('is true for a human click to an unrelated tab', () => {
-    expect(isHumanLiveDemoTabExit('workflow', 'requests')).toBe(true);
+    expect(isHumanDemoTabExit('workflow', 'requests')).toBe(true);
   });
 
   it('is false for the lesson initial or allowed tab', () => {
-    expect(isHumanLiveDemoTabExit('requests', 'requests')).toBe(false);
+    expect(isHumanDemoTabExit('requests', 'requests')).toBe(false);
     demoHubRuntimeRef.current.state.selectedLesson = {
       initialTab: 'requests',
       allowedTabs: ['requests', 'environments'],
     };
-    expect(isHumanLiveDemoTabExit('environments', 'requests')).toBe(false);
+    expect(isHumanDemoTabExit('environments', 'requests')).toBe(false);
   });
 
   it('is false when demo hub is disabled', () => {
     mockDemoEnabled.value = false;
-    expect(isHumanLiveDemoTabExit('workflow', 'requests')).toBe(false);
+    expect(isHumanDemoTabExit('workflow', 'requests')).toBe(false);
   });
 
   it('is false when not in live view', () => {
     demoHubRuntimeRef.current.state.view = 'concept';
-    expect(isHumanLiveDemoTabExit('workflow', 'requests')).toBe(false);
+    expect(isHumanDemoTabExit('workflow', 'requests')).toBe(false);
   });
 
   it('is false while a demo ctx.click is in flight', () => {
     beginDemoUiAction();
     try {
-      expect(isHumanLiveDemoTabExit('workflow', 'requests')).toBe(false);
+      expect(isHumanDemoTabExit('workflow', 'requests')).toBe(false);
     } finally {
       endDemoUiAction();
     }
@@ -95,6 +95,6 @@ describe('isHumanLiveDemoTabExit', () => {
 
   it('is false when suppressLiveTabExitRef is set', () => {
     demoHubRuntimeRef.current.suppressLiveTabExitRef = { current: true };
-    expect(isHumanLiveDemoTabExit('workflow', 'requests')).toBe(false);
+    expect(isHumanDemoTabExit('workflow', 'requests')).toBe(false);
   });
 });

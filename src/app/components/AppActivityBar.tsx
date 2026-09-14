@@ -12,7 +12,7 @@ import {
   getLastProtocolsTab,
 } from '../utils/appTabUtils';
 import { DEMO_HUB_ENABLED } from '../../config/features';
-import { isHumanLiveDemoTabExit } from '../demo/liveDemoTabGuard';
+import { isHumanDemoTabExit } from '../demo/liveDemoTabGuard';
 
 interface AppActivityBarProps {
   activeTab: Tab;
@@ -36,11 +36,11 @@ function ActivityBarIcon({ children }: { children: React.ReactNode }) {
 }
 
 function demoLockClass(target: Tab, activeTab: Tab): string {
-  return isHumanLiveDemoTabExit(target, activeTab) ? ' ab-btn--demo-locked' : '';
+  return isHumanDemoTabExit(target, activeTab) ? ' ab-btn--demo-locked' : '';
 }
 
 function demoLockTitle(base: string, target: Tab, activeTab: Tab): string {
-  return isHumanLiveDemoTabExit(target, activeTab)
+  return isHumanDemoTabExit(target, activeTab)
     ? `${base} — finish or exit the live demo first`
     : base;
 }

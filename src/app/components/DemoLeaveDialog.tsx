@@ -1,12 +1,12 @@
 import { useEffect } from 'react';
 
-interface LiveDemoLeaveDialogProps {
+interface DemoLeaveDialogProps {
   onStay: () => void;
   onLeave: () => void;
 }
 
 /** In-app Stay / Leave prompt — `window.confirm` is easy to miss in Tauri. */
-export default function LiveDemoLeaveDialog({ onStay, onLeave }: LiveDemoLeaveDialogProps) {
+export default function DemoLeaveDialog({ onStay, onLeave }: DemoLeaveDialogProps) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
