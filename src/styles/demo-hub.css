@@ -3105,6 +3105,69 @@ body[data-demo-bootstrapping="1"] .kafka-settings-content {
   }
 }
 
+/* ─── Live demo leave prompt (above the floating player) ───── */
+.live-demo-leave-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10200;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.live-demo-leave-dialog {
+  width: 380px;
+  max-width: 90vw;
+  padding: 24px 28px;
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, white 28%, var(--border));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, white 14%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, white 7%, transparent),
+    0 12px 40px rgba(0, 0, 0, 0.45),
+    0 2px 8px rgba(0, 0, 0, 0.25);
+}
+.live-demo-leave-title {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+.live-demo-leave-message {
+  margin: 0 0 18px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+.live-demo-leave-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.live-demo-leave-stay,
+.live-demo-leave-leave {
+  border-radius: 5px;
+  padding: 6px 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.live-demo-leave-stay {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.live-demo-leave-stay:hover {
+  border-color: var(--primary);
+}
+.live-demo-leave-leave {
+  background: var(--primary);
+  border: 1px solid var(--primary);
+  color: #fff;
+}
+
 /* ─── Phase 3 Docker stack controls ─────────────────────────── */
 .prereq-docker-status {
   display: flex;

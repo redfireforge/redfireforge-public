@@ -8,6 +8,7 @@ import RequestCollectionModal from '../../features/requests/components/RequestCo
 import SubCollectionModal from '../../features/requests/components/SubCollectionModal';
 import FolderPickerModal from '@workflow/components/modals/FolderPickerModal';
 import RustTestPanelOverlay from './RustTestPanelOverlay';
+import LiveDemoLeaveDialog from './LiveDemoLeaveDialog';
 
 export interface AppShellOverlaysProps {
   showWbCollectionModal: boolean;
@@ -31,6 +32,7 @@ export interface AppShellOverlaysProps {
   wfFolders: WorkflowFoldersHook;
   handleTemplatePickFolder: (folderId: string | null) => void;
   RustExecutorTestPanel: ComponentType | null | undefined;
+  liveDemoLeave: { onStay: () => void; onLeave: () => void } | null;
 }
 
 export default function AppShellOverlays({
@@ -55,6 +57,7 @@ export default function AppShellOverlays({
   wfFolders,
   handleTemplatePickFolder,
   RustExecutorTestPanel,
+  liveDemoLeave,
 }: AppShellOverlaysProps) {
   return (
     <>
@@ -95,6 +98,7 @@ export default function AppShellOverlays({
       />
 
       {RustExecutorTestPanel && <RustTestPanelOverlay Panel={RustExecutorTestPanel} />}
+      {liveDemoLeave && <LiveDemoLeaveDialog onStay={liveDemoLeave.onStay} onLeave={liveDemoLeave.onLeave} />}
     </>
   );
 }

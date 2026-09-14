@@ -4,8 +4,16 @@ import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { afterEach } from 'vitest';
 import AppActivityBar from './AppActivityBar';
 import { type Tab, setLastProtocolsTab, PROTOCOLS_DEFAULT_TAB } from '../utils/appTabUtils';
+import { demoHubRuntimeRef } from '../demo/demoHubRuntimeRef';
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  demoHubRuntimeRef.current = {
+    ...demoHubRuntimeRef.current,
+    state: { ...demoHubRuntimeRef.current.state, view: 'domains', selectedLesson: null },
+    suppressLiveTabExitRef: { current: false },
+  };
+});
 
 beforeEach(() => {
   setLastProtocolsTab(PROTOCOLS_DEFAULT_TAB);
@@ -107,6 +115,23 @@ describe('AppActivityBar', () => {
     const { setActiveTab } = renderBar('requests');
     fireEvent.click(screen.getByTitle('API Mock'));
     expect(setActiveTab).toHaveBeenCalledWith('api-mock-studio');
+  });
+
+  it('marks off-lesson activity items as locked during a live demo', () => {
+    demoHubRuntimeRef.current = {
+      ...demoHubRuntimeRef.current,
+      state: {
+        view: 'live',
+        selectedLesson: { initialTab: 'requests', allowedTabs: ['requests'] },
+        stepIndex: 0,
+        isPlaying: false,
+        speed: 1,
+      },
+      suppressLiveTabExitRef: { current: false },
+    };
+    renderBar('requests');
+    expect(screen.getByTitle('Workflow — finish or exit the live demo first').className).toContain('ab-btn--demo-locked');
+    expect(screen.getByTitle('API').className).not.toContain('ab-btn--demo-locked');
   });
 
   it('does not re-route when API Mock is already active', () => {

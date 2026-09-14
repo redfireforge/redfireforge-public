@@ -568,6 +568,13 @@
 .sub-nav-tab.active {
   color: var(--text); border-bottom-color: var(--primary);
 }
+.sub-nav-tab--demo-locked {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+.sub-nav-tab--demo-locked:hover {
+  color: var(--text-muted);
+}
 .sub-nav-spacer { flex: 1; }
 
 /* Backward compat aliases for E2E tests that still use main-nav-tab */
@@ -595,6 +602,14 @@
 .ab-btn.active {
   color: var(--primary); background: var(--surface-hover);
   border-left-color: var(--primary);
+}
+.ab-btn--demo-locked {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+.ab-btn--demo-locked:hover {
+  background: transparent;
+  color: var(--text-muted);
 }
 .ab-icon { font-size: 18px; line-height: 1; display: flex; align-items: center; justify-content: center; }
 .ab-icon-svg { width: 18px; height: 18px; }

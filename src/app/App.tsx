@@ -284,6 +284,9 @@ export default function App() {
 
   const {
     handleSetActiveTab,
+    pendingLiveDemoLeaveTab,
+    stayInLiveDemo,
+    leaveLiveDemo,
     handleCompleteToResults,
     handleNavigateToKafkaSettings,
     handleUseAsWorkflowInput,
@@ -736,6 +739,7 @@ export default function App() {
         wfFolders={wfFolders}
         handleTemplatePickFolder={handleTemplatePickFolder}
         RustExecutorTestPanel={RustExecutorTestPanel}
+        liveDemoLeave={pendingLiveDemoLeaveTab ? { onStay: stayInLiveDemo, onLeave: leaveLiveDemo } : null}
       />
 
     </div>
