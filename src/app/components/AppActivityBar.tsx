@@ -12,6 +12,7 @@ import {
   getLastProtocolsTab,
 } from '../utils/appTabUtils';
 import { DEMO_HUB_ENABLED } from '../../config/features';
+import { isHumanDemoTabExit } from '../demo/liveDemoTabGuard';
 
 interface AppActivityBarProps {
   activeTab: Tab;
@@ -34,13 +35,23 @@ function ActivityBarIcon({ children }: { children: React.ReactNode }) {
   );
 }
 
+function demoLockClass(target: Tab, activeTab: Tab): string {
+  return isHumanDemoTabExit(target, activeTab) ? ' ab-btn--demo-locked' : '';
+}
+
+function demoLockTitle(base: string, target: Tab, activeTab: Tab): string {
+  return isHumanDemoTabExit(target, activeTab)
+    ? `${base} — finish or exit the live demo first`
+    : base;
+}
+
 export default function AppActivityBar({ activeTab, setActiveTab }: AppActivityBarProps) {
   return (
     <nav className="activity-bar">
       <button
-        className={`ab-btn ${domainOf(activeTab) === 'api' ? 'active' : ''}`}
+        className={`ab-btn ${domainOf(activeTab) === 'api' ? 'active' : ''}${demoLockClass('requests', activeTab)}`}
         onClick={() => { if (!isApiTab(activeTab)) setActiveTab('requests'); }}
-        title="API"
+        title={demoLockTitle('API', 'requests', activeTab)}
         data-testid="ab-api"
       >
         <span className="ab-icon">
@@ -51,9 +62,9 @@ export default function AppActivityBar({ activeTab, setActiveTab }: AppActivityB
         <span className="ab-label">API</span>
       </button>
       <button
-        className={`ab-btn ${domainOf(activeTab) === 'api-mock' ? 'active' : ''}`}
+        className={`ab-btn ${domainOf(activeTab) === 'api-mock' ? 'active' : ''}${demoLockClass('api-mock-studio', activeTab)}`}
         onClick={() => { if (!isApiMockTab(activeTab)) setActiveTab('api-mock-studio'); }}
-        title="API Mock"
+        title={demoLockTitle('API Mock', 'api-mock-studio', activeTab)}
         data-testid="ab-api-mock"
       >
         <span className="ab-icon">
@@ -66,9 +77,10 @@ export default function AppActivityBar({ activeTab, setActiveTab }: AppActivityB
         <span className="ab-label">API Mock</span>
       </button>
       <button
-        className={`ab-btn ${domainOf(activeTab) === 'workflow' ? 'active' : ''}`}
+        className={`ab-btn ${domainOf(activeTab) === 'workflow' ? 'active' : ''}${demoLockClass('workflow', activeTab)}`}
         onClick={() => { if (!isWorkflowTab(activeTab)) setActiveTab('workflow'); }}
-        title="Workflow"
+        title={demoLockTitle('Workflow', 'workflow', activeTab)}
+        data-testid="ab-workflow"
       >
         <span className="ab-icon">
           <ActivityBarIcon>
@@ -80,9 +92,9 @@ export default function AppActivityBar({ activeTab, setActiveTab }: AppActivityB
         <span className="ab-label">Workflow</span>
       </button>
       <button
-        className={`ab-btn ${domainOf(activeTab) === 'testing' ? 'active' : ''}`}
+        className={`ab-btn ${domainOf(activeTab) === 'testing' ? 'active' : ''}${demoLockClass('scenarios', activeTab)}`}
         onClick={() => { if (!isHarnessTab(activeTab)) setActiveTab('scenarios'); }}
-        title="Harness"
+        title={demoLockTitle('Harness', 'scenarios', activeTab)}
         data-testid="nav-harness"
       >
         <span className="ab-icon">
@@ -95,9 +107,9 @@ export default function AppActivityBar({ activeTab, setActiveTab }: AppActivityB
         <span className="ab-label">Harness</span>
       </button>
       <button
-        className={`ab-btn ${domainOf(activeTab) === 'protocols' ? 'active' : ''}`}
+        className={`ab-btn ${domainOf(activeTab) === 'protocols' ? 'active' : ''}${demoLockClass(getLastProtocolsTab(), activeTab)}`}
         onClick={() => { if (!isProtocolsTab(activeTab)) setActiveTab(getLastProtocolsTab()); }}
-        title="Protocols"
+        title={demoLockTitle('Protocols', getLastProtocolsTab(), activeTab)}
         data-testid="ab-protocols"
       >
         <span className="ab-icon">
@@ -113,9 +125,10 @@ export default function AppActivityBar({ activeTab, setActiveTab }: AppActivityB
       </button>
       {DEMO_HUB_ENABLED && (
       <button
-        className={`ab-btn ${domainOf(activeTab) === 'demo' ? 'active' : ''}`}
+        className={`ab-btn ${domainOf(activeTab) === 'demo' ? 'active' : ''}${demoLockClass('demo-hub', activeTab)}`}
         onClick={() => { if (!isDemoTab(activeTab)) setActiveTab('demo-hub'); }}
-        title="Demo Hub"
+        title={demoLockTitle('Demo Hub', 'demo-hub', activeTab)}
+        data-testid="ab-demo-hub"
       >
         <span className="ab-icon">
           <ActivityBarIcon>
@@ -129,9 +142,10 @@ export default function AppActivityBar({ activeTab, setActiveTab }: AppActivityB
       </button>
       )}
       <button
-        className={`ab-btn ${domainOf(activeTab) === 'gallery' ? 'active' : ''}`}
+        className={`ab-btn ${domainOf(activeTab) === 'gallery' ? 'active' : ''}${demoLockClass('gallery', activeTab)}`}
         onClick={() => { if (!isGalleryTab(activeTab)) setActiveTab('gallery'); }}
-        title="Gallery"
+        title={demoLockTitle('Gallery', 'gallery', activeTab)}
+        data-testid="ab-gallery"
       >
         <span className="ab-icon">
           <ActivityBarIcon>
@@ -145,9 +159,9 @@ export default function AppActivityBar({ activeTab, setActiveTab }: AppActivityB
       </button>
       <div className="ab-spacer" />
       <button
-        className={`ab-btn ${domainOf(activeTab) === 'settings' ? 'active' : ''}`}
+        className={`ab-btn ${domainOf(activeTab) === 'settings' ? 'active' : ''}${demoLockClass('environments', activeTab)}`}
         onClick={() => { if (!isSettingsTab(activeTab)) setActiveTab('environments'); }}
-        title="Settings"
+        title={demoLockTitle('Settings', 'environments', activeTab)}
         data-testid="ab-settings"
       >
         <span className="ab-icon">

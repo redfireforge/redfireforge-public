@@ -137,7 +137,7 @@ export async function openDemoHub(page: Page): Promise<void> {
   // activity bar may not appear for 60-90s while Vite pre-bundles the module graph.
   // Wait for the shell nav to mount before clicking the Demo Hub button.
   await page.waitForSelector('.activity-bar', { state: 'visible', timeout: APP_SHELL_TIMEOUT });
-  await page.locator('[title="Demo Hub"]').click();
+  await page.getByTestId('ab-demo-hub').click();
   await page.waitForSelector('.demo-domain-card', { timeout: HUB_TIMEOUT });
 }
 

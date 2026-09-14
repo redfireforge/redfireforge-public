@@ -1477,16 +1477,16 @@ describe('App — coverage gaps', () => {
       },
       suppressLiveTabExitRef: { current: false },
     };
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
     render(<App />);
     goto('results');
+    expect(screen.getByTestId('live-demo-leave-overlay')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('live-demo-leave-stay'));
     expect(screen.getByTestId('requests-sidebar')).toBeTruthy();
-    vi.mocked(window.confirm).mockRestore();
+    expect(screen.queryByTestId('live-demo-leave-overlay')).toBeNull();
   });
 
   it('handleSetActiveTab exits live demo when navigation is confirmed', async () => {
     const exitLiveDemo = vi.fn(async () => {});
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<App />);
     demoHubRuntimeRef.current = {
       ...demoHubRuntimeRef.current,
@@ -1501,9 +1501,9 @@ describe('App — coverage gaps', () => {
       suppressLiveTabExitRef: { current: false },
     };
     goto('results');
+    fireEvent.click(screen.getByTestId('live-demo-leave-leave'));
     await act(async () => { await Promise.resolve(); });
     expect(exitLiveDemo).toHaveBeenCalled();
-    vi.mocked(window.confirm).mockRestore();
   });
 
   it('calls ensureBrowserLargeDataMigrated on mount', async () => {
