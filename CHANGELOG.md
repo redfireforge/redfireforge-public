@@ -8,6 +8,8 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.8.10] — 2026-09-14
+
 ### Changed
 - **Dependency updates** — React / React DOM 19.3, Vite 8.3, Playwright 1.63, and other minor/patch bumps from [#203](https://github.com/redfireforge/redfireforge-public/pull/203).
 
