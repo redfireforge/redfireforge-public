@@ -8,7 +8,6 @@ vi.mock('../../../shared/utils/fileSaver', () => ({
   saveJsonFile: vi.fn().mockResolvedValue(undefined),
   openJsonFile: vi.fn(),
 }));
-vi.mock('../../../shared/utils/platform', () => ({ isTauri: vi.fn(() => true) }));
 vi.mock('../../../shared/utils/helpers', () => ({
   tryParseJson: vi.fn((content: string) => {
     try {
@@ -24,7 +23,6 @@ vi.mock('./requestTree', () => ({
 }));
 
 import { saveJsonFile, openJsonFile } from '@shared/utils/fileSaver';
-import { isTauri } from '@shared/utils/platform';
 import { findFolderDeep, collectGroupIds } from './requestTree';
 import {
   handleExportAll,
@@ -39,7 +37,6 @@ const toast = { show: vi.fn() };
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(isTauri).mockReturnValue(true);
 });
 
 describe('requestsSidebarImportExport', () => {
@@ -108,6 +105,44 @@ describe('requestsSidebarImportExport', () => {
       name: 'Orders (imported)',
       groupId: 'g-target',
     }));
+    expect(toast.show).toHaveBeenCalledWith('success', 'Imported collection', 'Orders (imported)');
+  });
+
+  it('imports from fileContent without opening a picker', async () => {
+    const onImportCollection = vi.fn();
+    await handleImportToCollection({
+      collections: [],
+      toast,
+      fileContent: JSON.stringify({
+        type: 'requests-all',
+        data: { collections: [{ id: 'c1', name: 'FromText', mode: 'direct', requests: [], folders: [] }] },
+      }),
+      onImportCollection,
+      onImportFolder: vi.fn(),
+      onAddGroup: vi.fn(() => 'g1'),
+    });
+    expect(openJsonFile).not.toHaveBeenCalled();
+    expect(onImportCollection).toHaveBeenCalledWith(expect.objectContaining({ name: 'FromText' }));
+  });
+
+  it('unwraps _exportMeta wrappers used by other exporters', async () => {
+    vi.mocked(openJsonFile).mockResolvedValue({
+      content: JSON.stringify({
+        _exportMeta: { version: 1 },
+        data: { type: 'requests-collection', data: { id: 'c-old', name: 'Wrapped', requests: [], folders: [] } },
+      }),
+    } as never);
+    const onImportCollection = vi.fn();
+
+    await handleImportToCollection({
+      collections: [],
+      toast,
+      onImportCollection,
+      onImportFolder: vi.fn(),
+      onAddGroup: vi.fn(() => 'g1'),
+    });
+
+    expect(onImportCollection).toHaveBeenCalledWith(expect.objectContaining({ name: 'Wrapped' }));
   });
 
   it('shows invalid-json toast for malformed payload', async () => {
@@ -290,21 +325,8 @@ describe('requestsSidebarImportExport', () => {
     expect(toast.show).toHaveBeenCalledWith('error', 'Invalid folder format', 'Missing required fields.');
   });
 
-  it('uses browser file input branch and handles no selected file', async () => {
-    vi.mocked(isTauri).mockReturnValue(false);
-    const createSpy = vi.spyOn(document, 'createElement');
-    createSpy.mockImplementation((tagName: string) => {
-      const el = document.createElementNS('http://www.w3.org/1999/xhtml', tagName) as HTMLElement;
-      if (tagName === 'input') {
-        const input = el as HTMLInputElement;
-        Object.defineProperty(input, 'files', { value: [], configurable: true });
-        const click = vi.fn(() => {
-          input.onchange?.(new Event('change') as never);
-        });
-        Object.defineProperty(input, 'click', { value: click, configurable: true });
-      }
-      return el;
-    });
+  it('treats a cancelled file picker as a no-op', async () => {
+    vi.mocked(openJsonFile).mockResolvedValueOnce(null);
 
     await handleImportToCollection({
       collections: [],
@@ -315,37 +337,15 @@ describe('requestsSidebarImportExport', () => {
     });
 
     expect(toast.show).not.toHaveBeenCalled();
-    createSpy.mockRestore();
   });
 
-  it('uses browser file input branch and handles FileReader onload', async () => {
-    vi.mocked(isTauri).mockReturnValue(false);
-    const realCreate = Document.prototype.createElement;
-    const createSpy = vi.spyOn(Document.prototype, 'createElement');
-    const file = new File(['{}'], 'in.json', { type: 'application/json' });
-
-    class Reader {
-      result: string | null = null;
-      onload: ((ev: ProgressEvent<FileReader>) => void) | null = null;
-      onerror: ((ev: ProgressEvent<FileReader>) => void) | null = null;
-      readAsText(): void {
-        this.result = JSON.stringify({ type: 'requests-collection', data: { id: 'c', name: 'Orders', requests: [], folders: [] } });
-        this.onload?.({} as ProgressEvent<FileReader>);
-      }
-    }
-    vi.stubGlobal('FileReader', Reader as unknown as typeof FileReader);
-
-    createSpy.mockImplementation(function (this: Document, tagName: string) {
-      if (tagName === 'input') {
-        const input = realCreate.call(this, 'input') as HTMLInputElement;
-        Object.defineProperty(input, 'files', { value: [file], configurable: true });
-        Object.defineProperty(input, 'click', {
-          value: () => input.onchange?.(new Event('change') as never),
-          configurable: true,
-        });
-        return input;
-      }
-      return realCreate.call(this, tagName);
+  it('imports a collection from the web file picker', async () => {
+    vi.mocked(openJsonFile).mockResolvedValueOnce({
+      name: 'in.json',
+      content: JSON.stringify({
+        type: 'requests-collection',
+        data: { id: 'c', name: 'Orders', requests: [], folders: [] },
+      }),
     });
 
     const onImportCollection = vi.fn();
@@ -358,50 +358,6 @@ describe('requestsSidebarImportExport', () => {
     });
 
     expect(onImportCollection).toHaveBeenCalled();
-    createSpy.mockRestore();
-    vi.unstubAllGlobals();
-  });
-
-  it('uses browser file input branch and handles FileReader onerror', async () => {
-    vi.mocked(isTauri).mockReturnValue(false);
-    const realCreate = Document.prototype.createElement;
-    const createSpy = vi.spyOn(Document.prototype, 'createElement');
-    const file = new File(['{}'], 'in.json', { type: 'application/json' });
-
-    class Reader {
-      result: string | null = null;
-      onload: ((ev: ProgressEvent<FileReader>) => void) | null = null;
-      onerror: ((ev: ProgressEvent<FileReader>) => void) | null = null;
-      readAsText(): void {
-        this.onerror?.({} as ProgressEvent<FileReader>);
-      }
-    }
-    vi.stubGlobal('FileReader', Reader as unknown as typeof FileReader);
-
-    createSpy.mockImplementation(function (this: Document, tagName: string) {
-      if (tagName === 'input') {
-        const input = realCreate.call(this, 'input') as HTMLInputElement;
-        Object.defineProperty(input, 'files', { value: [file], configurable: true });
-        Object.defineProperty(input, 'click', {
-          value: () => input.onchange?.(new Event('change') as never),
-          configurable: true,
-        });
-        return input;
-      }
-      return realCreate.call(this, tagName);
-    });
-
-    await handleImportToCollection({
-      collections: [],
-      toast,
-      onImportCollection: vi.fn(),
-      onImportFolder: vi.fn(),
-      onAddGroup: vi.fn(() => 'g1'),
-    });
-
-    expect(toast.show).not.toHaveBeenCalled();
-    createSpy.mockRestore();
-    vi.unstubAllGlobals();
   });
 
   it('imports requests-all valid records with group mapping and nested folders', async () => {

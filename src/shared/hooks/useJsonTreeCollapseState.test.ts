@@ -44,6 +44,26 @@ describe('useJsonTreeCollapseState', () => {
     act(() => { result.current.handleCollapseAll(new Set(['a', 'b'])); });
     expect(result.current.expandAllActive).toBe(false);
   });
+
+  it('applies defaultCollapsed on the first render of a new documentKey and clears Expand all', () => {
+    const firstDefaults = new Set(['/products/0']);
+    const { result, rerender } = renderHook(
+      ({ key, defaults }) => useJsonTreeCollapseState(key, defaults),
+      { initialProps: { key: 'body-a', defaults: firstDefaults } },
+    );
+
+    expect(result.current.collapsedSet.has('/products/0')).toBe(true);
+
+    act(() => { result.current.handleExpandAll(); });
+    expect(result.current.expandAllActive).toBe(true);
+    expect(result.current.collapsedSet.size).toBe(0);
+
+    const secondDefaults = new Set(['/products/0', '/products/1']);
+    rerender({ key: 'body-b', defaults: secondDefaults });
+
+    expect(result.current.expandAllActive).toBe(false);
+    expect(result.current.collapsedSet.has('/products/1')).toBe(true);
+  });
 });
 
 describe('useMatchCountChange', () => {

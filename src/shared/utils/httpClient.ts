@@ -184,6 +184,156 @@ export async function httpFetch(
   return proxyFetch(url, method, headers, body, signal);
 }
 
+interface StudioHttpFetchResponse {
+  status: number;
+  statusText: string;
+  headers: Record<string, string>;
+  body: string;
+  error?: string;
+}
+
+type StudioInvokeFn = (
+  cmd: string,
+  args: { request: { url: string; method: string; headers: Record<string, string>; body?: string } },
+) => Promise<StudioHttpFetchResponse>;
+
+let _studioInvoke: StudioInvokeFn | null | undefined;
+let _pluginHttpFetch: ((input: RequestInfo | URL, init?: RequestInit) => Promise<Response>) | null = null;
+
+function isStudioHttpFetchResponse(value: unknown): value is StudioHttpFetchResponse {
+  return typeof value === 'object'
+    && value !== null
+    && typeof (value as StudioHttpFetchResponse).status === 'number'
+    && typeof (value as StudioHttpFetchResponse).body === 'string';
+}
+
+async function getStudioInvoke(): Promise<StudioInvokeFn | null> {
+  if (_studioInvoke !== undefined) return _studioInvoke;
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    _studioInvoke = (cmd, args) => invoke<StudioHttpFetchResponse>(cmd, args);
+  } catch {
+    _studioInvoke = null;
+  }
+  return _studioInvoke;
+}
+
+function studioResponseToHttp(
+  native: StudioHttpFetchResponse,
+  t0: number,
+  tDone: number,
+): HttpResponse {
+  return {
+    status: native.status,
+    statusText: native.statusText ?? '',
+    headers: native.headers ?? {},
+    body: native.body ?? '',
+    error: native.error,
+    timing: {
+      dnsLookup: 0, tcpConnect: 0, tlsHandshake: 0,
+      ttfb: round2(tDone - t0),
+      download: 0,
+      total: round2(tDone - t0),
+    },
+  };
+}
+
+async function tauriFetchViaPooledCommand(
+  url: string,
+  method: string,
+  headers: Record<string, string>,
+  body?: string,
+  signal?: AbortSignal,
+): Promise<HttpResponse | null> {
+  if (signal?.aborted) {
+    return { status: 0, statusText: '', headers: {}, body: '', error: 'Aborted' };
+  }
+  const invoke = await getStudioInvoke();
+  if (!invoke) return null;
+
+  const request = {
+    url,
+    method,
+    headers,
+    body: body && method !== 'GET' && method !== 'HEAD' ? body : undefined,
+  };
+
+  const t0 = performance.now();
+  const invokePromise = invoke('studio_http_fetch', { request });
+
+  const run = async (): Promise<HttpResponse | null> => {
+    try {
+      const native = await invokePromise;
+      if (!isStudioHttpFetchResponse(native)) return null;
+      return studioResponseToHttp(native, t0, performance.now());
+    } catch {
+      return null;
+    }
+  };
+
+  if (!signal) return run();
+
+  return new Promise<HttpResponse | null>((resolve) => {
+    const onAbort = () => {
+      resolve({ status: 0, statusText: '', headers: {}, body: '', error: 'Aborted' });
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+    void run().then((result) => {
+      signal.removeEventListener('abort', onAbort);
+      if (signal.aborted) {
+        resolve({ status: 0, statusText: '', headers: {}, body: '', error: 'Aborted' });
+        return;
+      }
+      resolve(result);
+    });
+  });
+}
+
+async function tauriFetchViaPlugin(
+  url: string,
+  method: string,
+  headers: Record<string, string>,
+  body?: string,
+  signal?: AbortSignal,
+): Promise<HttpResponse> {
+  if (!_pluginHttpFetch) {
+    const { fetch: tFetch } = await import('@tauri-apps/plugin-http');
+    _pluginHttpFetch = tFetch;
+  }
+  const opts: RequestInit & { headers: Record<string, string> } = {
+    method,
+    headers,
+  };
+  if (body && method !== 'GET') {
+    opts.body = body;
+  }
+  if (signal) {
+    opts.signal = signal;
+  }
+
+  const t0 = performance.now();
+  const response = await _pluginHttpFetch(url, opts);
+  const tFirstByte = performance.now();
+  const responseBody = await response.text();
+  const tDone = performance.now();
+
+  const responseHeaders: Record<string, string> = {};
+  response.headers.forEach((v, k) => { responseHeaders[k] = v; });
+
+  return {
+    status: response.status,
+    statusText: response.statusText,
+    headers: responseHeaders,
+    body: responseBody,
+    timing: {
+      dnsLookup: 0, tcpConnect: 0, tlsHandshake: 0,
+      ttfb: round2(tFirstByte - t0),
+      download: round2(tDone - tFirstByte),
+      total: round2(tDone - t0),
+    },
+  };
+}
+
 async function tauriFetch(
   url: string,
   method: string,
@@ -192,39 +342,9 @@ async function tauriFetch(
   signal?: AbortSignal,
 ): Promise<HttpResponse> {
   try {
-    const { fetch: tFetch } = await import('@tauri-apps/plugin-http');
-    const opts: RequestInit & { headers: Record<string, string> } = {
-      method,
-      headers,
-    };
-    if (body && method !== 'GET') {
-      opts.body = body;
-    }
-    if (signal) {
-      opts.signal = signal;
-    }
-
-    const t0 = performance.now();
-    const response = await tFetch(url, opts);
-    const tFirstByte = performance.now();
-    const responseBody = await response.text();
-    const tDone = performance.now();
-
-    const responseHeaders: Record<string, string> = {};
-    response.headers.forEach((v, k) => { responseHeaders[k] = v; });
-
-    return {
-      status: response.status,
-      statusText: response.statusText,
-      headers: responseHeaders,
-      body: responseBody,
-      timing: {
-        dnsLookup: 0, tcpConnect: 0, tlsHandshake: 0,
-        ttfb: round2(tFirstByte - t0),
-        download: round2(tDone - tFirstByte),
-        total: round2(tDone - t0),
-      },
-    };
+    const pooled = await tauriFetchViaPooledCommand(url, method, headers, body, signal);
+    if (pooled) return pooled;
+    return await tauriFetchViaPlugin(url, method, headers, body, signal);
   } catch (err) {
     return {
       status: 0,
