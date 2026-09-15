@@ -254,8 +254,10 @@ export function pickJsonFile(onLoad: (data: unknown) => void, onError?: (msg: st
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = '.json';
+  if (input.style) input.style.display = 'none';
   input.onchange = (e) => {
     const file = (e.target as HTMLInputElement).files?.[0];
+    input.remove?.();
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
@@ -265,5 +267,8 @@ export function pickJsonFile(onLoad: (data: unknown) => void, onError?: (msg: st
     };
     reader.readAsText(file);
   };
+  if (input instanceof HTMLInputElement) {
+    document.body.appendChild(input);
+  }
   input.click();
 }

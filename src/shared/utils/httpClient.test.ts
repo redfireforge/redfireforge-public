@@ -22,8 +22,12 @@ vi.mock('undici', async (importOriginal) => {
 });
 
 const mockTFetch = vi.fn();
+const mockInvoke = vi.hoisted(() => vi.fn());
 vi.mock('@tauri-apps/plugin-http', () => ({
   fetch: (...args: unknown[]) => mockTFetch(...args),
+}));
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: (...args: unknown[]) => mockInvoke(...args),
 }));
 
 import { httpFetch, setHttpTransport } from './httpClient';
@@ -33,6 +37,8 @@ describe('httpFetch', () => {
     resetAllMocks();
     mockedIsTauri.mockReturnValue(false);
     mockedIsNode.mockReturnValue(false);
+    mockInvoke.mockReset();
+    mockInvoke.mockRejectedValue(new Error('studio_http_fetch unavailable'));
     globalThis.fetch = vi.fn();
   });
 

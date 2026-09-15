@@ -6,6 +6,7 @@ import { SUB_COL_ALL_USED_TOAST, SUB_COL_NO_BASE_URLS_TOAST } from '../utils/sub
 import { toggleSetItem } from '@shared/utils/setToggle';
 import SidebarContextMenu from './SidebarContextMenu';
 import { RequestsSidebarDialogs } from './RequestsSidebarDialogs';
+import { RequestsSidebarHeader } from './RequestsSidebarHeader';
 import { RequestsSidebarTree } from './RequestsSidebarTree';
 import {
   addCollectionRequestsToSelection,
@@ -524,69 +525,25 @@ export default function RequestsSidebar({
 
   return (
     <div className="req-sidebar" data-testid="req-sidebar">
-      <div className="req-sidebar-header">
-        <span className="req-sidebar-title">COLLECTIONS</span>
-        <div className="req-sidebar-actions">
-          {selectMode && (
-            <button
-              className="req-icon-btn req-select-mode-btn active"
-              onClick={clearSelection}
-              title="Clear selection"
-              aria-label="Clear selection"
-              data-testid="req-sidebar-clear-selection"
-            >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-            </button>
-          )}
-          <button
-            className={`req-icon-btn ${isAllExpanded ? 'active' : ''}`}
-            onClick={toggleExpandAll}
-            title={isAllExpanded ? 'Shrink All' : 'Expand All'}
-            aria-label={isAllExpanded ? 'Shrink all collections' : 'Expand all collections'}
-            aria-pressed={isAllExpanded}
-            data-testid="req-sidebar-expand-all"
-          >{isAllExpanded ? '\u229F' : '\u229E'}</button>
-          <button className="req-icon-btn" onClick={handleExportAll} title="Export All" data-testid="req-sidebar-export-all">&#8613;</button>
-          <button className="req-icon-btn" onClick={() => handleImportToCollection()} title="Import" data-testid="req-sidebar-import">&#8615;</button>
-          <div className="req-add-menu-wrapper" ref={addMenuRef}>
-            <button className="req-icon-btn" onClick={() => setShowAddMenu(!showAddMenu)} title="Add new..." data-testid="req-sidebar-add-btn">+</button>
-            {showAddMenu && (
-              <div className="req-add-dropdown" data-testid="req-add-dropdown">
-                <button data-testid="req-add-group" onClick={() => { startAddGroup(); setShowAddMenu(false); }}>
-                  {modeIcon('group')} Group
-                </button>
-                <button data-testid="req-add-url-collection" onClick={() => { onNewCollection('direct'); setShowAddMenu(false); }}>
-                  {modeIcon('direct')} URL Collection
-                </button>
-                <button data-testid="req-add-env-collection" onClick={() => { onNewCollection('multi-env'); setShowAddMenu(false); }}>
-                  {modeIcon('multi-env')} ENV Collection
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="req-sidebar-search">
-        <input
-          type="text"
-          className="req-sidebar-search-input"
-          placeholder="Search collections..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          aria-label="Search collections and requests"
-          data-testid="req-sidebar-search"
-        />
-        {search && (
-          <button
-            className="req-sidebar-search-clear"
-            onClick={() => setSearch('')}
-            title="Clear search"
-          >&times;</button>
-        )}
-      </div>
+      <RequestsSidebarHeader
+        collections={collections}
+        toast={toast}
+        onImportCollection={onImportCollection}
+        onImportFolder={onImportFolder}
+        onAddGroup={onAddGroup}
+        selectMode={selectMode}
+        clearSelection={clearSelection}
+        isAllExpanded={isAllExpanded}
+        toggleExpandAll={toggleExpandAll}
+        onExportAll={() => { void handleExportAll(); }}
+        showAddMenu={showAddMenu}
+        setShowAddMenu={setShowAddMenu}
+        addMenuRef={addMenuRef}
+        startAddGroup={startAddGroup}
+        onNewCollection={onNewCollection}
+        search={search}
+        setSearch={setSearch}
+      />
 
       <RequestsSidebarTree
         collections={collections}

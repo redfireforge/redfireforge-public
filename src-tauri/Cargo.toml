@@ -22,7 +22,7 @@ log = "0.4"
 tauri = { version = "2.11.5", features = [] }
 tauri-plugin-log = "2"
 tauri-plugin-fs = "2.5"
-tauri-plugin-http = "2.6"
+tauri-plugin-http = { version = "2.6", features = ["gzip", "brotli", "deflate"] }
 tauri-plugin-dialog = "2.7"
 tauri-plugin-shell = "2.3"
 tauri-plugin-updater = "2.11"

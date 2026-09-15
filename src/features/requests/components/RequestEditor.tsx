@@ -19,7 +19,7 @@ import { PathParamsEditor } from './PathParamsEditor';
 import type { PathParamEntry } from './PathParamsEditor';
 import { resolvePathParamUrl } from '../utils/pathParamResolver';
 import RequestAuthEditor from './RequestAuthEditor';
-import JsonPreview, { buildJTreeFromBody, collectJTreePaths } from './JsonTreePreview';
+import JsonPreview, { buildJTreeFromBody, collectJTreePaths, collectDefaultCollapsedPaths, type JNode } from './JsonTreePreview';
 import ConsoleLog from './ConsoleLog';
 import MultiEnvResultRow from './MultiEnvResultRow';
 import { ResponseHistoryDropdown } from './ResponseHistoryDropdown';
@@ -37,6 +37,7 @@ import ResponseBodySearchBar from './ResponseBodySearchBar';
 import { useSearchMatchNavigation } from '@shared/hooks/useSearchMatchNavigation';
 import { useRequestSend } from '../hooks/useRequestSend';
 import { useRequestImportExport } from '../hooks/useRequestImportExport';
+import RequestImportExportMenu from './RequestImportExportMenu';
 
 import type { RequestSubTab, ResponseSubTab, RequestInputMode } from '@shared/types';
 
@@ -76,6 +77,7 @@ export default function RequestEditor({
   const [activeTabLocal, setActiveTabLocal] = useState<EditorTab>('params');
   const [inputModeLocal, setInputModeLocal] = useState<InputMode>('builder');
   const [sending, setSending] = useState(false);
+  const [sendBusy, setSendBusy] = useState(false);
   const [responseTabLocal, setResponseTabLocal] = useState<ResponseTab>('preview');
   const [reqNameEditing, setReqNameEditing] = useState(false);
 
@@ -101,7 +103,6 @@ export default function RequestEditor({
 
   const [showApiInfo, setShowApiInfo] = useState(false);
   const [showVersionCompare, setShowVersionCompare] = useState(false);
-  const [showActionMenu, setShowActionMenu] = useState(false);
   const [searchMatchCount, setSearchMatchCount] = useState(0);
   const {
     searchQuery: responseSearch,
@@ -112,7 +113,6 @@ export default function RequestEditor({
     goPrev: goPrevSearchMatch,
     clear: clearResponseSearch,
   } = useSearchMatchNavigation(searchMatchCount);
-  const { collapsedSet, expandAllActive, handleTreeToggle, handleCollapseAll: collapseAll, handleExpandAll } = useJsonTreeCollapseState();
 
   const {
     response, setResponse,
@@ -139,14 +139,37 @@ export default function RequestEditor({
     }
   }, [request.id, setResponseSearch, onInputModeChange]);
 
-  const responseTree = useMemo(() => {
-    return buildJTreeFromBody(response?.body);
-  }, [response?.body]);
-  const allTreePaths = useMemo(() => {
-    if (!responseTree) return new Set<string>();
-    return new Set<string>(['', ...collectJTreePaths(responseTree, '')]);
-  }, [responseTree]);
-  const handleCollapseAll = () => collapseAll(allTreePaths);
+  const [lazyTree, setLazyTree] = useState<{ body: string; tree: JNode } | null>(null);
+  useEffect(() => {
+    const body = response?.error ? undefined : response?.body;
+    if (!body) {
+      setLazyTree(null);
+      return;
+    }
+    let cancelled = false;
+    const id = requestAnimationFrame(() => {
+      const tree = buildJTreeFromBody(body);
+      if (!cancelled) setLazyTree(tree ? { body, tree } : null);
+    });
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(id);
+    };
+  }, [response?.body, response?.error]);
+
+  const responseTree = lazyTree && lazyTree.body === response?.body ? lazyTree.tree : null;
+  const defaultCollapsed = useMemo(
+    () => (responseTree ? new Set(collectDefaultCollapsedPaths(responseTree)) : new Set<string>()),
+    [responseTree],
+  );
+  const { collapsedSet, expandAllActive, handleTreeToggle, handleCollapseAll: collapseAll, handleExpandAll } = useJsonTreeCollapseState(
+    responseTree ? (history[0]?.id ?? response?.body) : undefined,
+    defaultCollapsed,
+  );
+  const handleCollapseAll = () => {
+    if (!responseTree) return;
+    collapseAll(new Set(['', ...collectJTreePaths(responseTree, '')]));
+  };
   const searchMatchIdxRef = useRef(searchMatchIdx);
   searchMatchIdxRef.current = searchMatchIdx;
   const handleMatchCountChange = useMatchCountChange(setSearchMatchCount, setSearchMatchIdx, searchMatchIdxRef);
@@ -351,11 +374,17 @@ export default function RequestEditor({
           onChange={(e) => handleUrlChange(e.target.value)}
           placeholder={collection.mode === 'multi-env' ? '/v1/endpoint' : 'https://api.example.com/v1/endpoint'}
           data-testid="req-url-input" />
-        <button className="req-send-btn" onClick={() => void doSend(setSending)} disabled={sending} data-testid="req-send-btn">
-          {sending ? '...' : 'Send'}
+        <button
+          className="req-send-btn"
+          onClick={() => void doSend(setSending, setSendBusy)}
+          disabled={sending || sendBusy}
+          aria-busy={sending || sendBusy}
+          data-testid="req-send-btn"
+        >
+          {sending ? 'Sending…' : 'Send'}
         </button>
         <div className="req-status-row">
-          {response && !sending && (
+          {response && (
             <>
               <span className={`req-status-pill ${response.status >= 200 && response.status < 300 ? 'success' : response.status >= 400 ? 'error' : 'warn'}`} data-testid="req-status-pill">
                 {response.status} {response.statusText}
@@ -440,19 +469,12 @@ export default function RequestEditor({
               History {(request.definitionVersions?.length ?? 0) > 0 && <span className="tab-badge">{request.definitionVersions!.length}</span>}
             </button>
 
-            <div className="req-action-menu-wrapper">
-              <button className="req-action-menu-btn" data-testid="req-action-menu-btn" onClick={() => setShowActionMenu(!showActionMenu)}
-                title="Import / Export">&#9662;</button>
-              {showActionMenu && (
-                <div className="req-action-dropdown" data-testid="req-action-dropdown" onClick={() => setShowActionMenu(false)}>
-                  <button data-testid="req-curl-import-btn" onClick={() => setInputMode('curlImport')}>cURL Import</button>
-                  <button data-testid="req-curl-export-btn" onClick={() => { setInputMode('curlExport'); void importExport.triggerCurlGeneration(); }}>cURL Export</button>
-                  <div className="req-dropdown-divider" />
-                  <button onClick={importExport.handleJsonImport}>Import JSON</button>
-                  <button onClick={importExport.handleJsonExport}>Export JSON</button>
-                </div>
-              )}
-            </div>
+            <RequestImportExportMenu
+              onCurlImport={() => setInputMode('curlImport')}
+              onCurlExport={() => { setInputMode('curlExport'); void importExport.triggerCurlGeneration(); }}
+              onJsonImport={importExport.handleJsonImport}
+              onJsonExport={() => { void importExport.handleJsonExport(); }}
+            />
           </div>
 
           {/* Tab / cURL content */}
@@ -569,22 +591,18 @@ export default function RequestEditor({
           )}
 
           <div className="req-resp-content">
-            {sending && (
-              <div className="req-response-loading"><div className="req-spinner" /> Sending...</div>
-            )}
-
-            {!sending && !response && !sendAllResults && (
+            {!response && !sendAllResults && (
               <RequestResponsePlaceholder />
             )}
 
-            {!sending && response && !sendAllResults && responseTab === 'preview' && (
+            {response && !sendAllResults && responseTab === 'preview' && (
               <JsonPreview body={response.body} error={response.error} search={responseSearch}
                 collapsedSet={collapsedSet} onToggle={handleTreeToggle} prebuiltTree={responseTree}
                 forceExpandAll={expandAllActive}
                 currentMatchIdx={searchMatchIdx} onMatchCountChange={handleMatchCountChange} />
             )}
 
-            {!sending && response && !sendAllResults && responseTab === 'headers' && (
+            {response && !sendAllResults && responseTab === 'headers' && (
               <div className="req-resp-headers-list">
                 {Object.entries(response.headers).map(([k, v]) => (
                   <div key={k} className="req-resp-header-row">
@@ -602,7 +620,7 @@ export default function RequestEditor({
               <ConsoleLog lines={consoleLines} />
             )}
 
-            {!sending && sendAllResults && responseTab !== 'console' && (
+            {sendAllResults && responseTab !== 'console' && (
               <div className="req-multi-results">
                 {sendAllResults.map((r, i) => <MultiEnvResultRow key={i} {...r} />)}
               </div>

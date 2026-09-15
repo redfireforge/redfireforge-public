@@ -2,7 +2,6 @@ import { v4 as uuidv4 } from 'uuid';
 import type { RequestCollection, RequestFolder } from '@shared/types';
 import { findFolderDeep, collectGroupIds } from './requestTree';
 import { saveJsonFile, openJsonFile } from '@shared/utils/fileSaver';
-import { isTauri } from '@shared/utils/platform';
 import { tryParseJson } from '@shared/utils/helpers';
 
 export interface ToastLike {
@@ -34,33 +33,17 @@ type RequestsImportPayload = {
 function parseImportPayload(content: string): RequestsImportPayload | null {
   const parsed = tryParseJson(content);
   if (!parsed || typeof parsed !== 'object') return null;
+  const obj = parsed as Record<string, unknown>;
+  if (obj._exportMeta && obj.data && typeof obj.data === 'object' && !obj.type) {
+    const inner = obj.data as RequestsImportPayload;
+    if (typeof inner.type === 'string') return inner;
+  }
   return parsed as RequestsImportPayload;
 }
 
 async function pickImportFile(): Promise<string | null> {
-  if (isTauri()) {
-    const result = await openJsonFile();
-    return result?.content ?? null;
-  }
-  return new Promise((resolve) => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json';
-    input.onchange = () => {
-      const file = input.files?.[0];
-      if (!file) {
-        resolve(null);
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = () => {
-        resolve(null);
-      };
-      reader.readAsText(file);
-    };
-    input.click();
-  });
+  const result = await openJsonFile();
+  return result?.content ?? null;
 }
 
 async function pickAndParseImportPayload(): Promise<{ payload: RequestsImportPayload | null; cancelled: boolean }> {
@@ -77,6 +60,8 @@ interface CommonImportArgs {
 interface ImportCollectionArgs extends CommonImportArgs {
   colId?: string;
   targetGroupId?: string;
+  /** When set, skip the file picker and parse this text (sidebar <input type=file>). */
+  fileContent?: string | null;
   onImportCollection: (col: RequestCollection) => void;
   onImportFolder: (colId: string, folder: RequestFolder, parentFolderId?: string) => void;
   onAddGroup: (name: string, parentGroupId?: string) => string;
@@ -146,11 +131,14 @@ export async function handleImportToCollection({
   toast,
   colId,
   targetGroupId,
+  fileContent,
   onImportCollection,
   onImportFolder,
   onAddGroup,
 }: ImportCollectionArgs) {
-  const { payload: json, cancelled } = await pickAndParseImportPayload();
+  const { payload: json, cancelled } = fileContent !== undefined
+    ? { payload: fileContent ? parseImportPayload(fileContent) : null, cancelled: !fileContent }
+    : await pickAndParseImportPayload();
   if (cancelled) return;
   if (!json) {
     toast.show('error', 'Invalid JSON file', 'Please select a valid export file.');
@@ -174,6 +162,7 @@ export async function handleImportToCollection({
         folders: (incoming.folders ?? []).map(regenIds),
       };
       onImportCollection(imported);
+      toast.show('success', 'Imported collection', imported.name);
       return;
     }
 
@@ -191,6 +180,7 @@ export async function handleImportToCollection({
         name: nameExists ? `${incoming.name} (imported)` : incoming.name,
       });
       onImportFolder(colId, imported);
+      toast.show('success', 'Imported folder', imported.name);
       return;
     }
 
@@ -201,6 +191,7 @@ export async function handleImportToCollection({
         targetGroupId,
         onImportCollection,
       );
+      toast.show('success', 'Imported group');
       return;
     }
 
@@ -227,6 +218,7 @@ export async function handleImportToCollection({
         importedCount++;
       }
       if (importedCount === 0) toast.show('warning', 'No valid collections found in the file');
+      else toast.show('success', `Imported ${importedCount} collection${importedCount === 1 ? '' : 's'}`);
       return;
     }
 
