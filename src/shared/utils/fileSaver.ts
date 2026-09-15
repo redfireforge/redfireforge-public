@@ -77,35 +77,84 @@ async function tauriSaveFile(blob: Blob, opts: SaveOptions): Promise<void> {
   await writeTextFile(path, text);
 }
 
-async function browserSaveFile(blob: Blob, opts: SaveOptions): Promise<void> {
-  if ('showSaveFilePicker' in window) {
-    try {
-      const ext = getExtension(opts.filename) || '.json';
-      const handle = await (window as unknown as { showSaveFilePicker: (o: unknown) => Promise<FileSystemFileHandle> })
-        .showSaveFilePicker({
-          suggestedName: opts.filename,
-          types: [{
-            description: opts.description ?? 'File',
-            accept: { [opts.mimeType]: [ext] },
-          }],
-        });
-      const writable = await handle.createWritable();
-      await writable.write(blob);
-      await writable.close();
-      return;
-    } catch (err: unknown) {
-      if (err instanceof DOMException && err.name === 'AbortError') return;
-    }
-  }
+const BROWSER_DOWNLOAD_REVOKE_MS = 2000;
+const TEXT_DOWNLOAD_MAX_BYTES = 1_500_000;
 
-  const url = URL.createObjectURL(blob);
+function isTextDownload(mimeType: string, filename: string): boolean {
+  if (/^(application\/(json|xml)|text\/|image\/svg)/i.test(mimeType)) return true;
+  return /\.(json|csv|svg|txt|xml|ya?ml)$/i.test(filename);
+}
+
+function clickDownloadAnchor(href: string, filename: string): void {
   const a = document.createElement('a');
-  a.href = url;
-  a.download = opts.filename;
+  a.href = href;
+  a.download = filename;
+  a.setAttribute('download', filename);
+  a.rel = 'noopener';
+  a.style.display = 'none';
   document.body.appendChild(a);
   a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  a.remove();
+}
+
+async function browserSaveFile(blob: Blob, opts: SaveOptions): Promise<void> {
+  // Chrome's download history names blob: URLs after the blob UUID
+  // (`blob:http://localhost:5173/<uuid>`). Text exports use a data: URL so the
+  // `download` filename is what the user sees.
+  if (isTextDownload(opts.mimeType, opts.filename) && blob.size <= TEXT_DOWNLOAD_MAX_BYTES) {
+    const text = await blob.text();
+    clickDownloadAnchor(
+      `data:application/octet-stream;charset=utf-8,${encodeURIComponent(text)}`,
+      opts.filename,
+    );
+    return;
+  }
+  const named = new File([blob], opts.filename, { type: 'application/octet-stream' });
+  const url = URL.createObjectURL(named);
+  clickDownloadAnchor(url, opts.filename);
+  window.setTimeout(() => URL.revokeObjectURL(url), BROWSER_DOWNLOAD_REVOKE_MS);
+}
+
+function browserOpenJsonFile(): Promise<{ name: string; content: string } | null> {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    // No accept filter — Chrome blob downloads often have no .json suffix.
+    input.style.position = 'fixed';
+    input.style.left = '0';
+    input.style.top = '0';
+    input.style.width = '1px';
+    input.style.height = '1px';
+    input.style.opacity = '0';
+    input.style.pointerEvents = 'none';
+    let settled = false;
+    let ignoreCancel = true;
+    const finish = (value: { name: string; content: string } | null) => {
+      if (settled) return;
+      settled = true;
+      input.remove();
+      resolve(value);
+    };
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) {
+        finish(null);
+        return;
+      }
+      void file.text().then(
+        (content) => finish({ name: file.name, content }),
+        () => finish(null),
+      );
+    };
+    // Chrome can fire `cancel` synchronously during programmatic click().
+    input.addEventListener('cancel', () => {
+      if (ignoreCancel) return;
+      finish(null);
+    });
+    document.body.appendChild(input);
+    input.click();
+    ignoreCancel = false;
+  });
 }
 
 export async function saveJsonFile(data: unknown, filename: string): Promise<void> {
@@ -131,7 +180,7 @@ export async function saveSvgFile(dataUrl: string, filename: string): Promise<vo
 }
 
 export async function openJsonFile(): Promise<{ name: string; content: string } | null> {
-  if (!isTauri()) return null;
+  if (!isTauri()) return browserOpenJsonFile();
   const { open } = await import('@tauri-apps/plugin-dialog');
   const { readTextFile } = await import('@tauri-apps/plugin-fs');
   const exportDir = await getDefaultExportDir();

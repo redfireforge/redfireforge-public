@@ -416,6 +416,7 @@ describe('RequestEditor interaction branches', () => {
 
     const searchBox = await screen.findByPlaceholderText('Search response...');
     fireEvent.change(searchBox, { target: { value: 'needle' } });
+    await waitFor(() => expect(screen.getByText('1/2')).toBeInTheDocument());
 
     fireEvent.click(screen.getByTitle('Previous'));
     await waitFor(() => expect(screen.getByText('2/2')).toBeInTheDocument());

@@ -311,6 +311,18 @@
   border-color: var(--border);
   background: color-mix(in srgb, var(--primary) 12%, transparent);
 }
+.req-import-label {
+  position: relative;
+  overflow: hidden;
+}
+.req-import-file-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
 .req-sidebar-search {
   position: relative;
   padding: 6px 12px;
@@ -868,7 +880,7 @@
   background: var(--success); color: #fff; border: none; padding: 8px 24px;
   font-weight: 700; font-size: 0.85rem; letter-spacing: 0.3px; cursor: pointer; white-space: nowrap;
   transition: background 0.15s, box-shadow 0.15s, transform 0.05s;
-  flex-shrink: 0; border-radius: 6px; margin: 5px 8px 5px 5px; min-width: 78px;
+  flex-shrink: 0; border-radius: 6px; margin: 5px 8px 5px 5px; min-width: 118px;
   box-shadow: 0 1px 2px rgba(0,0,0,0.2);
 }
 .req-send-btn:hover { background: color-mix(in srgb, var(--success) 86%, #000); box-shadow: 0 2px 10px color-mix(in srgb, var(--success) 40%, transparent); }
@@ -1057,18 +1069,23 @@
 
 /* ── Split pane ─────────────────────────────────── */
 .req-split-pane { display: flex; flex: 1; overflow: hidden; }
-.req-split-pane:has(.body-type-dropdown) { overflow: visible; }
-.req-main:has(.body-type-dropdown) { overflow: visible; }
-.req-editor:has(.body-type-dropdown) { overflow: visible; }
+.req-split-pane:has(.body-type-dropdown),
+.req-split-pane:has(.req-action-dropdown) { overflow: visible; }
+.req-main:has(.body-type-dropdown),
+.req-main:has(.req-action-dropdown) { overflow: visible; }
+.req-editor:has(.body-type-dropdown),
+.req-editor:has(.req-action-dropdown) { overflow: visible; }
 
 /* Left pane: request editor */
 .req-pane-left {
   width: 50%; min-width: 320px; display: flex; flex-direction: column;
   border-right: 1px solid var(--border); overflow: hidden;
 }
+.req-pane-left:has(.req-action-dropdown) { overflow: visible; }
 /* Tabs (shared for request + response) */
 .req-tabs {
   display: flex; gap: 0; padding: 0 12px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+  position: relative; z-index: 20;
 }
 .req-tab {
   background: none; border: none; border-bottom: 2px solid transparent;
@@ -1084,16 +1101,22 @@
 .req-tab-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--primary); display: inline-block; }
 
 /* Action menu (dropdown for import/export) */
-.req-action-menu-wrapper { position: relative; margin-left: auto; flex-shrink: 0; }
+.req-action-menu-wrapper { position: relative; margin-left: auto; flex-shrink: 0; z-index: 40; }
 .req-action-menu-btn {
   background: none; border: 1px solid var(--border); color: var(--text-muted); padding: 4px 10px;
-  font-size: 0.78rem; border-radius: var(--radius); cursor: pointer; transition: all 0.15s;
+  font-size: 0.72rem; font-weight: 600; border-radius: var(--radius); cursor: pointer; transition: all 0.15s;
+  white-space: nowrap;
 }
 .req-action-menu-btn:hover { border-color: var(--primary); color: var(--text); }
 .req-action-dropdown {
-  position: absolute; top: 100%; right: 0; z-index: 50; margin-top: 4px;
+  position: absolute; top: 100%; right: 0; z-index: 200; margin-top: 4px;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
   box-shadow: 0 8px 24px rgba(0,0,0,0.3); min-width: 160px; overflow: hidden;
+}
+.req-action-dropdown--portal {
+  position: fixed;
+  z-index: 10000;
+  margin-top: 0;
 }
 .req-action-dropdown button {
   display: block; width: 100%; text-align: left; background: none; border: none;

@@ -21,6 +21,7 @@ pub mod http_helpers;
 pub mod json_path;
 pub mod json_validator;
 pub mod subset_match;
+mod studio_http;
 mod types;
 pub mod validation_result;
 pub mod validation_types;
@@ -115,6 +116,7 @@ pub fn run() {
       websocket::operations::ws_ping,
       websocket::operations::ws_receive_next,
       graphql::http_fetch::gql_http_fetch,
+      studio_http::studio_http_fetch,
       graphql::http_upload::gql_http_upload,
       grpc::unary::grpc_unary,
       grpc::unary::grpc_call_cancel,

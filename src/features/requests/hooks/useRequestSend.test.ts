@@ -19,6 +19,9 @@ vi.mock('../utils/requestUrlResolver', () => ({
   resolveFullSendUrl: vi.fn((url: string) => ({ url, error: undefined })),
   buildDisplayUrl: vi.fn((url: string) => url),
 }));
+vi.mock('../../../shared/utils/yieldToPaint', () => ({
+  yieldToPaint: () => Promise.resolve(),
+}));
 
 function makeRequest(overrides: Partial<RequestItem> = {}): RequestItem {
   return {
@@ -309,6 +312,38 @@ describe('useRequestSend hook', () => {
     expect(opts.setActiveHistoryId).toHaveBeenCalledWith('h1');
   });
 
+  it('clears sending before committing the response so the spinner can paint away', async () => {
+    const order: string[] = [];
+    const opts = makeHookOpts({
+      setResponse: vi.fn(() => { order.push('response'); }),
+    });
+    const setSending = vi.fn((v: boolean) => { order.push(v ? 'start' : 'stop'); });
+    const { result } = renderHook(() => useRequestSend(opts));
+    await act(async () => { await result.current.handleSend(setSending); });
+    expect(order[0]).toBe('start');
+    expect(order.indexOf('stop')).toBeGreaterThan(-1);
+    expect(order.indexOf('stop')).toBeLessThan(order.indexOf('response'));
+  });
+
+  it('marks sending only around httpFetch, not during prep', async () => {
+    const { httpFetch } = await import('../../../shared/utils/httpClient');
+    const order: string[] = [];
+    vi.mocked(httpFetch).mockImplementationOnce(async () => {
+      order.push('fetch');
+      return { status: 200, statusText: 'OK', headers: {}, body: '{}' };
+    });
+    const opts = makeHookOpts();
+    const setSending = vi.fn((v: boolean) => { order.push(v ? 'start' : 'stop'); });
+    const setBusy = vi.fn((v: boolean) => { order.push(v ? 'busy' : 'idle'); });
+    const { result } = renderHook(() => useRequestSend(opts));
+    await act(async () => { await result.current.handleSend(setSending, setBusy); });
+    expect(order[0]).toBe('busy');
+    expect(order.indexOf('start')).toBeGreaterThan(order.indexOf('busy'));
+    expect(order.indexOf('fetch')).toBeGreaterThan(order.indexOf('start'));
+    expect(order.indexOf('stop')).toBeGreaterThan(order.indexOf('fetch'));
+    expect(order[order.length - 1]).toBe('idle');
+  });
+
   it('handleSend writes console lines for OAuth2', async () => {
     const opts = makeHookOpts({
       request: makeRequest({ auth: { type: 'oauth2', tokenUrl: 'http://auth/token', clientId: 'cid', clientSecret: 'cs' } as AuthConfig }),
@@ -440,5 +475,21 @@ describe('useRequestSend hook', () => {
     const { result } = renderHook(() => useRequestSend(opts));
     const auth = result.current.resolveAuth('env1');
     expect(auth.type).toBe('bearer');
+  });
+
+  it('logs TTFB and download timing when the response includes timing', async () => {
+    const { httpFetch } = await import('../../../shared/utils/httpClient');
+    vi.mocked(httpFetch).mockResolvedValueOnce({
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      body: '{}',
+      timing: { dnsLookup: 1, tcpConnect: 2, tlsHandshake: 3, ttfb: 12.4, download: 3.6, total: 20 },
+    });
+    const opts = makeHookOpts();
+    const { result } = renderHook(() => useRequestSend(opts));
+    await act(async () => { await result.current.handleSend(vi.fn()); });
+    const lines = (opts.setConsoleLines as ReturnType<typeof vi.fn>).mock.calls[0][0] as { text: string }[];
+    expect(lines.some((l) => l.text.includes('TTFB 12 ms') && l.text.includes('download 4 ms'))).toBe(true);
   });
 });

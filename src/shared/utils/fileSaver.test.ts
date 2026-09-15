@@ -89,6 +89,18 @@ describe('buildExportFilename', () => {
   });
 });
 
+function mockDownloadAnchor(click: ReturnType<typeof vi.fn> = vi.fn()) {
+  return {
+    click,
+    href: '',
+    download: '',
+    rel: '',
+    style: { display: '' },
+    setAttribute: vi.fn(),
+    remove: vi.fn(),
+  } as unknown as HTMLAnchorElement;
+}
+
 describe('saveFile (browser fallback)', () => {
   beforeEach(() => {
     resetAllMocks();
@@ -96,25 +108,24 @@ describe('saveFile (browser fallback)', () => {
     URL.revokeObjectURL = vi.fn();
   });
 
-  it('creates download link and clicks it', async () => {
-    const appendChild = vi.fn();
-    const removeChild = vi.fn();
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('uses a data URL so Chrome does not name the file after a blob UUID', async () => {
     const click = vi.fn();
-    vi.spyOn(document.body, 'appendChild').mockImplementation(appendChild);
-    vi.spyOn(document.body, 'removeChild').mockImplementation(removeChild);
-    vi.spyOn(document, 'createElement').mockReturnValue({
-      click,
-      set href(v: string) { /* noop */ },
-      set download(v: string) { /* noop */ },
-    } as unknown as HTMLAnchorElement);
+    const anchor = mockDownloadAnchor(click);
+    vi.spyOn(document.body, 'appendChild').mockImplementation(vi.fn());
+    vi.spyOn(document, 'createElement').mockReturnValue(anchor);
 
-    const blob = new Blob(['test'], { type: 'text/plain' });
-    await saveFile(blob, { filename: 'test.json', mimeType: 'application/json' });
+    const blob = new Blob(['{"type":"requests-all"}'], { type: 'application/json' });
+    await saveFile(blob, { filename: 'requests-all-collections.json', mimeType: 'application/json' });
 
-    expect(appendChild).toHaveBeenCalled();
     expect(click).toHaveBeenCalled();
-    expect(removeChild).toHaveBeenCalled();
-    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:test');
+    expect(anchor.href.startsWith('data:application/octet-stream;charset=utf-8,')).toBe(true);
+    expect(anchor.href).not.toContain('blob:');
+    expect(anchor.download).toBe('requests-all-collections.json');
+    expect(URL.createObjectURL).not.toHaveBeenCalled();
   });
 });
 
@@ -124,16 +135,12 @@ describe('saveJsonFile', () => {
     URL.revokeObjectURL = vi.fn();
     vi.spyOn(document.body, 'appendChild').mockImplementation(vi.fn());
     vi.spyOn(document.body, 'removeChild').mockImplementation(vi.fn());
-    vi.spyOn(document, 'createElement').mockReturnValue({
-      click: vi.fn(),
-      href: '',
-      download: '',
-    } as unknown as HTMLAnchorElement);
+    vi.spyOn(document, 'createElement').mockReturnValue(mockDownloadAnchor());
   });
 
   it('creates a JSON blob and saves it', async () => {
     await saveJsonFile({ key: 'value' }, 'output.json');
-    expect(URL.createObjectURL).toHaveBeenCalled();
+    expect(URL.createObjectURL).not.toHaveBeenCalled();
   });
 });
 
@@ -143,111 +150,34 @@ describe('saveCsvFile', () => {
     URL.revokeObjectURL = vi.fn();
     vi.spyOn(document.body, 'appendChild').mockImplementation(vi.fn());
     vi.spyOn(document.body, 'removeChild').mockImplementation(vi.fn());
-    vi.spyOn(document, 'createElement').mockReturnValue({
-      click: vi.fn(),
-      href: '',
-      download: '',
-    } as unknown as HTMLAnchorElement);
+    vi.spyOn(document, 'createElement').mockReturnValue(mockDownloadAnchor());
   });
 
   it('creates a CSV blob and saves it', async () => {
     await saveCsvFile('a,b,c\n1,2,3', 'output.csv');
-    expect(URL.createObjectURL).toHaveBeenCalled();
+    expect(URL.createObjectURL).not.toHaveBeenCalled();
   });
 });
 
-describe('saveFile with showSaveFilePicker', () => {
+describe('saveFile ignores showSaveFilePicker on web', () => {
   beforeEach(() => {
     resetAllMocks();
     URL.createObjectURL = vi.fn(() => 'blob:test');
     URL.revokeObjectURL = vi.fn();
   });
 
-  it('uses showSaveFilePicker when available', async () => {
-    const mockWritable = { write: vi.fn(), close: vi.fn() };
-    const mockHandle = { createWritable: vi.fn().mockResolvedValue(mockWritable) };
-    (window as unknown as Record<string, unknown>).showSaveFilePicker = vi.fn().mockResolvedValue(mockHandle);
-
-    const blob = new Blob(['test'], { type: 'text/plain' });
-    await saveFile(blob, { filename: 'test.json', mimeType: 'application/json' });
-
-    expect((window as unknown as Record<string, unknown>).showSaveFilePicker).toHaveBeenCalled();
-    expect(mockWritable.write).toHaveBeenCalledWith(blob);
-    expect(mockWritable.close).toHaveBeenCalled();
-    delete (window as unknown as Record<string, unknown>).showSaveFilePicker;
-  });
-
-  it('uses .json accept extension when filename has no extension', async () => {
-    const mockWritable = { write: vi.fn(), close: vi.fn() };
-    const mockHandle = { createWritable: vi.fn().mockResolvedValue(mockWritable) };
-    const showSaveFilePicker = vi.fn().mockResolvedValue(mockHandle);
+  it('downloads via an anchor even when showSaveFilePicker exists', async () => {
+    const showSaveFilePicker = vi.fn();
     (window as unknown as Record<string, unknown>).showSaveFilePicker = showSaveFilePicker;
-
-    const blob = new Blob(['x'], { type: 'text/plain' });
-    await saveFile(blob, { filename: 'noext', mimeType: 'application/json', description: 'My export' });
-
-    expect(showSaveFilePicker).toHaveBeenCalledWith(
-      expect.objectContaining({
-        suggestedName: 'noext',
-        types: [
-          expect.objectContaining({
-            description: 'My export',
-            accept: { 'application/json': ['.json'] },
-          }),
-        ],
-      }),
-    );
-    delete (window as unknown as Record<string, unknown>).showSaveFilePicker;
-  });
-
-  it('falls back to download link on AbortError', async () => {
-    const abortErr = new DOMException('User cancelled', 'AbortError');
-    (window as unknown as Record<string, unknown>).showSaveFilePicker = vi.fn().mockRejectedValue(abortErr);
-
-    vi.spyOn(document.body, 'appendChild').mockImplementation(vi.fn());
-    vi.spyOn(document.body, 'removeChild').mockImplementation(vi.fn());
-
-    const blob = new Blob(['test'], { type: 'text/plain' });
-    await saveFile(blob, { filename: 'test.json', mimeType: 'application/json' });
-
-    delete (window as unknown as Record<string, unknown>).showSaveFilePicker;
-  });
-
-  it('falls back to download link on other errors', async () => {
-    (window as unknown as Record<string, unknown>).showSaveFilePicker = vi.fn().mockRejectedValue(new Error('Not supported'));
-
     const click = vi.fn();
     vi.spyOn(document.body, 'appendChild').mockImplementation(vi.fn());
     vi.spyOn(document.body, 'removeChild').mockImplementation(vi.fn());
-    vi.spyOn(document, 'createElement').mockReturnValue({
-      click,
-      href: '',
-      download: '',
-    } as unknown as HTMLAnchorElement);
+    vi.spyOn(document, 'createElement').mockReturnValue(mockDownloadAnchor(click));
 
     const blob = new Blob(['test'], { type: 'text/plain' });
     await saveFile(blob, { filename: 'test.json', mimeType: 'application/json' });
 
-    expect(click).toHaveBeenCalled();
-    delete (window as unknown as Record<string, unknown>).showSaveFilePicker;
-  });
-
-  it('falls back to download link on non-abort DOMException', async () => {
-    const err = new DOMException('Security', 'SecurityError');
-    (window as unknown as Record<string, unknown>).showSaveFilePicker = vi.fn().mockRejectedValue(err);
-
-    const click = vi.fn();
-    vi.spyOn(document.body, 'appendChild').mockImplementation(vi.fn());
-    vi.spyOn(document.body, 'removeChild').mockImplementation(vi.fn());
-    vi.spyOn(document, 'createElement').mockReturnValue({
-      click,
-      href: '',
-      download: '',
-    } as unknown as HTMLAnchorElement);
-
-    const blob = new Blob(['test'], { type: 'text/plain' });
-    await saveFile(blob, { filename: 'test.json', mimeType: 'application/json' });
-
+    expect(showSaveFilePicker).not.toHaveBeenCalled();
     expect(click).toHaveBeenCalled();
     delete (window as unknown as Record<string, unknown>).showSaveFilePicker;
   });
@@ -404,11 +334,7 @@ describe('savePngFile and saveSvgFile (browser via anchor fallback)', () => {
     URL.revokeObjectURL = vi.fn();
     vi.spyOn(document.body, 'appendChild').mockImplementation(vi.fn());
     vi.spyOn(document.body, 'removeChild').mockImplementation(vi.fn());
-    vi.spyOn(document, 'createElement').mockReturnValue({
-      click: vi.fn(),
-      href: '',
-      download: '',
-    } as unknown as HTMLAnchorElement);
+    vi.spyOn(document, 'createElement').mockReturnValue(mockDownloadAnchor());
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -432,13 +358,13 @@ describe('savePngFile and saveSvgFile (browser via anchor fallback)', () => {
     const payload = encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg"/>');
     await saveSvgFile('data:image/svg+xml;charset=utf-8,' + payload, 'chart.svg');
 
-    expect(URL.createObjectURL).toHaveBeenCalled();
+    expect(URL.createObjectURL).not.toHaveBeenCalled();
   });
 
   it('treats bare svg MIME prefixes as empty payloads', async () => {
     await saveSvgFile('data:image/svg+xml', 'empty.svg');
 
-    expect(URL.createObjectURL).toHaveBeenCalled();
+    expect(URL.createObjectURL).not.toHaveBeenCalled();
   });
 });
 
@@ -471,8 +397,127 @@ describe('saveJsonFile and saveCsvFile (Tauri)', () => {
   });
 });
 
-describe('openJsonFile', () => {
-  it('returns null when not in Tauri', async () => {
+describe('openJsonFile (web)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('reads the selected file from a hidden input', async () => {
+    const file = new File(['{"ok":true}'], 'in.json', { type: 'application/json' });
+    const realCreate = Document.prototype.createElement;
+    vi.spyOn(document, 'createElement').mockImplementation(function (this: Document, tagName: string, options?: ElementCreationOptions) {
+      const el = realCreate.call(this, tagName, options);
+      if (tagName === 'input') {
+        Object.defineProperty(el, 'files', { value: [file], configurable: true });
+        Object.defineProperty(el, 'click', {
+          value: () => (el as HTMLInputElement).onchange?.(new Event('change')),
+          configurable: true,
+        });
+      }
+      return el;
+    });
+
+    const result = await openJsonFile();
+    expect(result).toEqual({ name: 'in.json', content: '{"ok":true}' });
+  });
+
+  it('returns null when the picker is cancelled after it opens', async () => {
+    const realCreate = Document.prototype.createElement;
+    vi.spyOn(document, 'createElement').mockImplementation(function (this: Document, tagName: string, options?: ElementCreationOptions) {
+      const el = realCreate.call(this, tagName, options);
+      if (tagName === 'input') {
+        Object.defineProperty(el, 'click', {
+          value: () => {
+            queueMicrotask(() => el.dispatchEvent(new Event('cancel')));
+          },
+          configurable: true,
+        });
+      }
+      return el;
+    });
+
+    const result = await openJsonFile();
+    expect(result).toBeNull();
+  });
+
+  it('ignores cancel fired during programmatic click and still reads the file', async () => {
+    const file = new File(['{"ok":true}'], 'in.json', { type: 'application/json' });
+    const realCreate = Document.prototype.createElement;
+    vi.spyOn(document, 'createElement').mockImplementation(function (this: Document, tagName: string, options?: ElementCreationOptions) {
+      const el = realCreate.call(this, tagName, options);
+      if (tagName === 'input') {
+        Object.defineProperty(el, 'files', { value: [file], configurable: true });
+        Object.defineProperty(el, 'click', {
+          value: () => {
+            el.dispatchEvent(new Event('cancel'));
+            (el as HTMLInputElement).onchange?.(new Event('change'));
+          },
+          configurable: true,
+        });
+      }
+      return el;
+    });
+
+    const result = await openJsonFile();
+    expect(result).toEqual({ name: 'in.json', content: '{"ok":true}' });
+  });
+
+  it('accepts extension-less files from Chrome blob downloads', async () => {
+    const file = new File(['{"type":"requests-all"}'], 'e451ae8a-6e45-4ca6-a6ed047657588ee', { type: '' });
+    const realCreate = Document.prototype.createElement;
+    vi.spyOn(document, 'createElement').mockImplementation(function (this: Document, tagName: string, options?: ElementCreationOptions) {
+      const el = realCreate.call(this, tagName, options);
+      if (tagName === 'input') {
+        Object.defineProperty(el, 'files', { value: [file], configurable: true });
+        Object.defineProperty(el, 'click', {
+          value: () => (el as HTMLInputElement).onchange?.(new Event('change')),
+          configurable: true,
+        });
+      }
+      return el;
+    });
+
+    const result = await openJsonFile();
+    expect(result).toEqual({
+      name: 'e451ae8a-6e45-4ca6-a6ed047657588ee',
+      content: '{"type":"requests-all"}',
+    });
+  });
+
+  it('returns null when reading the selected file fails', async () => {
+    const file = new File(['x'], 'bad.json', { type: 'application/json' });
+    Object.defineProperty(file, 'text', { value: () => Promise.reject(new Error('read fail')) });
+    const realCreate = Document.prototype.createElement;
+    vi.spyOn(document, 'createElement').mockImplementation(function (this: Document, tagName: string, options?: ElementCreationOptions) {
+      const el = realCreate.call(this, tagName, options);
+      if (tagName === 'input') {
+        Object.defineProperty(el, 'files', { value: [file], configurable: true });
+        Object.defineProperty(el, 'click', {
+          value: () => (el as HTMLInputElement).onchange?.(new Event('change')),
+          configurable: true,
+        });
+      }
+      return el;
+    });
+
+    const result = await openJsonFile();
+    expect(result).toBeNull();
+  });
+
+  it('returns null when no file is chosen', async () => {
+    const realCreate = Document.prototype.createElement;
+    vi.spyOn(document, 'createElement').mockImplementation(function (this: Document, tagName: string, options?: ElementCreationOptions) {
+      const el = realCreate.call(this, tagName, options);
+      if (tagName === 'input') {
+        Object.defineProperty(el, 'files', { value: [], configurable: true });
+        Object.defineProperty(el, 'click', {
+          value: () => (el as HTMLInputElement).onchange?.(new Event('change')),
+          configurable: true,
+        });
+      }
+      return el;
+    });
+
     const result = await openJsonFile();
     expect(result).toBeNull();
   });

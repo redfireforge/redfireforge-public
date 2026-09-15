@@ -4,7 +4,7 @@
 import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import JsonPreview, { buildJTree, collectJTreePaths, nodeMatches, collectMatchNodes, type JNode } from './JsonTreePreview';
+import JsonPreview, { buildJTree, collectJTreePaths, collectDefaultCollapsedPaths, JSON_TREE_LARGE_ARRAY_COLLAPSE, nodeMatches, collectMatchNodes, type JNode } from './JsonTreePreview';
 import { stubScrollIntoView } from '@test-utils/domMocks';
 
 // Mock scrollIntoView
@@ -98,6 +98,35 @@ describe('JsonTreePreview', () => {
       expect(paths).toContain('/items');
       expect(paths).toContain('/items/0');
       expect(paths).toContain('/items/1');
+    });
+  });
+
+  describe('collectDefaultCollapsedPaths', () => {
+    it('keeps first-level object keys expanded and collapses nested objects', () => {
+      const node = buildJTree({ user: { address: { city: 'NYC' } } }, '');
+      const paths = collectDefaultCollapsedPaths(node);
+      expect(paths).not.toContain('/user');
+      expect(paths).toContain('/user/address');
+    });
+
+    it('collapses array items so catalog-style payloads stay shallow', () => {
+      const node = buildJTree({
+        products: [
+          { id: 1, nested: { a: 1 } },
+          { id: 2, nested: { a: 2 } },
+        ],
+      }, '');
+      const paths = collectDefaultCollapsedPaths(node);
+      expect(paths).toContain('/products/0');
+      expect(paths).toContain('/products/1');
+      expect(paths).not.toContain('/products');
+    });
+
+    it('collapses large arrays themselves', () => {
+      const items = Array.from({ length: JSON_TREE_LARGE_ARRAY_COLLAPSE + 1 }, (_, i) => ({ id: i }));
+      const node = buildJTree({ products: items }, '');
+      const paths = collectDefaultCollapsedPaths(node);
+      expect(paths).toContain('/products');
     });
   });
 
