@@ -8,8 +8,11 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.8.12] — 2026-09-16
+
 ### Added
 - **OrbStack as a Docker engine** — Learning Hub finds `~/.orbstack/bin/docker`, opens OrbStack when that is the active engine, and (when Docker Desktop and OrbStack are both installed) asks which one to use for lesson stacks. The pick is saved and can be changed in Settings → Docker. Compose commands use `--context` for that engine only and do not change the machine-wide Docker context.
+- **Results Dashboard empty state** — when no run exists yet, the dashboard shows a short “No results yet” message and a **Go to Test Runner** action.
 
 ## [0.8.11] — 2026-09-15
 
