@@ -20,6 +20,8 @@ const getStackStatus = vi.fn();
 const checkCertExpiry = vi.fn();
 const getStackManifest = vi.fn();
 const getDockerAvailableMemoryMb = vi.fn();
+const getDockerEngineSnapshot = vi.fn();
+const setDockerEnginePreference = vi.fn();
 
 vi.mock('@shared/utils/platform', () => ({
   isTauri: () => true,
@@ -36,6 +38,8 @@ vi.mock('../utils/dockerStackApi', async (importOriginal) => {
     checkCertExpiry: (...a: unknown[]) => checkCertExpiry(...a),
     getStackManifest: (...a: unknown[]) => getStackManifest(...a),
     getDockerAvailableMemoryMb: (...a: unknown[]) => getDockerAvailableMemoryMb(...a),
+    getDockerEngineSnapshot: (...a: unknown[]) => getDockerEngineSnapshot(...a),
+    setDockerEnginePreference: (...a: unknown[]) => setDockerEnginePreference(...a),
     openDockerDesktop: vi.fn(),
     triggerAppUpdateCheck: vi.fn(),
     listenDockerLogs: vi.fn(async () => () => {}),
@@ -55,6 +59,8 @@ describe('useDockerStack last-run hydrate', () => {
     startDockerStack.mockResolvedValue(undefined);
     stopDockerStack.mockResolvedValue(undefined);
     readLastRunLog.mockResolvedValue(null);
+    getDockerEngineSnapshot.mockResolvedValue(null);
+    setDockerEnginePreference.mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -758,6 +764,42 @@ describe('useDockerStack State F3', () => {
       await result.current.startStack();
     });
     expect(result.current.controlState).toBe('outdated-compose');
+  });
+
+  it('asks for an engine pick and resumes after the user chooses', async () => {
+    getDockerEngineSnapshot.mockResolvedValue({
+      desktopInstalled: true,
+      orbstackInstalled: true,
+      preference: null,
+      needsChoice: true,
+      activeEngine: null,
+    });
+    const { result } = renderHook(() => useDockerStack('graphql'));
+    await waitFor(() => {
+      expect(result.current.controlState).toBe('needs-engine-choice');
+    });
+    setDockerEnginePreference.mockResolvedValue({
+      desktopInstalled: true,
+      orbstackInstalled: true,
+      preference: 'orbstack',
+      needsChoice: false,
+      activeEngine: 'orbstack',
+    });
+    getDockerEngineSnapshot.mockResolvedValue({
+      desktopInstalled: true,
+      orbstackInstalled: true,
+      preference: 'orbstack',
+      needsChoice: false,
+      activeEngine: 'orbstack',
+    });
+    await act(async () => {
+      await result.current.chooseEngine('orbstack');
+    });
+    expect(setDockerEnginePreference).toHaveBeenCalledWith('orbstack');
+    await waitFor(() => {
+      expect(result.current.controlState).toBe('stack-stopped');
+    });
+    expect(result.current.engine?.activeEngine).toBe('orbstack');
   });
 
   it('maps Stop failure after Docker quit to State B instead of leaving Stop up', async () => {

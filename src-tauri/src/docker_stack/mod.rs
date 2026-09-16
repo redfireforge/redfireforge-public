@@ -4,6 +4,7 @@
 //! (re-exports do not carry the command macros).
 
 mod docker_bin;
+pub mod engine;
 pub mod extract;
 pub mod images;
 mod last_run;

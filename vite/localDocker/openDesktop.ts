@@ -1,5 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import type { DockerEngineId } from './engineDetect.ts';
+import { loadDockerEngineSnapshot } from './enginePref.ts';
 import { firstExistingFile, windowsDesktopExeCandidates } from './dockerBin.ts';
 
 export type OpenDesktopResult = 'opened' | 'unsupported';
@@ -9,6 +11,7 @@ export interface OpenDesktopDeps {
   env?: NodeJS.ProcessEnv;
   exists?: (path: string) => boolean;
   spawn?: typeof spawn;
+  engine?: DockerEngineId | null;
 }
 
 function detach(child: ChildProcess): void {
@@ -27,7 +30,13 @@ export function openDockerDesktopApp(deps: OpenDesktopDeps = {}): OpenDesktopRes
   if (platform === 'linux') return 'unsupported';
 
   if (platform === 'darwin') {
-    detach(spawnFn('open', ['-a', 'Docker'], {
+    const engine = deps.engine ?? loadDockerEngineSnapshot({
+      platform,
+      env,
+      exists,
+    }).activeEngine;
+    const app = engine === 'orbstack' ? 'OrbStack' : 'Docker';
+    detach(spawnFn('open', ['-a', app], {
       shell: false,
       windowsHide: true,
       stdio: 'ignore',

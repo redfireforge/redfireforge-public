@@ -21,6 +21,7 @@ import {
   stripCertGenerationFromCommand,
   withRepoClonePreamble,
 } from '../utils/dockerCommandDisplay';
+import { ORBSTACK_INSTALL_URL } from '../utils/dockerEngine';
 import {
   lessonWantsComposeBuild,
   resolveExtractedDockerStackPath,
@@ -371,15 +372,23 @@ export default function PrerequisiteGate({
           </p>
         )}
         <p className="prereq-docker-hint" data-testid="prereq-docker-hint">
-          Don't have Docker Desktop?{' '}
+          Need a Docker engine?{' '}
           <a
             href={DOCKER_DESKTOP_INSTALL_URL}
             target="_blank"
             rel="noopener noreferrer"
           >
-            Install it free →
+            Docker Desktop
           </a>
-          {' '}A restart may be required after installing on Windows.
+          {' or '}
+          <a
+            href={ORBSTACK_INSTALL_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            OrbStack
+          </a>
+          {' '}(macOS). A restart may be required after installing on Windows.
         </p>
         <p className="prereq-instruction-note">
           This page will detect when all required services are reachable — the Start Demo button below will unlock.

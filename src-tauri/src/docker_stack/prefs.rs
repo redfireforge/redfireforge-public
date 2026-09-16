@@ -5,6 +5,7 @@ use tauri::{AppHandle, Manager};
 
 const STOP_ON_CLOSE_FILE: &str = "docker-stop-on-close";
 const PREFETCH_FILE: &str = "docker-images-prefetch";
+const ENGINE_PREF_FILE: &str = "docker-engine-preference";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -17,6 +18,10 @@ pub enum PrefetchChoice {
 /// Preference file lives beside `$APP_DATA/docker/`, not inside it.
 pub fn prefetch_choice_path_for(app_data_dir: &std::path::Path) -> PathBuf {
     app_data_dir.join(PREFETCH_FILE)
+}
+
+pub fn engine_preference_path(app_data_dir: &std::path::Path) -> PathBuf {
+    app_data_dir.join(ENGINE_PREF_FILE)
 }
 
 pub fn parse_prefetch_choice(contents: &str) -> Option<PrefetchChoice> {
@@ -136,6 +141,15 @@ mod tests {
         let app_data = std::path::Path::new("/tmp/rff-app-data");
         let path = super::stop_on_close_path_for(app_data);
         assert_eq!(path.file_name().unwrap(), "docker-stop-on-close");
+        assert!(!path.starts_with(app_data.join("docker")));
+        assert_eq!(path.parent().unwrap(), app_data);
+    }
+
+    #[test]
+    fn engine_pref_file_is_beside_docker_not_inside() {
+        let app_data = std::path::Path::new("/tmp/rff-app-data");
+        let path = super::engine_preference_path(app_data);
+        assert_eq!(path.file_name().unwrap(), "docker-engine-preference");
         assert!(!path.starts_with(app_data.join("docker")));
         assert_eq!(path.parent().unwrap(), app_data);
     }

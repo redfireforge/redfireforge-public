@@ -152,6 +152,8 @@ pub fn run() {
       docker_stack::extract::get_docker_stack_path,
       docker_stack::state::check_docker_state,
       docker_stack::state::open_docker_desktop,
+      docker_stack::engine::get_docker_engine_snapshot,
+      docker_stack::engine::set_docker_engine_preference,
       docker_stack::lifecycle::get_stack_status,
       docker_stack::lifecycle::get_stack_manifest,
       docker_stack::lifecycle::start_docker_stack,

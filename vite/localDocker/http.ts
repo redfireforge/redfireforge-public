@@ -10,6 +10,7 @@ import {
   type LocalDockerLogBus,
 } from './logs.ts';
 import { openDockerDesktopApp, type OpenDesktopResult } from './openDesktop.ts';
+import { loadDockerEngineSnapshot, parseDockerEngineId, persistEnginePreference } from './enginePref.ts';
 import { parseStackKey } from './stackIds.ts';
 import { LOCAL_DOCKER_PREFIX } from './prefix.ts';
 import type { DockerDaemonState } from './types.ts';
@@ -189,6 +190,36 @@ export async function handleLocalDockerRequest(
       if (peek == null) {
         void ctx.checkState().catch(() => {});
       }
+      return true;
+    }
+
+    if (path === '/engine') {
+      if (method === 'GET') {
+        sendJson(res, 200, loadDockerEngineSnapshot());
+        return true;
+      }
+      if (method === 'POST') {
+        let body: unknown;
+        try {
+          body = await readJsonBody(req);
+        } catch {
+          sendJson(res, 400, { error: 'Invalid JSON body' });
+          return true;
+        }
+        const raw = body && typeof body === 'object'
+          ? (body as { preference?: unknown }).preference
+          : null;
+        const preference = raw == null || raw === ''
+          ? null
+          : parseDockerEngineId(typeof raw === 'string' ? raw : null);
+        if (raw != null && raw !== '' && preference == null) {
+          sendJson(res, 400, { error: 'Invalid engine preference' });
+          return true;
+        }
+        sendJson(res, 200, persistEnginePreference(preference));
+        return true;
+      }
+      sendJson(res, 405, { error: 'Method not allowed' });
       return true;
     }
 

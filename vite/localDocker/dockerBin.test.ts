@@ -48,6 +48,9 @@ describe('dockerBin', () => {
     expect(unixDockerCandidates(home)).toContain(
       '/Users/me/.docker/bin/docker',
     );
+    expect(unixDockerCandidates(home)).toContain(
+      '/Users/me/.orbstack/bin/docker',
+    );
     expect(resolveDockerBin({
       platform: 'darwin',
       pathEnv: '/usr/bin:/bin',

@@ -3251,6 +3251,13 @@ body[data-demo-bootstrapping="1"] .kafka-settings-content {
   border-color: #ef4444;
   color: #ef4444;
 }
+.prereq-engine-choice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
 .prereq-open-docker-btn {
   padding: 4px 12px;
   font-size: 0.78rem;
@@ -3259,6 +3266,18 @@ body[data-demo-bootstrapping="1"] .kafka-settings-content {
   border-radius: 4px;
   color: var(--text);
   cursor: pointer;
+}
+.prereq-open-docker-btn:hover:not(:disabled) {
+  border-color: var(--primary);
+}
+.prereq-open-docker-btn--selected {
+  background: color-mix(in srgb, var(--primary) 28%, var(--surface));
+  border-color: var(--primary);
+  color: var(--text);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 40%, transparent);
+}
+.prereq-open-docker-btn--selected:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--primary) 36%, var(--surface));
 }
 .prereq-logs-btn {
   padding: 5px 10px;

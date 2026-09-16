@@ -13,11 +13,13 @@ import {
   checkCertExpiry,
   checkDockerState,
   getDockerAvailableMemoryMb,
+  getDockerEngineSnapshot,
   getStackManifest,
   getStackStatus,
   listenDockerLogs,
   openDockerDesktop,
   readLastRunLog,
+  setDockerEnginePreference,
   startDockerStack,
   stopAllStacks,
   stopDockerStack,
@@ -163,6 +165,41 @@ describe('dockerStackApi with a local helper', () => {
       text: async () => '',
     } as Response);
     await expect(stopAllStacks()).resolves.toBe(false);
+  });
+
+  it('getDockerEngineSnapshot GETs /engine', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      status: 200,
+      ok: true,
+      text: async () => JSON.stringify({
+        desktopInstalled: true,
+        orbstackInstalled: true,
+        preference: null,
+        needsChoice: true,
+        activeEngine: null,
+      }),
+    } as Response);
+    await expect(getDockerEngineSnapshot()).resolves.toMatchObject({ needsChoice: true });
+    expect(vi.mocked(fetch).mock.calls[0]?.[0]).toBe('/__rff-docker/engine');
+  });
+
+  it('setDockerEnginePreference POSTs /engine', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      status: 200,
+      ok: true,
+      text: async () => JSON.stringify({
+        desktopInstalled: true,
+        orbstackInstalled: true,
+        preference: 'orbstack',
+        needsChoice: false,
+        activeEngine: 'orbstack',
+      }),
+    } as Response);
+    await expect(setDockerEnginePreference('orbstack')).resolves.toMatchObject({
+      activeEngine: 'orbstack',
+    });
+    expect(vi.mocked(fetch).mock.calls[0]?.[0]).toBe('/__rff-docker/engine');
+    expect(vi.mocked(fetch).mock.calls[0]?.[1]).toMatchObject({ method: 'POST' });
   });
 
   it('openDockerDesktop POSTs then skips the docs URL on 204', async () => {

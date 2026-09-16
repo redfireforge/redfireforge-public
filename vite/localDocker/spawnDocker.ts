@@ -1,11 +1,19 @@
 import { spawn } from 'node:child_process';
 import { envWithDockerBinDir } from './dockerBin.ts';
+import { getActiveDockerContext } from './enginePref.ts';
 import type { DockerRunOptions, DockerRunResult, DockerRunner } from './types.ts';
+
+function argsWithContext(args: string[], context: string | null): string[] {
+  return context ? ['--context', context, ...args] : args;
+}
 
 /** After SIGTERM, wait this long before SIGKILL. Do not key off `child.killed` — Node sets that on the first kill(). */
 export const SIGKILL_GRACE_MS = 1500;
 
-export function createDockerRunner(resolveBin: () => string | null): DockerRunner {
+export function createDockerRunner(
+  resolveBin: () => string | null,
+  resolveContext: () => string | null = () => getActiveDockerContext(),
+): DockerRunner {
   return {
     run(args, opts) {
       const bin = resolveBin();
@@ -14,7 +22,7 @@ export function createDockerRunner(resolveBin: () => string | null): DockerRunne
         err.code = 'ENOENT';
         return Promise.reject(err);
       }
-      return runDockerProcess(bin, args, opts);
+      return runDockerProcess(bin, argsWithContext(args, resolveContext()), opts);
     },
   };
 }
