@@ -6,6 +6,7 @@ vi.mock('@shared/utils/platform', () => ({
 
 import {
   formatPortConflictCopy,
+  getDockerEngineSnapshot,
   getStackStatus,
   parseLastRunLogText,
   parsePortConflictDetail,
@@ -17,6 +18,7 @@ import {
   prefetchErrorCopy,
   readLastRunLog,
   removeDockerImages,
+  setDockerEnginePreference,
   startDockerStack,
   stopAllStacks,
   uninstallCleanup,
@@ -82,6 +84,9 @@ describe('parseStartError', () => {
   it('maps helper daemon START_FAILED copy to A / B / B2', () => {
     expect(daemonStateFromStartFailed('Docker is not installed.')).toBe('notInstalled');
     expect(daemonStateFromStartFailed('Docker Desktop is not running.')).toBe('notRunning');
+    expect(daemonStateFromStartFailed('Docker is not running.')).toBe('notRunning');
+    expect(daemonStateFromStartFailed('OrbStack is not running.')).toBe('notRunning');
+    expect(daemonStateFromStartFailed('Docker engine choice required.')).toBe('needsEngineChoice');
     expect(daemonStateFromStartFailed('Docker Compose V2 is required.')).toBe('outdatedCompose');
     expect(daemonStateFromStartFailed('compose exploded')).toBeNull();
   });
@@ -148,6 +153,11 @@ describe('bare-web dockerStackApi', () => {
     await expect(removeDockerImages('graphql')).resolves.toEqual([]);
     await expect(uninstallCleanup()).resolves.toEqual({ stopped: [], errors: [] });
   });
+
+  it('engine snapshot APIs are null when the helper is absent', async () => {
+    await expect(getDockerEngineSnapshot()).resolves.toBeNull();
+    await expect(setDockerEnginePreference('orbstack')).resolves.toBeNull();
+  });
 });
 
 describe('parsePortConflictDetail', () => {
@@ -189,6 +199,16 @@ describe('parsePrefetchError', () => {
   it('maps rust codes to copy', () => {
     expect(parsePrefetchError('DOCKER_NOT_RUNNING').kind).toBe('docker-not-running');
     expect(prefetchErrorCopy('docker-not-running')).toContain('not running');
+    expect(parsePrefetchError('DOCKER_NOT_INSTALLED').kind).toBe('docker-not-installed');
+    expect(parsePrefetchError('DOCKER_OUTDATED_COMPOSE').kind).toBe('docker-outdated-compose');
+    expect(parsePrefetchError('DOCKER_ENGINE_CHOICE_REQUIRED').kind).toBe('docker-engine-choice');
+    expect(parsePrefetchError('PREFETCH_IN_PROGRESS').kind).toBe('prefetch-in-progress');
+    expect(prefetchErrorCopy('docker-engine-choice')).toMatch(/OrbStack/);
+    expect(prefetchErrorCopy('docker-not-installed')).toMatch(/not installed/);
+    expect(prefetchErrorCopy('docker-outdated-compose')).toMatch(/OrbStack/);
+    expect(prefetchErrorCopy('prefetch-in-progress')).toMatch(/already running/);
+    expect(prefetchErrorCopy('prefetch-cancelled')).toMatch(/cancelled/);
+    expect(prefetchErrorCopy('prefetch-failed')).toMatch(/failed/);
     expect(parsePrefetchError('command failed: PREFETCH_CANCELLED').kind).toBe('prefetch-cancelled');
     expect(parsePrefetchError('PREFETCH_FAILED:compose pull exploded')).toEqual({
       kind: 'prefetch-failed',

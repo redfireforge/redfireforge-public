@@ -12,6 +12,7 @@ export function unixDockerCandidates(home?: string): string[] {
   const h = home?.trim();
   if (h) {
     out.push(join(h, '.docker', 'bin', 'docker'));
+    out.push(join(h, '.orbstack', 'bin', 'docker'));
     out.push(join(h, 'Applications', 'Docker.app', 'Contents', 'Resources', 'bin', 'docker'));
   }
   out.push('/opt/homebrew/bin/docker', '/usr/bin/docker', '/snap/bin/docker');

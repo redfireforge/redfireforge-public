@@ -7,6 +7,7 @@ describe('openDockerDesktopApp', () => {
     const spawn = vi.fn(() => ({ unref: vi.fn(), once: vi.fn() }));
     expect(openDockerDesktopApp({
       platform: 'darwin',
+      engine: 'desktop',
       spawn: spawn as never,
     })).toBe('opened');
     expect(spawn).toHaveBeenCalledWith('open', ['-a', 'Docker'], expect.objectContaining({
@@ -15,9 +16,21 @@ describe('openDockerDesktopApp', () => {
     }));
   });
 
+  it('spawns open -a OrbStack when that engine is selected', () => {
+    const spawn = vi.fn(() => ({ unref: vi.fn(), once: vi.fn() }));
+    expect(openDockerDesktopApp({
+      platform: 'darwin',
+      engine: 'orbstack',
+      spawn: spawn as never,
+    })).toBe('opened');
+    expect(spawn).toHaveBeenCalledWith('open', ['-a', 'OrbStack'], expect.objectContaining({
+      shell: false,
+    }));
+  });
+
   it('uses process.platform when deps omit platform', () => {
     const spawn = vi.fn(() => ({ unref: vi.fn(), once: vi.fn() }));
-    const result = openDockerDesktopApp({ spawn: spawn as never });
+    const result = openDockerDesktopApp({ engine: 'desktop', spawn: spawn as never });
     if (process.platform === 'linux') {
       expect(result).toBe('unsupported');
       expect(spawn).not.toHaveBeenCalled();
@@ -45,6 +58,7 @@ describe('openDockerDesktopApp', () => {
     const spawn = vi.fn(() => ({ unref: vi.fn(), once }));
     expect(openDockerDesktopApp({
       platform: 'darwin',
+      engine: 'desktop',
       spawn: spawn as never,
     })).toBe('opened');
     expect(once).toHaveBeenCalledWith('error', expect.any(Function));
@@ -73,6 +87,7 @@ describe('openDockerDesktopApp', () => {
     });
     expect(openDockerDesktopApp({
       platform: 'darwin',
+      engine: 'desktop',
       spawn: vi.fn(() => ({ unref: vi.fn(), once })) as never,
     })).toBe('opened');
   });
@@ -80,6 +95,7 @@ describe('openDockerDesktopApp', () => {
   it('tolerates a child without unref', () => {
     expect(openDockerDesktopApp({
       platform: 'darwin',
+      engine: 'desktop',
       spawn: vi.fn(() => ({ once: vi.fn() })) as never,
     })).toBe('opened');
   });

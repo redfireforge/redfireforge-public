@@ -10,6 +10,7 @@ import { execSync } from 'child_process';
 import { existsSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { getActiveDockerContext } from '../vite/localDocker/enginePref.ts';
 import { seedSchemaRegistryOrdersValue } from './schema-registry-seed';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -17,6 +18,15 @@ const REPO_ROOT = path.resolve(__dirname, '..');
 
 const MAX_WAIT_MS = 120_000;
 const POLL_INTERVAL_MS = 1_000;
+
+function dockerCli(): string {
+  const context = getActiveDockerContext();
+  return context ? `docker --context ${context}` : 'docker';
+}
+
+function dockerCompose(): string {
+  return `${dockerCli()} compose`;
+}
 
 interface DockerStackDef {
   name: string;
@@ -187,9 +197,10 @@ async function waitForHealth(check: () => Promise<boolean>, name: string): Promi
 
 function startStack(stack: DockerStackDef): void {
   const buildFlag = stack.buildOnStart ? ' --build' : '';
+  const compose = dockerCompose();
   const cmd = stack.composeArgs
-    ? `docker compose ${stack.composeArgs} up -d${buildFlag}`
-    : `docker compose up -d${buildFlag}`;
+    ? `${compose} ${stack.composeArgs} up -d${buildFlag}`
+    : `${compose} up -d${buildFlag}`;
   console.log(`[docker-infra] Starting ${stack.name} (${stack.cwd})...`);
   execSync(cmd, { cwd: stack.cwd, stdio: 'inherit' });
 }
@@ -209,7 +220,7 @@ function ensureGqlTlsCerts(): void {
 
 function buildGraphqlTestServerImage(): void {
   console.log('[docker-infra] Building graphql-test-server image (required by TLS stacks)...');
-  execSync('docker compose build', {
+  execSync(`${dockerCompose()} build`, {
     cwd: path.join(REPO_ROOT, 'docker/graphql'),
     stdio: 'inherit',
   });
@@ -217,7 +228,7 @@ function buildGraphqlTestServerImage(): void {
 
 function graphqlTestServerImageExists(): boolean {
   try {
-    execSync('docker image inspect graphql-graphql-test-server:latest', { stdio: 'pipe' });
+    execSync(`${dockerCli()} image inspect graphql-graphql-test-server:latest`, { stdio: 'pipe' });
     return true;
   } catch {
     return false;
@@ -293,9 +304,10 @@ export function stopGql5DockerInfrastructure(): void {
 function stopStacks(stacks: DockerStackDef[]): void {
   for (const stack of stacks) {
     try {
+      const compose = dockerCompose();
       const cmd = stack.composeArgs
-        ? `docker compose ${stack.composeArgs} down`
-        : 'docker compose down';
+        ? `${compose} ${stack.composeArgs} down`
+        : `${compose} down`;
       console.log(`[docker-infra] Stopping ${stack.name}...`);
       execSync(cmd, { cwd: stack.cwd, stdio: 'inherit' });
     } catch (err) {

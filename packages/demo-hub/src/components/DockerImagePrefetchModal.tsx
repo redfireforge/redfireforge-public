@@ -44,7 +44,7 @@ export default function DockerImagePrefetchModal() {
         </div>
         <div className="docker-prefetch-modal__body">
           <p>
-            About 2 GB. Docker Desktop must be running. You can do this later from Settings → Docker.
+            About 2 GB. Docker (Desktop or OrbStack) must be running. You can do this later from Settings → Docker.
           </p>
           {error && (
             <p className="docker-prefetch-modal__error" data-testid="docker-prefetch-error">
@@ -62,7 +62,7 @@ export default function DockerImagePrefetchModal() {
                   data-testid="docker-prefetch-open-docker"
                   onClick={() => { void openDesktop(); }}
                 >
-                  Open Docker Desktop
+                  Open Docker
                 </button>
               )}
               <button

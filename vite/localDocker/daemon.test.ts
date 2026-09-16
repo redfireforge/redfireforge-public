@@ -29,8 +29,13 @@ describe('daemon', () => {
   it('maps daemon messages for Start', () => {
     expect(startBlockedByDaemon('running')).toBeNull();
     expect(startBlockedByDaemon('notInstalled')).toBe('START_FAILED:Docker is not installed.');
-    expect(startBlockedByDaemon('notRunning')).toBe('START_FAILED:Docker Desktop is not running.');
+    expect(startBlockedByDaemon('notRunning')).toBe('START_FAILED:Docker is not running.');
     expect(startBlockedByDaemon('outdatedCompose')).toBe('START_FAILED:Docker Compose V2 is required.');
+    expect(startBlockedByDaemon('needsEngineChoice')).toBe('START_FAILED:Docker engine choice required.');
+  });
+
+  it('returns needsEngineChoice when both engines are installed and unset', async () => {
+    await expect(checkDockerState({ needsChoice: true })).resolves.toBe('needsEngineChoice');
   });
 
   it('returns notInstalled when no binary exists', async () => {

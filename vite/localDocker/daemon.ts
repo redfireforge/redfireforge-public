@@ -1,4 +1,5 @@
 import { resolveDockerBin } from './dockerBin.ts';
+import { loadDockerEngineSnapshot } from './enginePref.ts';
 import { createDockerRunner } from './spawnDocker.ts';
 import type { DockerDaemonState, DockerRunner } from './types.ts';
 
@@ -18,7 +19,13 @@ function isNotFound(err: unknown): boolean {
 export async function checkDockerState(opts?: {
   runner?: DockerRunner;
   resolveBin?: () => string | null;
+  needsChoice?: boolean;
 }): Promise<DockerDaemonState> {
+  const needsChoice = opts?.needsChoice
+    ?? (opts?.runner || opts?.resolveBin ? false : loadDockerEngineSnapshot().needsChoice);
+  if (needsChoice) {
+    return 'needsEngineChoice';
+  }
   const resolveBin = opts?.resolveBin ?? (() => resolveDockerBin());
   if (!resolveBin()) return 'notInstalled';
   const runner = opts?.runner ?? createDockerRunner(resolveBin);
@@ -48,7 +55,8 @@ export function startBlockedByDaemon(state: DockerDaemonState): string | null {
   if (state === 'running') return null;
   if (state === 'notInstalled') return 'START_FAILED:Docker is not installed.';
   if (state === 'outdatedCompose') return 'START_FAILED:Docker Compose V2 is required.';
-  return 'START_FAILED:Docker Desktop is not running.';
+  if (state === 'needsEngineChoice') return 'START_FAILED:Docker engine choice required.';
+  return 'START_FAILED:Docker is not running.';
 }
 
 /**

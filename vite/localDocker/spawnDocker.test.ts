@@ -17,7 +17,19 @@ describe('spawnDocker', () => {
   });
 
   it('createDockerRunner runs the resolved binary', async () => {
-    const runner = createDockerRunner(() => process.execPath);
+    const runner = createDockerRunner(() => process.execPath, () => null);
+    const result = await runner.run(['-e', 'process.stdout.write("ok")']);
+    expect(result.stdout).toContain('ok');
+    expect(result.code).toBe(0);
+  });
+
+  it('createDockerRunner prepends --context when a context is active', async () => {
+    const runner = createDockerRunner(() => process.execPath, () => 'orbstack');
+    const { spawn: actualSpawn } = await vi.importActual<typeof import('node:child_process')>('node:child_process');
+    vi.mocked(spawn).mockImplementationOnce((bin, args, opts) => {
+      expect(args).toEqual(['--context', 'orbstack', '-e', 'process.stdout.write("ok")']);
+      return actualSpawn(bin, ['-e', 'process.stdout.write("ok")'], opts);
+    });
     const result = await runner.run(['-e', 'process.stdout.write("ok")']);
     expect(result.stdout).toContain('ok');
     expect(result.code).toBe(0);

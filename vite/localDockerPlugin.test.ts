@@ -8,6 +8,7 @@ import { MAX_JSON_BODY_BYTES, handleLocalDockerRequest } from './localDocker/htt
 import { LocalDockerError, type LocalDockerLifecycle } from './localDocker/lifecycle.ts';
 import { SSE_HEARTBEAT_MS, createLogBus } from './localDocker/logs.ts';
 import * as localDockerHttp from './localDocker/http.ts';
+import * as enginePref from './localDocker/enginePref.ts';
 import { attachLocalDockerMiddleware, localDockerPlugin, shouldAttachLocalDocker } from './localDockerPlugin.ts';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -348,6 +349,44 @@ describe('localDockerPlugin', () => {
     expect(JSON.parse(out.body)).toEqual({ ok: true, docker: null });
     release('running');
     await blocked;
+  });
+
+  it('serves GET /engine and persists POST /engine', async () => {
+    const snapshot = {
+      desktopInstalled: true,
+      orbstackInstalled: true,
+      preference: null,
+      needsChoice: true,
+      activeEngine: null,
+    };
+    const next = { ...snapshot, preference: 'orbstack' as const, needsChoice: false, activeEngine: 'orbstack' as const };
+    const load = vi.spyOn(enginePref, 'loadDockerEngineSnapshot').mockReturnValue(snapshot);
+    const persist = vi.spyOn(enginePref, 'persistEnginePreference').mockReturnValue(next);
+    const get = mockRes();
+    await handleLocalDockerRequest(getReq('/engine'), get.res, {
+      lifecycle: fakeLifecycle(),
+      checkState: async () => 'running',
+    });
+    expect(get.out.status).toBe(200);
+    expect(JSON.parse(get.out.body)).toEqual(snapshot);
+
+    const post = mockRes();
+    await handleLocalDockerRequest(postReq('/engine', { preference: 'orbstack' }), post.res, {
+      lifecycle: fakeLifecycle(),
+      checkState: async () => 'running',
+    });
+    expect(post.out.status).toBe(200);
+    expect(persist).toHaveBeenCalledWith('orbstack');
+    expect(JSON.parse(post.out.body)).toEqual(next);
+
+    const bad = mockRes();
+    await handleLocalDockerRequest(postReq('/engine', { preference: 'podman' }), bad.res, {
+      lifecycle: fakeLifecycle(),
+      checkState: async () => 'running',
+    });
+    expect(bad.out.status).toBe(400);
+    load.mockRestore();
+    persist.mockRestore();
   });
 
   it('waits for docker info on GET /state', async () => {

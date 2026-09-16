@@ -3,6 +3,7 @@ import type { DockerStackKey } from '../types';
 import { MAX_DOCKER_STACK_LOG_LINES } from '../stores/dockerStackStore';
 import type { PrefetchChoice } from '../stores/dockerPrefetchStore';
 import { DOCKER_DESKTOP_INSTALL_URL } from './dockerCommandDisplay';
+import type { DockerEngineId, DockerEngineSnapshot } from './dockerEngine';
 import { DOCKER_STACK_KEYS } from './dockerStack';
 import {
   certExpiryFromIsoDate,
@@ -27,7 +28,12 @@ function isHelperMissingError(err: unknown): boolean {
     || /^(not found|http 404)\b/i.test(message);
 }
 
-export type DockerDaemonState = 'notInstalled' | 'notRunning' | 'outdatedCompose' | 'running';
+export type DockerDaemonState =
+  | 'notInstalled'
+  | 'notRunning'
+  | 'outdatedCompose'
+  | 'needsEngineChoice'
+  | 'running';
 
 export interface StackManifestDto {
   stackKey?: string;
@@ -85,6 +91,49 @@ export async function checkDockerState(): Promise<DockerDaemonState | null> {
         '/state?running=0',
       );
       return body?.docker ?? null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+export async function getDockerEngineSnapshot(): Promise<DockerEngineSnapshot | null> {
+  if (isTauri()) {
+    try {
+      return await invokeCmd<DockerEngineSnapshot>('get_docker_engine_snapshot');
+    } catch {
+      return null;
+    }
+  }
+  if (isLocalWebDockerEnabled()) {
+    try {
+      return await localDockerFetch<DockerEngineSnapshot>('/engine');
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+export async function setDockerEnginePreference(
+  preference: DockerEngineId | null,
+): Promise<DockerEngineSnapshot | null> {
+  if (isTauri()) {
+    try {
+      return await invokeCmd<DockerEngineSnapshot>('set_docker_engine_preference', {
+        preference,
+      });
+    } catch {
+      return null;
+    }
+  }
+  if (isLocalWebDockerEnabled()) {
+    try {
+      return await localDockerFetch<DockerEngineSnapshot>('/engine', {
+        method: 'POST',
+        body: JSON.stringify({ preference }),
+      });
     } catch {
       return null;
     }
@@ -497,6 +546,9 @@ export function daemonStateFromStartFailed(detail: string): DockerDaemonState | 
   if (/Docker is not installed/i.test(detail)) return 'notInstalled';
   if (/Docker Compose V2 is required/i.test(detail)) return 'outdatedCompose';
   if (/Docker Desktop is not running/i.test(detail)) return 'notRunning';
+  if (/Docker is not running/i.test(detail)) return 'notRunning';
+  if (/OrbStack is not running/i.test(detail)) return 'notRunning';
+  if (/engine choice required/i.test(detail)) return 'needsEngineChoice';
   return null;
 }
 
@@ -513,6 +565,7 @@ export type PrefetchErrorKind =
   | 'docker-not-running'
   | 'docker-not-installed'
   | 'docker-outdated-compose'
+  | 'docker-engine-choice'
   | 'prefetch-cancelled'
   | 'prefetch-in-progress'
   | 'prefetch-failed';
@@ -527,6 +580,9 @@ export function parsePrefetchError(message: string): { kind: PrefetchErrorKind; 
   if (message.includes('DOCKER_OUTDATED_COMPOSE')) {
     return { kind: 'docker-outdated-compose', detail: message };
   }
+  if (message.includes('DOCKER_ENGINE_CHOICE_REQUIRED')) {
+    return { kind: 'docker-engine-choice', detail: message };
+  }
   if (message.includes('PREFETCH_CANCELLED')) {
     return { kind: 'prefetch-cancelled', detail: message };
   }
@@ -540,11 +596,13 @@ export function parsePrefetchError(message: string): { kind: PrefetchErrorKind; 
 export function prefetchErrorCopy(kind: PrefetchErrorKind): string {
   switch (kind) {
     case 'docker-not-running':
-      return 'Docker Desktop is not running. Open it, then try again.';
+      return 'Docker is not running. Open it, then try again.';
     case 'docker-not-installed':
-      return 'Docker Desktop is not installed.';
+      return 'Docker is not installed.';
     case 'docker-outdated-compose':
-      return 'Your Docker Compose is outdated. Update Docker Desktop to continue.';
+      return 'Your Docker Compose is outdated. Update Docker Desktop or OrbStack to continue.';
+    case 'docker-engine-choice':
+      return 'Choose Docker Desktop or OrbStack in Settings → Docker, then try again.';
     case 'prefetch-cancelled':
       return 'Image download was cancelled.';
     case 'prefetch-in-progress':
