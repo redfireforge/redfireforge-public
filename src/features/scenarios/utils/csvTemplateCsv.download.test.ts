@@ -82,29 +82,35 @@ describe('csvTemplateCsv — generate and parse', () => {
 });
 
 describe('downloadCsv', () => {
-  it('creates a blob URL, clicks a temporary anchor, then revokes the URL', async () => {
+  it('downloads CSV through a data URL so Chrome keeps the real filename', async () => {
     const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock-url');
-    const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
     const click = vi.fn();
     const appendChild = vi.fn();
-    const removeChild = vi.fn();
-    const anchor = { href: '', download: '', click } as unknown as HTMLAnchorElement;
+    const remove = vi.fn();
+    const anchor = {
+      href: '',
+      download: '',
+      rel: '',
+      style: { display: '' },
+      click,
+      setAttribute: vi.fn(),
+      remove,
+    } as unknown as HTMLAnchorElement;
     const createEl = vi.spyOn(document, 'createElement').mockReturnValue(anchor);
     vi.spyOn(document.body, 'appendChild').mockImplementation(appendChild);
-    vi.spyOn(document.body, 'removeChild').mockImplementation(removeChild);
 
     await downloadCsv('h1,h2\na,b', 'export.csv');
 
-    expect(createObjectURL).toHaveBeenCalled();
     expect(createEl).toHaveBeenCalledWith('a');
+    expect(anchor.href.startsWith('data:application/octet-stream;charset=utf-8,')).toBe(true);
+    expect(anchor.href).toContain(encodeURIComponent('h1,h2\na,b'));
     expect(anchor.download).toBe('export.csv');
     expect(appendChild).toHaveBeenCalledWith(anchor);
     expect(click).toHaveBeenCalled();
-    expect(removeChild).toHaveBeenCalledWith(anchor);
-    expect(revokeObjectURL).toHaveBeenCalledWith('blob:mock-url');
+    expect(remove).toHaveBeenCalled();
+    expect(createObjectURL).not.toHaveBeenCalled();
 
     createObjectURL.mockRestore();
-    revokeObjectURL.mockRestore();
     createEl.mockRestore();
   });
 });
