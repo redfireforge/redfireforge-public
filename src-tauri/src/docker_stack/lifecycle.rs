@@ -1,6 +1,7 @@
 //! Start / stop / status / stale / uninstall.
 
 use super::docker_bin::docker_cmd;
+use super::engine::snapshot_for_app;
 use super::extract::{
     docker_data_dir, ensure_complete_stack_dir, ensure_docker_extracted,
     extract_docker_resources_if_needed, resolve_stack_rel, stack_dir, with_extract_gate,
@@ -478,6 +479,9 @@ pub async fn start_docker_stack(
     app: AppHandle,
     build: Option<bool>,
 ) -> Result<(), String> {
+    if snapshot_for_app(&app).needs_choice {
+        return Err("START_FAILED:Docker engine choice required.".into());
+    }
     let dir = match ensure_complete_stack_dir(&app, Some(&stack_key)) {
         Ok(d) => d,
         Err(e) => {

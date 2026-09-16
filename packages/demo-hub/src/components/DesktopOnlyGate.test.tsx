@@ -12,6 +12,7 @@ describe('DesktopOnlyGate', () => {
     render(<DesktopOnlyGate reason="docker-backend" />);
     const note = screen.getByTestId('desktop-only-gate-note');
     expect(note.textContent).toMatch(/Docker Desktop/i);
+    expect(note.textContent).toMatch(/OrbStack/i);
     expect(note.textContent).not.toMatch(/includes everything/i);
     expect(screen.getByTestId('desktop-only-gate-download')).toHaveAttribute(
       'href',

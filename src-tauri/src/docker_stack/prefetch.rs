@@ -273,10 +273,11 @@ pub async fn prefetch_docker_images(
     }
     extract_docker_resources_if_needed(&app);
 
-    match check_docker_state().await {
+    match check_docker_state(app.clone()).await {
         DockerState::Running => {}
         DockerState::NotInstalled => return Err("DOCKER_NOT_INSTALLED".into()),
         DockerState::OutdatedCompose => return Err("DOCKER_OUTDATED_COMPOSE".into()),
+        DockerState::NeedsEngineChoice => return Err("DOCKER_ENGINE_CHOICE_REQUIRED".into()),
         DockerState::NotRunning => return Err("DOCKER_NOT_RUNNING".into()),
     }
 

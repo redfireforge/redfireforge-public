@@ -229,15 +229,41 @@ export async function launchApiMockLesson(
   await startLesson(page);
 }
 
+/** Pick a Docker engine when both Desktop and OrbStack are installed. */
+async function chooseDockerEngineIfNeeded(page: Page): Promise<void> {
+  const chooser = page.locator('[data-testid="prereq-engine-choice"]:visible');
+  if ((await chooser.count()) === 0) return;
+  if ((await chooser.locator('[aria-pressed="true"]').count()) > 0) return;
+  const orb = chooser.locator('[data-testid="prereq-choose-orbstack"]');
+  const desktop = chooser.locator('[data-testid="prereq-choose-desktop"]');
+  if (await orb.count()) {
+    await orb.click();
+    return;
+  }
+  if (await desktop.count()) {
+    await desktop.click();
+  }
+}
+
+/** Start the lesson stack from the gate when the local Docker helper is available. */
+async function startPrerequisiteStackIfNeeded(page: Page): Promise<void> {
+  const startBtn = page.locator('[data-testid="prereq-start-stack"]:visible');
+  if ((await startBtn.count()) === 0) return;
+  if (!(await startBtn.isEnabled())) return;
+  await startBtn.click();
+}
+
 /** Wait for a Docker PrerequisiteGate to report the server is up (enables Start Demo). */
 export async function waitForPrerequisiteGateUp(
   page: Page,
-  timeout = 20_000,
+  timeout = 90_000,
 ): Promise<void> {
   // LessonPlayer keeps the gate mounted (hidden) on step/notes so polling
   // continues. Only wait when the concept-slide gate is actually visible.
   const gate = page.locator('[data-testid="prereq-gate"]:visible');
   if ((await gate.count()) === 0) return;
+  await chooseDockerEngineIfNeeded(page);
+  await startPrerequisiteStackIfNeeded(page);
   await expect(page.locator('[data-testid="prereq-status"]:visible')).toHaveClass(
     /prereq-status--up/,
     { timeout },

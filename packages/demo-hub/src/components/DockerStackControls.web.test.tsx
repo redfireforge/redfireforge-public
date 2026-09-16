@@ -21,6 +21,7 @@ const checkCertExpiry = vi.fn();
 const getStackManifest = vi.fn();
 const getDockerAvailableMemoryMb = vi.fn();
 const readLastRunLog = vi.fn();
+const getDockerEngineSnapshot = vi.fn();
 
 vi.mock('../utils/dockerStackApi', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../utils/dockerStackApi')>();
@@ -31,6 +32,7 @@ vi.mock('../utils/dockerStackApi', async (importOriginal) => {
     checkCertExpiry: (...a: unknown[]) => checkCertExpiry(...a),
     getStackManifest: (...a: unknown[]) => getStackManifest(...a),
     getDockerAvailableMemoryMb: (...a: unknown[]) => getDockerAvailableMemoryMb(...a),
+    getDockerEngineSnapshot: (...a: unknown[]) => getDockerEngineSnapshot(...a),
     startDockerStack: vi.fn(),
     stopDockerStack: vi.fn(),
     openDockerDesktop: vi.fn(),
@@ -50,6 +52,7 @@ describe('DockerStackControls on local web + helper', () => {
     getStackManifest.mockResolvedValue({ minMemoryMb: 512, certExpiresAt: null });
     getDockerAvailableMemoryMb.mockResolvedValue(null);
     readLastRunLog.mockResolvedValue(null);
+    getDockerEngineSnapshot.mockResolvedValue(null);
   });
 
   afterEach(() => {

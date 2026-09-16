@@ -96,6 +96,7 @@ pub fn unix_docker_cli_candidates(home: Option<&str>) -> Vec<PathBuf> {
     ];
     if let Some(h) = home.filter(|s| !s.is_empty()) {
         out.push(PathBuf::from(format!("{h}/.docker/bin/docker")));
+        out.push(PathBuf::from(format!("{h}/.orbstack/bin/docker")));
         out.push(PathBuf::from(format!(
             "{h}/Applications/Docker.app/Contents/Resources/bin/docker"
         )));
@@ -209,11 +210,18 @@ pub fn docker_cmd() -> Command {
         if let Some(path) = path_with_docker_bin_dir(&bin, std::env::var("PATH").ok().as_deref()) {
             cmd.env("PATH", path);
         }
+        if let Some(ctx) = super::engine::active_context() {
+            cmd.arg("--context").arg(ctx);
+        }
         cmd
     }
     #[cfg(not(windows))]
     {
-        hidden_cmd(&bin)
+        let mut cmd = hidden_cmd(&bin);
+        if let Some(ctx) = super::engine::active_context() {
+            cmd.arg("--context").arg(ctx);
+        }
+        cmd
     }
 }
 
@@ -288,6 +296,7 @@ mod tests {
             "/Applications/Docker.app/Contents/Resources/bin/docker"
         )));
         assert!(as_str.iter().any(|p| p == "/Users/me/.docker/bin/docker"));
+        assert!(as_str.iter().any(|p| p == "/Users/me/.orbstack/bin/docker"));
         assert!(as_str.iter().any(|p| p
             == "/Users/me/Applications/Docker.app/Contents/Resources/bin/docker"));
         assert!(as_str.iter().any(|p| p == "/opt/homebrew/bin/docker"));

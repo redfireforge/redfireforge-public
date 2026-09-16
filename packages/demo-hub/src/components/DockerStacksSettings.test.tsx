@@ -23,6 +23,8 @@ const setPrefetchChoice = vi.fn();
 const prefetchDockerImages = vi.fn();
 const cancelPrefetch = vi.fn();
 const isPrefetchRunning = vi.fn();
+const getDockerEngineSnapshot = vi.fn();
+const setDockerEnginePreference = vi.fn();
 
 vi.mock('@shared/utils/platform', () => ({
   isTauri: () => true,
@@ -48,6 +50,8 @@ vi.mock('../utils/dockerStackApi', async (importOriginal) => {
     isPrefetchRunning: (...a: unknown[]) => isPrefetchRunning(...a),
     listenDockerPull: vi.fn(async () => () => {}),
     openDockerDesktop: vi.fn(),
+    getDockerEngineSnapshot: (...a: unknown[]) => getDockerEngineSnapshot(...a),
+    setDockerEnginePreference: (...a: unknown[]) => setDockerEnginePreference(...a),
   };
 });
 
@@ -74,6 +78,8 @@ describe('DockerStacksSettings', () => {
     ]);
     removeDockerImages.mockResolvedValue(['graphql']);
     uninstallCleanup.mockResolvedValue({ stopped: ['graphql'], errors: [] });
+    getDockerEngineSnapshot.mockResolvedValue(null);
+    setDockerEnginePreference.mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -87,6 +93,44 @@ describe('DockerStacksSettings', () => {
     expect(screen.getAllByTestId(/docker-settings-row-/)).toHaveLength(13);
     await waitFor(() => expect(screen.getByTestId('docker-settings-stop-graphql')).toBeTruthy());
     expect(screen.getByTestId('docker-settings-row-kafka-plaintext').textContent).toContain('Not running');
+  });
+
+  it('highlights the saved engine and can switch it', async () => {
+    getDockerEngineSnapshot.mockResolvedValue({
+      desktopInstalled: true,
+      orbstackInstalled: true,
+      preference: 'orbstack',
+      needsChoice: false,
+      activeEngine: 'orbstack',
+    });
+    setDockerEnginePreference.mockResolvedValue({
+      desktopInstalled: true,
+      orbstackInstalled: true,
+      preference: 'desktop',
+      needsChoice: false,
+      activeEngine: 'desktop',
+    });
+    render(<DockerStacksSettings confirm={confirm} />);
+    await waitFor(() => expect(screen.getByTestId('docker-settings-engine')).toBeTruthy());
+    expect(screen.getByTestId('prereq-choose-orbstack')).toHaveClass('prereq-open-docker-btn--selected');
+    fireEvent.click(screen.getByTestId('prereq-choose-desktop'));
+    await waitFor(() => expect(setDockerEnginePreference).toHaveBeenCalledWith('desktop'));
+    await waitFor(() => {
+      expect(screen.getByTestId('prereq-choose-desktop')).toHaveClass('prereq-open-docker-btn--selected');
+    });
+  });
+
+  it('asks which engine to use when both are installed and unset', async () => {
+    getDockerEngineSnapshot.mockResolvedValue({
+      desktopInstalled: true,
+      orbstackInstalled: true,
+      preference: null,
+      needsChoice: true,
+      activeEngine: null,
+    });
+    render(<DockerStacksSettings confirm={confirm} />);
+    await waitFor(() => expect(screen.getByTestId('docker-settings-engine-choice')).toBeTruthy());
+    expect(screen.getByTestId('prereq-choose-orbstack')).not.toHaveClass('prereq-open-docker-btn--selected');
   });
 
   it('does not probe compose status when Docker Desktop is down', async () => {

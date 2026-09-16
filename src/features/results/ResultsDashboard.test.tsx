@@ -310,11 +310,12 @@ describe('ResultsDashboard', () => {
 
     render(<ResultsDashboard initialRunTypeFilter="workflow" />);
 
-    expect(await screen.findByText('No workflow runs yet')).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'No results yet' })).toBeTruthy();
+    expect(screen.getByText(/Workflow Runner to see results here/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /🧪 Test Runs/i }));
-    expect(screen.getByText('No test runs yet')).toBeTruthy();
+    expect(screen.getByText(/Test Runner or Parameterized Runner/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /All Runs/i }));
-    expect(screen.getByText('No test runs yet')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'No results yet' })).toBeTruthy();
   });
 
   it('offers a call to action from the empty state, routed by run type', async () => {
