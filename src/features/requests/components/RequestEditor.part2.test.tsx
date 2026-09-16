@@ -760,4 +760,161 @@ describe('RequestEditor interaction branches', () => {
     expect(screen.getByText('Set a URL first.')).toBeTruthy();
   });
 
+  it('disables Send via sendBusy before the Sending… label appears', async () => {
+    let releaseAuth!: (value?: unknown) => void;
+    vi.mocked(applyAuthHeaders).mockImplementation(
+      () => new Promise((resolve) => { releaseAuth = resolve; }),
+    );
+    vi.mocked(httpFetch).mockResolvedValue({ status: 200, statusText: 'OK', headers: {}, body: '{}' });
+
+    render(
+      <RequestEditor
+        {...defaultProps}
+        request={makeRequest({
+          url: 'https://busy.example/x',
+          auth: { type: 'bearer', token: 'tok' },
+        })}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('req-send-btn'));
+
+    await waitFor(() => {
+      const btn = screen.getByTestId('req-send-btn');
+      expect(btn).toBeDisabled();
+      expect(btn).toHaveAttribute('aria-busy', 'true');
+      expect(btn).toHaveTextContent('Send');
+    });
+
+    await act(async () => { releaseAuth(); });
+    await waitFor(() => {
+      expect(screen.getByTestId('req-send-btn')).toHaveTextContent('Send');
+      expect(screen.getByTestId('req-send-btn')).not.toBeDisabled();
+    });
+  });
+
+  it('shows Sending… while the HTTP request is in flight', async () => {
+    let releaseFetch!: (value: HttpResponse) => void;
+    vi.mocked(httpFetch).mockImplementation(
+      () => new Promise((resolve) => { releaseFetch = resolve; }),
+    );
+
+    render(
+      <RequestEditor
+        {...defaultProps}
+        request={makeRequest({ url: 'https://slow.example/x' })}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('req-send-btn'));
+
+    await waitFor(() => {
+      const btn = screen.getByTestId('req-send-btn');
+      expect(btn).toHaveTextContent('Sending…');
+      expect(btn).toBeDisabled();
+      expect(btn).toHaveAttribute('aria-busy', 'true');
+    });
+
+    await act(async () => {
+      releaseFetch({ status: 200, statusText: 'OK', headers: {}, body: '{}' });
+    });
+    await waitFor(() => expect(screen.getByTestId('req-send-btn')).toHaveTextContent('Send'));
+  });
+
+  it('forwards tab, mode, response, and history changes to controlled callbacks', async () => {
+    const onActiveSubTabChange = vi.fn();
+    const onInputModeChange = vi.fn();
+    const onResponseSubTabChange = vi.fn();
+    const onActiveHistoryIdChange = vi.fn();
+
+    vi.mocked(httpFetch).mockResolvedValue({
+      status: 404,
+      statusText: 'Not Found',
+      headers: {},
+      body: 'missing',
+    });
+
+    const view = render(
+      <RequestEditor
+        {...defaultProps}
+        request={makeRequest({ url: 'https://ctrl.example/x', name: '' })}
+        activeSubTab="params"
+        inputMode="builder"
+        responseSubTab="preview"
+        activeHistoryId={null}
+        onActiveSubTabChange={onActiveSubTabChange}
+        onInputModeChange={onInputModeChange}
+        onResponseSubTabChange={onResponseSubTabChange}
+        onActiveHistoryIdChange={onActiveHistoryIdChange}
+      />,
+    );
+
+    expect(screen.getByText(/Untitled Request/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('req-tab-body'));
+    expect(onActiveSubTabChange).toHaveBeenCalledWith('body');
+    expect(onInputModeChange).toHaveBeenCalledWith('builder');
+
+    fireEvent.click(screen.getByTitle('Import / Export'));
+    fireEvent.click(screen.getByRole('button', { name: 'cURL Import' }));
+    expect(onInputModeChange).toHaveBeenCalledWith('curlImport');
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('req-send-btn'));
+    });
+    await waitFor(() => expect(onActiveHistoryIdChange).toHaveBeenCalled());
+    await waitFor(() => {
+      expect(view.container.querySelector('.req-status-pill.error')).toHaveTextContent('404');
+    });
+
+    fireEvent.click(screen.getByTestId('req-resp-tab-headers'));
+    expect(onResponseSubTabChange).toHaveBeenCalledWith('headers');
+    fireEvent.click(screen.getByTestId('req-resp-tab-console'));
+    expect(onResponseSubTabChange).toHaveBeenCalledWith('console');
+    fireEvent.click(screen.getByTestId('req-resp-tab-preview'));
+    expect(onResponseSubTabChange).toHaveBeenCalledWith('preview');
+  });
+
+  it('leaves input mode alone when a parent owns inputMode across request switches', () => {
+    const onInputModeChange = vi.fn();
+    const { rerender } = render(
+      <RequestEditor
+        {...defaultProps}
+        request={makeRequest({ id: 'a' })}
+        inputMode="curlImport"
+        onInputModeChange={onInputModeChange}
+      />,
+    );
+    expect(screen.getByTestId('req-curl-import-panel')).toBeInTheDocument();
+
+    rerender(
+      <RequestEditor
+        {...defaultProps}
+        request={makeRequest({ id: 'b', name: 'Other' })}
+        inputMode="curlImport"
+        onInputModeChange={onInputModeChange}
+      />,
+    );
+    expect(screen.getByTestId('req-curl-import-panel')).toBeInTheDocument();
+    expect(onInputModeChange).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the folder name when a pinned sub-collection has no matching env id', () => {
+    render(
+      <RequestEditor
+        {...defaultProps}
+        collection={makeCollection({ mode: 'multi-env' })}
+        environments={makeEnvs()}
+        parentSubCollection={{
+          id: 'sc-orphan',
+          name: 'Sandbox Folder',
+          requests: [],
+          baseUrls: {},
+        }}
+      />,
+    );
+    expect(screen.getByTestId('req-env-pill')).toHaveTextContent('Sandbox Folder');
+    expect(screen.getByTestId('req-subcol-orphan-warning')).toBeInTheDocument();
+  });
+
 });
