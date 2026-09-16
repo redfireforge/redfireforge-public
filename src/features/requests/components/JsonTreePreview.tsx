@@ -24,6 +24,39 @@ export function buildJTreeFromBody(body: string | null | undefined): JNode | nul
   }
 }
 
+/**
+ * Paths that should start collapsed so large API payloads do not mount every
+ * nested row on first paint (the Requests "Sending..." spinner otherwise stays
+ * up for seconds after the HTTP call has already finished).
+ *
+ * Keeps the root object open, collapses array items, nested objects (depth ≥ 2),
+ * and large arrays (more than 24 elements).
+ */
+export const JSON_TREE_LARGE_ARRAY_COLLAPSE = 24;
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function collectDefaultCollapsedPaths(node: JNode, prefix = '', depth = 0): string[] {
+  const paths: string[] = [];
+  const kids = node.children;
+  if (!kids?.length) return paths;
+  for (const child of kids) {
+    const p = `${prefix}/${child.key}`;
+    const childDepth = depth + 1;
+    const childHasKids = (child.children?.length ?? 0) > 0;
+    if (childHasKids) {
+      const collapseNested = childDepth >= 2;
+      const collapseArrayItem = node.type === 'array';
+      const collapseLargeArray = child.type === 'array'
+        && (child.children?.length ?? 0) > JSON_TREE_LARGE_ARRAY_COLLAPSE;
+      if (collapseNested || collapseArrayItem || collapseLargeArray) {
+        paths.push(p);
+      }
+      paths.push(...collectDefaultCollapsedPaths(child, p, childDepth));
+    }
+  }
+  return paths;
+}
+
 /** The unified model uses `[i]` keys for array children; legacy JNode uses plain `"i"`. */
 function fixArrayKeys(node: JNode): void {
   if (!node.children) return;

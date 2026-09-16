@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { AuthConfig, Scenario } from '@shared/types';
-import { TokenManager } from './tokenManager';
+import { TokenManager, acquireOAuth2Token, resetSharedTokenManager } from './tokenManager';
 import { makeScenario as _makeScenario } from '@test-utils/factories';
 
 vi.mock('@shared/utils/httpClient', () => ({
@@ -33,6 +33,7 @@ function makeJwt(payload: Record<string, unknown>): string {
 describe('TokenManager', () => {
   beforeEach(() => {
     resetAllMocks();
+    resetSharedTokenManager();
   });
 
   it('returns undefined for non-oauth2 auth', async () => {
@@ -170,5 +171,43 @@ describe('TokenManager', () => {
     const tm = new TokenManager();
     const result = await tm.getToken(makeScenario(makeOAuth2Auth()));
     expect(result).toBe(token);
+  });
+
+  it('getTokenForAuth rejects non-oauth2 auth', async () => {
+    const tm = new TokenManager();
+    await expect(tm.getTokenForAuth({ type: 'bearer', token: 'x' })).rejects.toThrow('oauth2');
+  });
+});
+
+describe('acquireOAuth2Token (shared cache)', () => {
+  beforeEach(() => {
+    resetAllMocks();
+    resetSharedTokenManager();
+  });
+
+  it('reuses a cached token across Requests-style sends', async () => {
+    const token = makeJwt({ exp: Math.floor(Date.now() / 1000) + 3600 });
+    mockedFetch.mockResolvedValueOnce({
+      status: 200, statusText: 'OK', headers: {},
+      body: JSON.stringify({ access_token: token }),
+    });
+
+    const auth = makeOAuth2Auth();
+    await expect(acquireOAuth2Token(auth)).resolves.toBe(token);
+    await expect(acquireOAuth2Token(auth)).resolves.toBe(token);
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not share cache with a freshly constructed TokenManager', async () => {
+    const token = makeJwt({ exp: Math.floor(Date.now() / 1000) + 3600 });
+    mockedFetch.mockResolvedValue({
+      status: 200, statusText: 'OK', headers: {},
+      body: JSON.stringify({ access_token: token }),
+    });
+
+    await acquireOAuth2Token(makeOAuth2Auth());
+    const tm = new TokenManager();
+    await tm.getToken(makeScenario(makeOAuth2Auth()));
+    expect(mockedFetch).toHaveBeenCalledTimes(2);
   });
 });

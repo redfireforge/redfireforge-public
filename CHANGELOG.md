@@ -8,6 +8,16 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.8.11] — 2026-09-15
+
+### Fixed
+- **Desktop Requests Send latency** — Tauri's HTTP plugin built a new TLS client on every Send, so a catalog call that Insomnia reused in ~200ms showed ~1.8s here. Desktop now uses a pooled native HTTP command (keep-alive + gzip/brotli) and falls back to the plugin only if that command is missing.
+- **Requests "Sending..." spinner** — the Preview tree opened every nested node on first paint, so an 80KB JSON body froze the UI for several seconds after the HTTP call finished. Send no longer blanks the panel; the button shows Sending… (with a live ms count) only while `httpFetch` is in flight — not during OAuth/header prep or JSON-tree mount — and the tree is built after that paint with nested nodes collapsed.
+- **OAuth2 on Send** — Requests acquired a new client-credentials token on every click. Tokens are cached until JWT expiry (30s buffer), matching the test runner.
+- **Web Requests Import / Export** — the tiny ▾ control sat on the editor split and Chrome hit the Preview tabs instead. It is now a labeled **Import / Export** button; the menu portals to `document.body`. Web export uses a `data:` URL (not `blob:`) so Chrome’s download history keeps `requests-all-collections.json` instead of the blob UUID. Sidebar Import is a real `<input type="file">` the user clicks — Chrome was ignoring a programmatic picker after the async click chain.
+- **CSV template download** — small CSV downloads use a `data:` URL so Chrome keeps the real filename instead of a blob UUID.
+- **Requests Sending label** — the live ms ticker on the button kept incrementing after the HTTP call (and looked like polling). The button shows Sending… only for the fetch, then returns to Send before preview work.
+
 ## [0.8.10] — 2026-09-14
 
 ### Changed

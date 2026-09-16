@@ -15,6 +15,7 @@ const envProxyCtor = vi.hoisted(() =>
 );
 
 const mockTauriFetch = vi.hoisted(() => vi.fn());
+const mockInvoke = vi.hoisted(() => vi.fn());
 
 vi.mock('./platform', () => ({
   isTauri: () => mockedIsTauri(),
@@ -33,6 +34,10 @@ vi.mock('undici', () => ({
 
 vi.mock('@tauri-apps/plugin-http', () => ({
   fetch: mockTauriFetch,
+}));
+
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: (...args: unknown[]) => mockInvoke(...args),
 }));
 
 function makeFetchResponse(body = 'ok', status = 200, headersMap = new Map<string, string>()) {
@@ -386,6 +391,7 @@ describe('httpClient — Tauri transport', () => {
     resetAllMocks();
     mockedIsNode.mockReturnValue(false);
     mockedIsTauri.mockReturnValue(true);
+    mockInvoke.mockRejectedValue(new Error('studio_http_fetch unavailable'));
   });
 
   it('uses @tauri-apps/plugin-http fetch and returns timing', async () => {
@@ -438,6 +444,62 @@ describe('httpClient — Tauri transport', () => {
     const result = await mod.httpFetch('http://api.test', 'GET', {});
     expect(result.status).toBe(0);
     expect(result.error).toContain('Tauri plugin unavailable');
+  });
+
+  it('uses pooled studio_http_fetch when the native command is available', async () => {
+    mockInvoke.mockReset();
+    mockInvoke.mockResolvedValue({
+      status: 200,
+      statusText: 'OK',
+      headers: { 'content-type': 'application/json' },
+      body: '{"pooled":true}',
+    });
+
+    const mod = await import('./httpClient');
+    const result = await mod.httpFetch('https://api.test/catalog', 'GET', { Accept: 'application/json' });
+
+    expect(result.status).toBe(200);
+    expect(result.body).toBe('{"pooled":true}');
+    expect(result.headers['content-type']).toBe('application/json');
+    expect(mockInvoke).toHaveBeenCalledWith('studio_http_fetch', {
+      request: {
+        url: 'https://api.test/catalog',
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        body: undefined,
+      },
+    });
+    expect(mockTauriFetch).not.toHaveBeenCalled();
+  });
+
+  it('omits body for GET on studio_http_fetch and includes it for POST', async () => {
+    mockInvoke.mockReset();
+    mockInvoke.mockResolvedValue({
+      status: 201, statusText: 'Created', headers: {}, body: 'ok',
+    });
+
+    const mod = await import('./httpClient');
+    await mod.httpFetch('https://api.test', 'GET', {}, 'ignored');
+    expect(mockInvoke.mock.calls[0][1].request.body).toBeUndefined();
+
+    mockInvoke.mockClear();
+    await mod.httpFetch('https://api.test', 'POST', {}, '{"x":1}');
+    expect(mockInvoke.mock.calls[0][1].request.body).toBe('{"x":1}');
+    expect(mockTauriFetch).not.toHaveBeenCalled();
+  });
+
+  it('returns Aborted without invoking studio_http_fetch when the signal is already aborted', async () => {
+    mockInvoke.mockReset();
+    mockInvoke.mockResolvedValue({
+      status: 200, statusText: 'OK', headers: {}, body: 'nope',
+    });
+    const ac = new AbortController();
+    ac.abort();
+
+    const mod = await import('./httpClient');
+    const result = await mod.httpFetch('https://api.test', 'GET', {}, undefined, ac.signal);
+    expect(result.error).toBe('Aborted');
+    expect(mockInvoke).not.toHaveBeenCalled();
   });
 });
 

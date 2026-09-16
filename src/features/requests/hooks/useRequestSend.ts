@@ -8,6 +8,9 @@ import { serializeWithContentType } from '@shared/utils/bodySerializer';
 import { applyAuthHeaders } from '@shared/utils/applyAuthHeaders';
 import type { HttpResponse } from '@shared/utils/httpClient';
 import { isClientManagedRequestHeader } from '@shared/utils/outboundRequestHeaders';
+import { isTauri } from '@shared/utils/platform';
+import { yieldToPaint } from '@shared/utils/yieldToPaint';
+import { flushSync } from 'react-dom';
 import type { ConsoleLine, ResponseHistoryEntry } from './useResponseCache';
 import { resolveFullSendUrl } from '../utils/requestUrlResolver';
 import { formatBytes, toErrorMessage } from '@shared/utils/helpers';
@@ -114,9 +117,11 @@ export function useRequestSend({
     return buildRequestHeaders(scenario, contentType, resolveAuth, envId);
   }, [resolveAuth]);
 
-  const handleSend = useCallback(async (setSending: (v: boolean) => void) => {
-    setSending(true);
-    setResponse(null);
+  const handleSend = useCallback(async (
+    setSending: (v: boolean) => void,
+    setBusy?: (v: boolean) => void,
+  ) => {
+    setBusy?.(true);
     setSendAllResults(null);
     const log: ConsoleLine[] = [];
     const info = (t: string) => log.push({ prefix: '*', text: t });
@@ -137,6 +142,7 @@ export function useRequestSend({
           setConsoleLines(log);
           setResponse({ status: 0, statusText: 'Error', headers: {}, body: urlError, error: urlError });
           setSending(false);
+          setBusy?.(false);
           return;
         }
         scenario.url = resolved;
@@ -166,8 +172,10 @@ export function useRequestSend({
       let hostname = '';
       try { hostname = new URL(scenario.url).hostname; } catch { /* intentionally empty */ }
       if (hostname) info(`Connecting to ${hostname}...`);
-      info('Using browser fetch API');
-      if (scenario.url.startsWith('https')) info('SSL/TLS handled by browser');
+      info(isTauri() ? 'Using native HTTP (connection pool)' : 'Using browser fetch API');
+      if (scenario.url.startsWith('https')) {
+        info(isTauri() ? 'SSL/TLS handled by native client' : 'SSL/TLS handled by browser');
+      }
 
       log.push({ prefix: '', text: '' });
       out(`${scenario.method} ${scenario.url.replace(/https?:\/\/[^/]+/, '')} HTTP/1.1`);
@@ -187,9 +195,16 @@ export function useRequestSend({
         log.push({ prefix: '', text: '' });
       }
 
+      flushSync(() => setSending(true));
       const t0 = performance.now();
       const resp = await httpFetch(scenario.url, scenario.method, headers, reqBody);
       const elapsed = Math.round(performance.now() - t0);
+      flushSync(() => {
+        setSending(false);
+        setResponseTime(elapsed);
+        setBusy?.(false);
+      });
+      await yieldToPaint();
 
       log.push({ prefix: '', text: '' });
       inp(`HTTP/1.1 ${resp.status} ${resp.statusText}`);
@@ -200,9 +215,11 @@ export function useRequestSend({
 
       info(`Received ${formatBytes(resp.body?.length ?? 0)} in ${elapsed} ms`);
       info(`Response status: ${resp.status} ${resp.statusText}`);
+      if (resp.timing) {
+        info(`Timing: TTFB ${Math.round(resp.timing.ttfb)} ms, download ${Math.round(resp.timing.download)} ms`);
+      }
 
       setResponse(resp);
-      setResponseTime(elapsed);
       setConsoleLines(log);
 
       const hid = pushHistory({ timestamp: Date.now(), method: sendMethod, url: sendUrl, response: resp, responseTime: elapsed, consoleLines: log });
@@ -212,14 +229,21 @@ export function useRequestSend({
       log.push({ prefix: '', text: '' });
       info(`ERROR: ${msg}`);
       const errResp = { status: 0, statusText: 'Error', headers: {} as Record<string, string>, body: msg, error: msg };
+      flushSync(() => {
+        setSending(false);
+        setResponseTime(0);
+        setBusy?.(false);
+      });
+      await yieldToPaint();
       setResponse(errResp);
-      setResponseTime(0);
       setConsoleLines(log);
 
       const hid = pushHistory({ timestamp: Date.now(), method: sendMethod || 'GET', url: sendUrl || request.url, response: errResp, responseTime: 0, consoleLines: log });
       setActiveHistoryId(hid);
+    } finally {
+      setSending(false);
+      setBusy?.(false);
     }
-    setSending(false);
   }, [asDraftScenario, buildHeaders, resolveAuth, urlCtx, pushHistory, request.url,
       setResponse, setResponseTime, setSendAllResults, setConsoleLines, setActiveHistoryId,
       subColEnvId, selectedEnvId]);

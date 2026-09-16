@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, act, within } from '@testing-library/react';
+import { render, screen, fireEvent, act, within, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import RequestsSidebar from './RequestsSidebar';
 import type { RequestCollection } from '@shared/types';
@@ -558,11 +558,20 @@ describe('RequestsSidebar', () => {
     expect(screen.getByText('WeirdCol').closest('.req-col-header')!.querySelector('.req-col-auth-badge')).toBeInTheDocument();
   });
 
-  it('clicks the header Import button (handleImportToCollection)', async () => {
-    setup();
-    h.open.mockResolvedValueOnce(null);
-    await act(async () => { fireEvent.click(screen.getByTitle('Import')); });
-    expect(h.open).toHaveBeenCalled();
+  it('imports from the header file input without a programmatic picker', async () => {
+    const props = setup();
+    const input = screen.getByTestId('req-sidebar-import-input') as HTMLInputElement;
+    const file = new File([JSON.stringify({
+      type: 'requests-all',
+      data: { collections: [{ id: 'imp', name: 'From File Input', mode: 'direct', requests: [], folders: [] }] },
+    })], 'from-input.json', { type: 'application/json' });
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [file] } });
+    });
+    await waitFor(() => {
+      expect(props.onImportCollection).toHaveBeenCalledWith(expect.objectContaining({ name: 'From File Input' }));
+    });
+    expect(h.open).not.toHaveBeenCalled();
   });
 
   it('imports a folder with nested requests and sub-folders (regenIds deep)', async () => {
@@ -631,17 +640,10 @@ describe('RequestsSidebar', () => {
     h.isTauri = false;
     const props = setup();
     openCollectionCtx();
-    const ORIG = document.createElement;
-    const inputEl = ORIG.call(document, 'input') as HTMLInputElement;
-    const file = new File([JSON.stringify({ type: 'requests-collection', data: { name: 'Picked', requests: [], folders: [] } })], 'picked.json', { type: 'application/json' });
-    Object.defineProperty(inputEl, 'files', { value: [file], configurable: true });
-    inputEl.click = () => { inputEl.onchange?.(new Event('change')); };
-    document.createElement = ((tag: string) => tag === 'input' ? inputEl : ORIG.call(document, tag)) as typeof document.createElement;
-    try {
-      await act(async () => { await (h.ctx.handleImportToCollection as () => Promise<void>)(); });
-    } finally {
-      document.createElement = ORIG;
-    }
+    h.open.mockResolvedValueOnce({
+      content: JSON.stringify({ type: 'requests-collection', data: { name: 'Picked', requests: [], folders: [] } }),
+    });
+    await act(async () => { await (h.ctx.handleImportToCollection as () => Promise<void>)(); });
     expect(props.onImportCollection).toHaveBeenCalledWith(expect.objectContaining({ name: 'Picked' }));
   });
 
