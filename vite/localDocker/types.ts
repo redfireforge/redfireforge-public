@@ -2,6 +2,7 @@ export type DockerDaemonState =
   | 'notInstalled'
   | 'notRunning'
   | 'outdatedCompose'
+  | 'needsEngineChoice'
   | 'running';
 
 export type LocalDockerStackKey =

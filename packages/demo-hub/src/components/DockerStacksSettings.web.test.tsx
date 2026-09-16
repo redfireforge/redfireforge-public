@@ -31,6 +31,7 @@ vi.mock('../utils/dockerStackApi', async (importOriginal) => {
     getPrefetchChoice: vi.fn(async () => null),
     isPrefetchRunning: vi.fn(async () => false),
     listenDockerPull: vi.fn(async () => () => {}),
+    getDockerEngineSnapshot: vi.fn(async () => null),
   };
 });
 

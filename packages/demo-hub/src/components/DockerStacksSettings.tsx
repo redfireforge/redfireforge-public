@@ -12,8 +12,13 @@ import {
   dockerStackStopBusy,
   markDockerStackStopped,
 } from '../utils/dockerStack';
+import type { DockerEngineId, DockerEngineSnapshot } from '../utils/dockerEngine';
+import { engineProductName } from '../utils/dockerEngine';
+import DockerEngineChooser from './DockerEngineChooser';
 import {
   checkDockerState,
+  getDockerEngineSnapshot,
+  setDockerEnginePreference,
   getDockerImageSizes,
   getStackStatus,
   getStopOnClose,
@@ -58,6 +63,7 @@ export function DockerStacksSettings({ confirm }: DockerStacksSettingsProps) {
   const [uninstallDone, setUninstallDone] = useState(false);
   const [uninstallMessage, setUninstallMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [engineSnap, setEngineSnap] = useState<DockerEngineSnapshot | null>(null);
   const [statusKnown, setStatusKnown] = useState<Set<string>>(() => new Set());
   const desktop = isTauri();
   const { helperOk } = useLocalDockerHelper();
@@ -131,7 +137,23 @@ export function DockerStacksSettings({ confirm }: DockerStacksSettingsProps) {
   useEffect(() => {
     void getStopOnClose().then(setStopOnCloseState);
     void refreshUsage();
+    void getDockerEngineSnapshot().then(setEngineSnap);
   }, [refreshUsage]);
+
+  const chooseEngine = async (id: DockerEngineId) => {
+    setEngineSnap((prev) => (
+      prev
+        ? {
+          ...prev,
+          preference: id,
+          needsChoice: false,
+          activeEngine: id,
+        }
+        : prev
+    ));
+    const snap = await setDockerEnginePreference(id);
+    if (snap) setEngineSnap(snap);
+  };
 
   useEffect(() => {
     // Loopback web without a helper still has isLocalWebDockerEnabled — do not
@@ -299,6 +321,24 @@ export function DockerStacksSettings({ confirm }: DockerStacksSettingsProps) {
 
   return (
     <div className="docker-settings" data-testid="docker-settings">
+      {engineSnap?.needsChoice && (
+        <div className="settings-section" data-testid="docker-settings-engine-choice">
+          <h4>Docker engine</h4>
+          <DockerEngineChooser onChoose={(id) => { void chooseEngine(id); }} />
+        </div>
+      )}
+      {engineSnap && !engineSnap.needsChoice && engineSnap.desktopInstalled && engineSnap.orbstackInstalled && (
+        <div className="settings-section" data-testid="docker-settings-engine">
+          <h4>Docker engine</h4>
+          <p className="settings-section-desc">
+            Learning Hub is using {engineProductName(engineSnap.activeEngine)} for lesson stacks.
+          </p>
+          <DockerEngineChooser
+            selected={engineSnap.activeEngine}
+            onChoose={(id) => { void chooseEngine(id); }}
+          />
+        </div>
+      )}
       <div className="settings-section">
         <h4>Docker stacks</h4>
         <p className="settings-section-desc">

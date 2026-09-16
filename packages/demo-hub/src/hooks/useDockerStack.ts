@@ -2,12 +2,16 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { isTauri } from '@shared/utils/platform';
 import type { DockerStackKey } from '../types';
 import { getStackLogs, useDockerStacks } from '../stores/dockerStackStore';
+import type { DockerEngineId } from '../utils/dockerEngine';
+import type { DockerEngineSnapshot } from '../utils/dockerEngine';
 import { dockerStackSiblings, markDockerStackStopped } from '../utils/dockerStack';
 import { useLocalDockerHelper } from './useLocalDockerHelper';
 import { certExpiryFromIsoDate } from '../utils/localDockerApi';
 import {
   checkDockerState,
   daemonStateFromStartFailed,
+  getDockerEngineSnapshot,
+  setDockerEnginePreference,
   getDockerAvailableMemoryMb,
   getStackManifest,
   getStackStatus,
@@ -34,6 +38,7 @@ export type DockerControlState =
   | 'checking'
   | 'not-installed'
   | 'not-running'
+  | 'needs-engine-choice'
   | 'outdated-compose'
   | 'stack-stopped'
   | 'stack-starting'
@@ -46,6 +51,8 @@ export type DockerControlState =
 export interface UseDockerStackResult {
   ready: boolean;
   daemon: DockerDaemonState | null;
+  engine: DockerEngineSnapshot | null;
+  chooseEngine: (engine: DockerEngineId) => Promise<void>;
   controlState: DockerControlState;
   certExpiry: CertExpiryStatus | null;
   certReady: boolean;
@@ -75,6 +82,7 @@ export function useDockerStack(
 ): UseDockerStackResult {
   const { setRunning, isRunning, running, appendLog, clearLogs, replaceLogs, otherRunning, stackLogs } = useDockerStacks();
   const [daemon, setDaemon] = useState<DockerDaemonState | null>(null);
+  const [engine, setEngine] = useState<DockerEngineSnapshot | null>(null);
   const [controlState, setControlState] = useState<DockerControlState>('checking');
   const [certExpiry, setCertExpiry] = useState<CertExpiryStatus | null>(null);
   const [certReady, setCertReady] = useState(!isTauri());
@@ -87,6 +95,7 @@ export function useDockerStack(
   const [conflictEntries, setConflictEntries] = useState<PortConflictEntry[]>([]);
   const [limitKeys, setLimitKeys] = useState<DockerStackKey[]>([]);
   const [oomRecommendedMb, setOomRecommendedMb] = useState<number | null>(null);
+  const [engineEpoch, setEngineEpoch] = useState(0);
   const [stopBusy, setStopBusy] = useState(false);
   const actionLockRef = useRef(false);
   const hadLimitKeysRef = useRef(false);
@@ -104,6 +113,7 @@ export function useDockerStack(
     state === 'checking'
     || state === 'not-installed'
     || state === 'not-running'
+    || state === 'needs-engine-choice'
     || state === 'outdated-compose'
     || state === 'stack-stopped'
     || state === 'stack-running';
@@ -118,12 +128,18 @@ export function useDockerStack(
   const isBlockedDaemonState = (state: DockerControlState) =>
     state === 'not-installed'
     || state === 'not-running'
+    || state === 'needs-engine-choice'
     || state === 'outdated-compose';
 
   const applyBlockedDaemon = (state: DockerDaemonState): boolean => {
     if (state === 'notInstalled') {
       setDaemon(state);
       setControlState('not-installed');
+      return true;
+    }
+    if (state === 'needsEngineChoice') {
+      setDaemon(state);
+      setControlState('needs-engine-choice');
       return true;
     }
     if (state === 'notRunning') {
@@ -190,6 +206,15 @@ export function useDockerStack(
           }
           return true;
         };
+        const snapshot = await getDockerEngineSnapshot();
+        if (cancelled) return false;
+        if (snapshot) setEngine(snapshot);
+        if (snapshot?.needsChoice) {
+          setDaemon('needsEngineChoice');
+          setControlState('needs-engine-choice');
+          setRunning(stackKey, false);
+          return false;
+        }
         const state = await checkDockerState();
         if (cancelled) return false;
         if (abandonIfExternallyStopped()) return true;
@@ -262,7 +287,7 @@ export function useDockerStack(
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [ready, stackKey, isRunning, setRunning]);
+  }, [ready, stackKey, isRunning, setRunning, engineEpoch]);
 
   // Settings Stop / Stale Restart write the shared store. applyDaemon only
   // re-runs while waiting on the daemon, so the lesson gate must follow
@@ -621,6 +646,13 @@ export function useDockerStack(
     }
   }, [setRunning]);
 
+  const chooseEngine = useCallback(async (id: DockerEngineId) => {
+    const snap = await setDockerEnginePreference(id);
+    if (snap) setEngine(snap);
+    setControlState('checking');
+    setEngineEpoch((n) => n + 1);
+  }, []);
+
   const days = certExpiry?.daysRemaining;
   const certExpired = days != null && days <= 0;
   const certExpiring = days != null && days > 0 && days <= CERT_WARN_DAYS;
@@ -628,6 +660,8 @@ export function useDockerStack(
   return {
     ready,
     daemon,
+    engine,
+    chooseEngine,
     controlState,
     certExpiry,
     certReady,

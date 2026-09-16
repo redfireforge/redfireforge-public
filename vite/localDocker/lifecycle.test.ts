@@ -159,7 +159,7 @@ describe('lifecycle', () => {
     });
     await expect(life.startStack('graphql')).rejects.toBeInstanceOf(LocalDockerError);
     await expect(life.startStack('graphql')).rejects.toMatchObject({
-      message: 'START_FAILED:Docker Desktop is not running.',
+      message: 'START_FAILED:Docker is not running.',
     });
     expect(calls.filter((c) => c.args.includes('up'))).toHaveLength(0);
   });

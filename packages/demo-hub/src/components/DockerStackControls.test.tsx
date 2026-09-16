@@ -13,6 +13,8 @@ const getStackStatus = vi.fn();
 const checkCertExpiry = vi.fn();
 const getStackManifest = vi.fn();
 const getDockerAvailableMemoryMb = vi.fn();
+const getDockerEngineSnapshot = vi.fn();
+const setDockerEnginePreference = vi.fn();
 const readLastRunLog = vi.fn();
 
 vi.mock('@shared/utils/platform', () => ({
@@ -30,6 +32,8 @@ vi.mock('../utils/dockerStackApi', async (importOriginal) => {
     checkCertExpiry: (...a: unknown[]) => checkCertExpiry(...a),
     getStackManifest: (...a: unknown[]) => getStackManifest(...a),
     getDockerAvailableMemoryMb: (...a: unknown[]) => getDockerAvailableMemoryMb(...a),
+    getDockerEngineSnapshot: (...a: unknown[]) => getDockerEngineSnapshot(...a),
+    setDockerEnginePreference: (...a: unknown[]) => setDockerEnginePreference(...a),
     openDockerDesktop: vi.fn(),
     triggerAppUpdateCheck: vi.fn(),
     listenDockerLogs: vi.fn(async () => () => {}),
@@ -54,6 +58,14 @@ describe('DockerStackControls', () => {
     startDockerStack.mockResolvedValue(undefined);
     stopDockerStack.mockResolvedValue(undefined);
     readLastRunLog.mockResolvedValue(null);
+    getDockerEngineSnapshot.mockResolvedValue(null);
+    setDockerEnginePreference.mockResolvedValue({
+      desktopInstalled: true,
+      orbstackInstalled: true,
+      preference: 'orbstack',
+      needsChoice: false,
+      activeEngine: 'orbstack',
+    });
   });
 
   afterEach(() => {
@@ -98,6 +110,25 @@ describe('DockerStackControls', () => {
     render(<DockerStackControls stackKey="graphql" />);
     await act(() => Promise.resolve());
     expect(screen.queryByTestId('prereq-windows-start-hint')).toBeNull();
+  });
+
+  it('asks which engine to use when Docker Desktop and OrbStack are both installed', async () => {
+    getDockerEngineSnapshot.mockResolvedValue({
+      desktopInstalled: true,
+      orbstackInstalled: true,
+      preference: null,
+      needsChoice: true,
+      activeEngine: null,
+    });
+    render(<DockerStackControls stackKey="graphql" />);
+    await act(() => Promise.resolve());
+    expect(screen.getByTestId('prereq-engine-choice').textContent).toMatch(/OrbStack/);
+    expect(screen.getByTestId('prereq-start-stack')).toBeDisabled();
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('prereq-choose-orbstack'));
+      await Promise.resolve();
+    });
+    expect(setDockerEnginePreference).toHaveBeenCalledWith('orbstack');
   });
 
   it('shows State B2 when Compose V2 is missing', async () => {

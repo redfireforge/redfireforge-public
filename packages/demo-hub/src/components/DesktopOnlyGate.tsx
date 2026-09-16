@@ -7,6 +7,7 @@
  * Parent keeps Start Demo disabled while this shows.
  */
 import { DOCKER_DESKTOP_INSTALL_URL, LEARNING_HUB_DOWNLOAD_URL } from '../utils/dockerCommandDisplay';
+import { ORBSTACK_INSTALL_URL } from '../utils/dockerEngine';
 
 interface DesktopOnlyGateProps {
   reason?: 'desktop-only' | 'docker-backend';
@@ -28,7 +29,7 @@ export default function DesktopOnlyGate({ reason = 'desktop-only' }: DesktopOnly
       </p>
       <p className="prereq-instruction-note" data-testid="desktop-only-gate-note">
         {isDocker
-          ? 'Download the RedfireForge Learning Hub desktop app to run this lesson. You will also need Docker Desktop installed — once downloaded, the app will guide you through starting the required services.'
+          ? 'Download the RedfireForge Learning Hub desktop app to run this lesson. You will also need Docker Desktop or OrbStack (macOS) — once downloaded, the app will guide you through starting the required services.'
           : 'Open RedfireForge as a desktop app to run this lesson. You can still read the concept and steps here, but Start Demo stays disabled on web.'}
       </p>
       <a
@@ -42,15 +43,23 @@ export default function DesktopOnlyGate({ reason = 'desktop-only' }: DesktopOnly
       </a>
       {isDocker && (
         <p className="prereq-docker-hint" data-testid="desktop-only-gate-docker-hint">
-          Don't have Docker Desktop?{' '}
+          Need a Docker engine?{' '}
           <a
             href={DOCKER_DESKTOP_INSTALL_URL}
             target="_blank"
             rel="noopener noreferrer"
           >
-            Install it free →
+            Docker Desktop
           </a>
-          {' '}A restart may be required after installing on Windows.
+          {' or '}
+          <a
+            href={ORBSTACK_INSTALL_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            OrbStack
+          </a>
+          {' '}(macOS). A restart may be required after installing on Windows.
         </p>
       )}
     </div>

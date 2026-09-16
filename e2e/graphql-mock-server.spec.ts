@@ -3,7 +3,7 @@
  *
  * ── What is tested ────────────────────────────────────────────────────────────
  *
- * 1. Mock activity tab is disabled in web mode (desktop-only feature)
+ * 1. Mock activity tab is enabled on local Vite (localhost is a desktop runtime)
  * 2. Mock server enabled via proxy API — query returns schema-aware mock data
  * 3. Fixed resolver override (API config) returns the configured value in UI response
  * 4. Global latency (API config) adds measurable delay to responses
@@ -11,7 +11,9 @@
  *
  * ── Architecture notes ────────────────────────────────────────────────────────
  *
- * The mock panel UI is desktop-only (`isTauri()` guard on activity tab + panel).
+ * The mock panel UI is gated by `isDesktopRuntimeAvailable()` (Tauri, E2E
+ * desktop shim, or a local clone on localhost). Hosted / remote web stays
+ * disabled — that path is covered by unit tests.
  * E2E configures the mock server through the real Node proxy API at port 3001
  * (same path the desktop app uses) and verifies behavior via GraphQL Studio
  * query execution UI.
@@ -198,6 +200,29 @@ async function gotoGqlStudio(page: Page) {
   await expect(page.locator('[data-testid="gql-studio-page"]')).toBeVisible({ timeout: 15000 });
 }
 
+/**
+ * Studio mount posts `{ enabled: false }` (connection switch). Configure the
+ * companion after the page is up so that disable does not clobber E2E setup.
+ */
+async function openStudioAndEnableMock(
+  page: Page,
+  request: APIRequestContext,
+  options: MockConfigOptions = {},
+) {
+  await setupSmartProxy(page, request);
+  await gotoGqlStudio(page);
+  // Connection-switch disable is async; wait for it before we re-enable.
+  await page.waitForTimeout(400);
+  await configureMockServer(request, { enabled: true, ...options });
+  await expect.poll(async () => {
+    const res = await request.get('http://localhost:3001/api/graphql/mock/status');
+    if (!res.ok()) return false;
+    const status = await res.json() as { enabled?: boolean };
+    return status.enabled === true;
+  }, { timeout: 8_000 }).toBe(true);
+  await fillEndpoint(page, MOCK_ENDPOINT);
+}
+
 async function fillEndpoint(page: Page, url: string) {
   const input = page.locator('[data-testid="gql-endpoint-input"]');
   await input.fill(url);
@@ -263,12 +288,12 @@ test.afterEach(async ({ request }) => {
 
 // ── Suite 1: Web guard ────────────────────────────────────────────────────────
 
-test.describe('GraphQL Mock Server — web mode guard', () => {
-  test('mock activity tab is disabled in web mode (desktop only)', async ({ page }) => {
+test.describe('GraphQL Mock Server — local web runtime', () => {
+  test('mock activity tab is enabled on localhost (local clone)', async ({ page }) => {
     await gotoGqlStudio(page);
     const mockTab = page.locator('[data-testid="gql-activity-mock"]');
-    await expect(mockTab).toBeDisabled();
-    await expect(mockTab).toHaveAttribute('aria-label', /desktop only/i);
+    await expect(mockTab).toBeEnabled();
+    await expect(mockTab).toHaveAttribute('aria-label', /^Mock$/);
   });
 });
 
@@ -276,10 +301,7 @@ test.describe('GraphQL Mock Server — web mode guard', () => {
 
 test.describe('GraphQL Mock Server — mock mode ON', () => {
   test.beforeEach(async ({ page, request }) => {
-    await configureMockServer(request, { enabled: true });
-    await setupSmartProxy(page, request);
-    await gotoGqlStudio(page);
-    await fillEndpoint(page, MOCK_ENDPOINT);
+    await openStudioAndEnableMock(page, request);
   });
 
   test('query against mock endpoint returns schema-aware data', async ({ page }) => {
@@ -304,15 +326,11 @@ test.describe('GraphQL Mock Server — mock mode ON', () => {
 
 test.describe('GraphQL Mock Server — fixed resolver override', () => {
   test('fixed User.name resolver returns configured value in UI response', async ({ page, request }) => {
-    await configureMockServer(request, {
-      enabled: true,
+    await openStudioAndEnableMock(page, request, {
       resolvers: {
         User: { name: { type: 'fixed', value: 'MockAlice' } },
       },
     });
-    await setupSmartProxy(page, request);
-    await gotoGqlStudio(page);
-    await fillEndpoint(page, MOCK_ENDPOINT);
     await executeQuery(page);
 
     await expect(page.locator('[data-testid="gql-response-body"]')).toContainText('MockAlice', { timeout: 12000 });
@@ -323,10 +341,7 @@ test.describe('GraphQL Mock Server — fixed resolver override', () => {
 
 test.describe('GraphQL Mock Server — latency', () => {
   test('global latency adds measurable delay to mock responses', async ({ page, request }) => {
-    await configureMockServer(request, { enabled: true, globalLatencyMs: 0, jitterMs: 0 });
-    await setupSmartProxy(page, request);
-    await gotoGqlStudio(page);
-    await fillEndpoint(page, MOCK_ENDPOINT);
+    await openStudioAndEnableMock(page, request, { globalLatencyMs: 0, jitterMs: 0 });
     await executeQuery(page);
     const baselineText = await page.locator('[data-testid="gql-response-latency"]').textContent() ?? '0';
     expect(parseLatencyMs(baselineText)).toBeLessThan(200);
@@ -359,11 +374,7 @@ test.describe('GraphQL Mock Server — latency', () => {
 
 test.describe('GraphQL Mock Server — restore real endpoint', () => {
   test('disabling mock allows queries to the real endpoint again', async ({ page, request }) => {
-    await configureMockServer(request, { enabled: true });
-    await setupSmartProxy(page, request);
-    await gotoGqlStudio(page);
-
-    await fillEndpoint(page, MOCK_ENDPOINT);
+    await openStudioAndEnableMock(page, request);
     await executeQuery(page);
     await expect(page.locator('[data-testid="gql-response-body"]')).toContainText('"user"');
 

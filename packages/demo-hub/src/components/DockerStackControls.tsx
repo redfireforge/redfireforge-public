@@ -1,4 +1,12 @@
 import { DOCKER_DESKTOP_INSTALL_URL, isWindowsHost } from '../utils/dockerCommandDisplay';
+import {
+  dockerNotInstalledCopy,
+  dockerNotRunningCopy,
+  dockerOutdatedComposeCopy,
+  openEngineLabel,
+} from '../utils/dockerEngine';
+import { ORBSTACK_INSTALL_URL } from '../utils/dockerEngine';
+import DockerEngineChooser from './DockerEngineChooser';
 import type { DockerStackKey } from '../types';
 import { useDockerStack } from '../hooks/useDockerStack';
 import { requestOpenDockerSettings } from '../utils/dockerSettingsNav';
@@ -60,6 +68,7 @@ export default function DockerStackControls({
     || s.certExpired
     || s.controlState === 'not-installed'
     || s.controlState === 'not-running'
+    || s.controlState === 'needs-engine-choice'
     || s.controlState === 'outdated-compose'
     || s.controlState === 'stack-starting'
     || s.controlState === 'stack-running'
@@ -75,26 +84,38 @@ export default function DockerStackControls({
         </div>
       )}
 
+      {s.controlState === 'needs-engine-choice' && (
+        <DockerEngineChooser onChoose={(engine) => { void s.chooseEngine(engine); }} />
+      )}
+
       {s.controlState === 'not-installed' && (
         <div className="prereq-docker-status prereq-docker-status--warn" data-testid="prereq-docker-state">
-          Docker Desktop is not installed.{' '}
+          {dockerNotInstalledCopy(!isWindowsHost())}{' '}
           <a href={DOCKER_DESKTOP_INSTALL_URL} target="_blank" rel="noopener noreferrer">
             Install Docker Desktop →
           </a>
+          {!isWindowsHost() && (
+            <>
+              {' '}
+              <a href={ORBSTACK_INSTALL_URL} target="_blank" rel="noopener noreferrer">
+                Install OrbStack →
+              </a>
+            </>
+          )}
           <p className="prereq-stack-hint">A restart may be required after installing.</p>
         </div>
       )}
 
       {s.controlState === 'not-running' && (
         <div className="prereq-docker-status prereq-docker-status--warn" data-testid="prereq-docker-state">
-          Docker Desktop is not running. Open it and wait until it is ready.
+          {dockerNotRunningCopy(s.engine?.activeEngine ?? null)}
           <button
             type="button"
             className="prereq-open-docker-btn"
             data-testid="prereq-open-docker"
             onClick={() => { void s.openDesktop(); }}
           >
-            Open Docker Desktop
+            {openEngineLabel(s.engine?.activeEngine ?? null)}
           </button>
           {isWindowsHost() && (
             <p className="prereq-stack-hint" data-testid="prereq-windows-start-hint">
@@ -106,10 +127,16 @@ export default function DockerStackControls({
 
       {s.controlState === 'outdated-compose' && (
         <div className="prereq-docker-status prereq-docker-status--warn" data-testid="prereq-docker-state">
-          Your Docker Compose is outdated. Update Docker Desktop to continue.{' '}
-          <a href={DOCKER_DESKTOP_INSTALL_URL} target="_blank" rel="noopener noreferrer">
-            Update Docker Desktop →
-          </a>
+          {dockerOutdatedComposeCopy(s.engine?.activeEngine ?? null)}{' '}
+          {s.engine?.activeEngine === 'orbstack' ? (
+            <a href={ORBSTACK_INSTALL_URL} target="_blank" rel="noopener noreferrer">
+              Update OrbStack →
+            </a>
+          ) : (
+            <a href={DOCKER_DESKTOP_INSTALL_URL} target="_blank" rel="noopener noreferrer">
+              Update Docker Desktop →
+            </a>
+          )}
         </div>
       )}
 

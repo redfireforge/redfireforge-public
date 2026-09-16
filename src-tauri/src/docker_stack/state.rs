@@ -1,6 +1,9 @@
 //! Docker daemon / Compose / memory / cert expiry commands.
 
 use super::docker_bin::docker_cmd;
+use super::engine::snapshot_for_app;
+#[cfg(target_os = "macos")]
+use super::engine::DockerEngineId;
 #[cfg(windows)]
 use super::docker_bin::{
     first_existing_file, hidden_cmd, windows_desktop_exe_candidates,
@@ -16,6 +19,7 @@ pub enum DockerState {
     NotInstalled,
     NotRunning,
     OutdatedCompose,
+    NeedsEngineChoice,
     Running,
 }
 
@@ -42,7 +46,10 @@ pub(crate) fn classify_compose_version_probe(probe: ComposeVersionProbe) -> Dock
 }
 
 #[tauri::command]
-pub async fn check_docker_state() -> DockerState {
+pub async fn check_docker_state(app: tauri::AppHandle) -> DockerState {
+    if snapshot_for_app(&app).needs_choice {
+        return DockerState::NeedsEngineChoice;
+    }
     let info = tokio::time::timeout(
         std::time::Duration::from_secs(10),
         docker_cmd().arg("info").output(),
@@ -71,10 +78,16 @@ pub async fn check_docker_state() -> DockerState {
 }
 
 #[tauri::command]
-pub async fn open_docker_desktop() {
+pub async fn open_docker_desktop(app: tauri::AppHandle) {
+    let snapshot = snapshot_for_app(&app);
+    let _ = snapshot.active_engine;
     #[cfg(target_os = "macos")]
     {
-        let _ = Command::new("open").args(["-a", "Docker"]).spawn();
+        let app_name = match snapshot.active_engine {
+            Some(DockerEngineId::Orbstack) => "OrbStack",
+            _ => "Docker",
+        };
+        let _ = Command::new("open").args(["-a", app_name]).spawn();
     }
 
     #[cfg(target_os = "windows")]
