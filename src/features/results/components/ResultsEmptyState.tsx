@@ -6,26 +6,21 @@ interface Props {
 }
 
 /**
- * Shown on the Results dashboard before anything has been run.
+ * Shown on the Results dashboard before anything has been run (issue #56).
  *
- * The panel already said "No test runs yet" and stopped there, which tells a
- * new user what is missing but not what to do about it. The call to action is
- * the point of this component; the icon is what stops the panel reading as a
- * failed load.
+ * A heading + next-step line + tab CTA so the panel is not a blank area.
  */
 export function ResultsEmptyState({ runTypeFilter, onNavigate }: Props) {
   const isWorkflow = runTypeFilter === 'workflow';
   const destination = isWorkflow ? 'workflow-runner' : 'runner';
-  const message = isWorkflow ? 'No workflow runs yet' : 'No test runs yet';
   const subtitle = isWorkflow
-    ? 'Run a workflow to see execution results, timings, and node traces here.'
-    : 'Run a test to see pass/fail results, response times, and assertion details here.';
-  const action = isWorkflow ? 'Run a workflow' : 'Run a test';
+    ? 'Run a workflow from the Workflow Runner to see results here.'
+    : 'Run a test from the Test Runner or Parameterized Runner to see results here.';
+  const action = isWorkflow ? 'Go to Workflow Runner' : 'Go to Test Runner';
 
   return (
     <div className="results-empty-state" data-testid="results-empty-state">
       <div className="results-empty-state-icon-ring" aria-hidden="true">
-        {/* Bar chart icon — matches the "Results" analytics context */}
         <svg
           className="results-empty-state-icon"
           width="32"
@@ -38,13 +33,11 @@ export function ResultsEmptyState({ runTypeFilter, onNavigate }: Props) {
           strokeLinejoin="round"
           aria-hidden="true"
         >
-          <line x1="18" y1="20" x2="18" y2="10" />
-          <line x1="12" y1="20" x2="12" y2="4" />
-          <line x1="6"  y1="20" x2="6"  y2="14" />
-          <line x1="2"  y1="20" x2="22" y2="20" />
+          <rect x="8" y="2" width="8" height="4" rx="1" />
+          <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
         </svg>
       </div>
-      <p className="results-empty-state-message">{message}</p>
+      <h3 className="results-empty-state-message">No results yet</h3>
       <p className="results-empty-state-subtitle">{subtitle}</p>
       {onNavigate && (
         <button
@@ -53,9 +46,6 @@ export function ResultsEmptyState({ runTypeFilter, onNavigate }: Props) {
           onClick={() => onNavigate(destination)}
           data-testid="results-empty-state-cta"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <polygon points="5,3 19,12 5,21" />
-          </svg>
           {action}
         </button>
       )}
