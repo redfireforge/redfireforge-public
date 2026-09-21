@@ -57,6 +57,19 @@ export function expandCoverageGlobs(patterns: readonly string[]): string[] {
 }
 
 /**
+ * Instrument only product TypeScript. Without include, V8 still lists CSS,
+ * JSON fixtures, vite plugins, and test-utils in the shard text table even
+ * though the 90% gate strips them later.
+ */
+const PRODUCT_COVERAGE_INCLUDE_PATTERNS = [
+  'src/**/*.{ts,tsx}',
+  'src-server/**/*.{ts,tsx}',
+  'cli/**/*.{ts,tsx}',
+] as const;
+
+export const PRODUCT_COVERAGE_INCLUDE = expandCoverageGlobs(PRODUCT_COVERAGE_INCLUDE_PATTERNS);
+
+/**
  * Coverage excludes for the production (`product`) gate.
  * Vitest 4 ships `coverageConfigDefaults.exclude` as [] — we must list these
  * ourselves so demo, CSS, and test files never enter the product report.
@@ -73,7 +86,10 @@ const PRODUCT_COVERAGE_EXCLUDE_PATTERNS = [
   '**/*.d.ts',
   '**/*.css',
   '**/*.scss',
+  '**/*.json',
   '**/*.config.{ts,js}',
+  'vite/**',
+  'package.json',
   'src/shared/types/index.ts',
   // App and server entry points — not unit-testable
   'src/app/main.tsx',

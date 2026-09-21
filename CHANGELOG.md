@@ -8,6 +8,9 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Fixed
+- **CI product coverage** — Vitest 5 + jsdom 30 crashed `URL.createObjectURL` (`blob[impl]._buffer`) on export clicks, so the product job failed with an uncaught exception in WebSocket saved connections and a failed API Mock live-demo download test. Tests now stub blob URLs in jsdom, and product coverage include is limited to `src` / `src-server` / `cli` TypeScript so CSS, fixtures, and test-utils no longer appear in the shard table.
+
 ### Added
 - **OrbStack as a Docker engine** — Learning Hub finds `~/.orbstack/bin/docker`, opens OrbStack when that is the active engine, and (when Docker Desktop and OrbStack are both installed) asks which one to use for lesson stacks. The pick is saved and can be changed in Settings → Docker. Compose commands use `--context` for that engine only and do not change the machine-wide Docker context.
 
