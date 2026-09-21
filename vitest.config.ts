@@ -7,9 +7,9 @@ import {
   PRODUCT_COVERAGE_EXCLUDE,
   PRODUCT_COVERAGE_INCLUDE,
   PRODUCT_TEST_EXCLUDE,
-} from './vitest.projectPatterns';
-import { demoHubRootImportsPlugin } from './vite/demoHubRootImports';
-import { createMonacoAwareLogger, monacoDevNoisePlugin } from './vite/monacoDevNoisePlugin';
+} from './vitest.projectPatterns.ts';
+import { demoHubRootImportsPlugin } from './vite/demoHubRootImports.ts';
+import { createMonacoAwareLogger, monacoDevNoisePlugin } from './vite/monacoDevNoisePlugin.ts';
 
 // PRODUCT_COVERAGE_EXCLUDE is the full denylist (demo, CSS, test files,
 // test-utils, styles). Merge Vitest's default excludes when the version provides them.
@@ -44,18 +44,18 @@ const sharedProjectConfig = {
   plugins: [demoHubRootImportsPlugin(), monacoDevNoisePlugin()],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
-      '@redfireforge/demo-hub': path.resolve(__dirname, './packages/demo-hub/src'),
-      '@shared': path.resolve(__dirname, './src/shared'),
-      '@graphql': path.resolve(__dirname, './src/features/graphql'),
-      '@grpc': path.resolve(__dirname, './src/features/grpc'),
-      '@workflow': path.resolve(__dirname, './src/features/workflow'),
-      '@engine': path.resolve(__dirname, './src/engine'),
-      '@engine/core': path.resolve(__dirname, './src/engine/core'),
-      '@engine/grpc': path.resolve(__dirname, './src/engine/grpc'),
-      '@engine/load': path.resolve(__dirname, './src/engine/load'),
-      '@test-utils': path.resolve(__dirname, './src/test-utils'),
-      '@app': path.resolve(__dirname, './src/app'),
+      '@': path.resolve(import.meta.dirname, './src'),
+      '@redfireforge/demo-hub': path.resolve(import.meta.dirname, './packages/demo-hub/src'),
+      '@shared': path.resolve(import.meta.dirname, './src/shared'),
+      '@graphql': path.resolve(import.meta.dirname, './src/features/graphql'),
+      '@grpc': path.resolve(import.meta.dirname, './src/features/grpc'),
+      '@workflow': path.resolve(import.meta.dirname, './src/features/workflow'),
+      '@engine': path.resolve(import.meta.dirname, './src/engine'),
+      '@engine/core': path.resolve(import.meta.dirname, './src/engine/core'),
+      '@engine/grpc': path.resolve(import.meta.dirname, './src/engine/grpc'),
+      '@engine/load': path.resolve(import.meta.dirname, './src/engine/load'),
+      '@test-utils': path.resolve(import.meta.dirname, './src/test-utils'),
+      '@app': path.resolve(import.meta.dirname, './src/app'),
     },
   },
 };

@@ -9,6 +9,7 @@ import { computeMetrics } from '@engine/core/metrics';
 import { saveTestRun, forceSaveTestRun } from '@shared/utils/storage';
 import { supportsWorkers } from '@shared/utils/platform';
 import { isRustExecutorAvailable, canUseRustExecutor, runTestViaRust } from '../utils/rustBridge';
+import { resolveOAuth2ScenariosForRust } from '../utils/resolveOAuth2ForRust';
 import { toErrorMessage } from '@shared/utils/helpers';
 import { buildKafkaNodeOperations } from '@shared/kafka/buildKafkaNodeOperations';
 import { buildWsNodeOperations } from '@shared/websocket/buildWsNodeOperations';
@@ -341,15 +342,20 @@ export function useTestExecution(publishConfig?: KafkaResultsPublishConfig) {
         scenariosToRun = applyApiMockFixtureBaseUrl(scenarios, runBaseUrl);
       }
 
+      // Rust cannot acquire OAuth2 tokens. For CAR (Rust-only) preload them as bearer.
+      const rustScenarios = isConstantArrival
+        ? await resolveOAuth2ScenariosForRust(scenariosToRun)
+        : scenariosToRun;
+
       const useRust = !workflow && !resolveSubWorkflow
-        && canUseRustExecutor(config, scenariosToRun)
+        && canUseRustExecutor(config, rustScenarios)
         && await isRustExecutorAvailable();
 
       if (isConstantArrival && !useRust) {
         const isTauriEnv = typeof window !== 'undefined' && '__TAURI__' in window;
         const reason = !isTauriEnv
           ? 'Constant Arrival Rate requires the desktop app (Tauri)'
-          : 'Constant Arrival Rate requires the Rust executor (not available with OAuth2 auth)';
+          : 'Constant Arrival Rate requires the Rust executor';
         throw new Error(reason);
       }
 
@@ -378,7 +384,7 @@ export function useTestExecution(publishConfig?: KafkaResultsPublishConfig) {
         envName: meta?.envName,
       });
       if (useRust) {
-        testResult = await runTestViaRust(config, scenariosToRun, wrappedOnProgress, abortRef.current.signal);
+        testResult = await runTestViaRust(config, rustScenarios, wrappedOnProgress, abortRef.current.signal);
       } else if (useWorker) {
         try {
           testResult = await runTestMultiWorker(config, scenariosToRun, wrappedOnProgress, abortRef.current.signal, workflow, grpcHarnessEnv);

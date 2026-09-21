@@ -324,6 +324,18 @@ describe('RunnerExecutionConfig - Load Profile', () => {
     expect(screen.getByText('Ramp Duration (sec)')).toBeTruthy();
   });
 
+  it('keeps Enable Ramp on its own row so labels do not overlap ramp fields', () => {
+    renderConfig({
+      executionMode: 'constant-arrival',
+      arrivalRate: { targetRps: 100, durationSec: 60, ramp: { startRps: 10, endRps: 100, rampDurationSec: 15 } },
+      onArrivalRateChange: vi.fn(),
+    } as unknown as OverrideProps);
+    const rampFields = screen.getByTestId('har-arrival-ramp-fields');
+    expect(rampFields.contains(screen.getByLabelText('Enable Ramp'))).toBe(false);
+    expect(rampFields.querySelectorAll('.profile-field')).toHaveLength(3);
+    expect(screen.getByLabelText('Enable Ramp').closest('.arrival-ramp-toggle')).toBeTruthy();
+  });
+
   it('does not show arrival config when arrivalRate prop is missing', () => {
     renderConfig({ executionMode: 'constant-arrival' } as unknown as OverrideProps);
     expect(screen.queryByText('Target RPS')).toBeNull();

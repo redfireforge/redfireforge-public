@@ -22,6 +22,7 @@ export const mockSupportsWorkers = vi.fn();
 export const mockIsRustAvailable = vi.fn(async () => false);
 export const mockCanUseRust = vi.fn(() => false);
 export const mockRunTestViaRust = vi.fn();
+export const mockResolveOAuth2ForRust = vi.fn(async (scenarios: unknown[]) => scenarios);
 
 export function createMockSummary(
   overrides: Partial<TestSummary> = {},
@@ -59,6 +60,7 @@ export function registerUseTestExecutionTestLifecycle(): void {
     mockSupportsWorkers.mockReturnValue(false);
     mockCanUseRust.mockReturnValue(false);
     mockIsRustAvailable.mockResolvedValue(false);
+    mockResolveOAuth2ForRust.mockImplementation(async (scenarios: unknown[]) => scenarios);
     mockComputeMetrics.mockReturnValue(createMockSummary());
     mockSaveTestRun.mockResolvedValue({ ok: true, quotaError: false });
   });

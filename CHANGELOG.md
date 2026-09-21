@@ -14,8 +14,13 @@ Format follows Keep a Changelog and Semantic Versioning.
 - **Requests sending overlay** — Repeat Send of the same URL no longer looks idle. The response pane shows a status card with **Preparing request** and **Sending request** steps, a live elapsed timer, and **Cancel request** until the call finishes. Cancel records an **Error** result with method, URL, phase, elapsed time, and a console timeline (`Request was cancelled` / `No response received`) instead of leaving the last success on screen.
 - **Requests Preview expand-all** — Typical response bodies (32 KB and under) open fully expanded so nested offer/array objects are readable without **Expand all**. Larger payloads still start shallow so first paint stays fast.
 
+### Fixed
+- **Constant Arrival Rate + OAuth2** — CAR used to refuse OAuth2 tests (`not available with OAuth2 auth`) because the Rust executor cannot fetch tokens. Desktop CAR now acquires the client-credentials token once and sends it as a bearer header.
+- **Constant Arrival ramp labels** — Enable Ramp no longer shares a row with Start / End RPS, so those names no longer overlap.
+
 ### Changed
 - **Dependencies** — yaml 2.9.1 in the CLI, 14 minor/patch product updates, and `@zumer/snapdom` 3.0.0 (dev).
+- **Vitest config** — use `import.meta.dirname` and explicit `.ts` config imports so Vite's upcoming native config loader does not warn.
 
 ## [0.8.13] — 2026-09-21
 

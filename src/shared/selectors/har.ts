@@ -81,6 +81,7 @@ export const HAR = {
   RUNNER_MOCK_SETUP:   '[data-testid="har-runner-mock-setup"]',
   HOST_CUSTOM_INPUT:   '.runner-custom-url-input',
   EXEC_CONFIG:         '[data-testid="har-exec-config"]',
+  ARRIVAL_RAMP_FIELDS: '[data-testid="har-arrival-ramp-fields"]',
   SCENARIO_SELECTOR:   '[data-testid="har-scenario-selector"]',
   EXEC_PLAN:           '[data-testid="har-exec-plan"]',
   RUN_BTN:             '[data-testid="har-run-btn"]',

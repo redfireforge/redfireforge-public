@@ -392,63 +392,61 @@ export default function RunnerExecutionConfig({
                     {!effectiveArrivalRate.maxInFlight && <span className="field-hint">Default: RPS × 10</span>}
                   </div>
                 </div>
-                <div className="profile-field-row">
-                  <div className="profile-field" style={{ flex: '0 0 auto' }}>
-                    <label className="radio-label" style={{ cursor: 'pointer', userSelect: 'none' }}>
-                      <input
-                        type="checkbox"
-                        checked={rampEnabled}
-                        onChange={(e) => {
-                          setRampEnabled(e.target.checked);
-                          if (e.target.checked) {
-                            onArrivalRateChange({
-                              ramp: {
-                                startRps: Math.max(0.1, Math.round(effectiveArrivalRate.targetRps / 10 * 10) / 10),
-                                endRps: effectiveArrivalRate.targetRps,
-                                rampDurationSec: Math.min(10, effectiveArrivalRate.durationSec),
-                              },
-                            });
-                          } else {
-                            onArrivalRateChange({ ramp: undefined });
-                          }
-                        }}
+                <div className="profile-field-row arrival-ramp-toggle">
+                  <label className="arrival-ramp-toggle-label">
+                    <input
+                      type="checkbox"
+                      checked={rampEnabled}
+                      onChange={(e) => {
+                        setRampEnabled(e.target.checked);
+                        if (e.target.checked) {
+                          onArrivalRateChange({
+                            ramp: {
+                              startRps: Math.max(0.1, Math.round(effectiveArrivalRate.targetRps / 10 * 10) / 10),
+                              endRps: effectiveArrivalRate.targetRps,
+                              rampDurationSec: Math.min(10, effectiveArrivalRate.durationSec),
+                            },
+                          });
+                        } else {
+                          onArrivalRateChange({ ramp: undefined });
+                        }
+                      }}
+                      disabled={isRunning}
+                    />
+                    Enable Ramp
+                  </label>
+                </div>
+                {rampEnabled && effectiveArrivalRate.ramp && (
+                  <div className="profile-field-row" data-testid="har-arrival-ramp-fields">
+                    <div className="profile-field">
+                      <label>Start RPS</label>
+                      <NumericInput
+                        min={0.1} max={effectiveArrivalRate.targetRps} step={0.1}
+                        value={effectiveArrivalRate.ramp.startRps}
+                        onChange={(v) => onArrivalRateChange({ ramp: { ...effectiveArrivalRate.ramp!, startRps: v } })}
                         disabled={isRunning}
                       />
-                      Enable Ramp
-                    </label>
+                    </div>
+                    <div className="profile-field">
+                      <label>End RPS</label>
+                      <NumericInput
+                        min={0.1} max={100000} step={0.1}
+                        value={effectiveArrivalRate.ramp.endRps}
+                        onChange={(v) => onArrivalRateChange({ ramp: { ...effectiveArrivalRate.ramp!, endRps: v } })}
+                        disabled={isRunning}
+                      />
+                    </div>
+                    <div className="profile-field">
+                      <label>Ramp Duration (sec)</label>
+                      <NumericInput
+                        min={1} max={effectiveArrivalRate.durationSec}
+                        value={effectiveArrivalRate.ramp.rampDurationSec}
+                        onChange={(v) => onArrivalRateChange({ ramp: { ...effectiveArrivalRate.ramp!, rampDurationSec: v } })}
+                        disabled={isRunning}
+                      />
+                    </div>
                   </div>
-                  {rampEnabled && effectiveArrivalRate.ramp && (
-                    <>
-                      <div className="profile-field">
-                        <label>Start RPS</label>
-                        <NumericInput
-                          min={0.1} max={effectiveArrivalRate.targetRps} step={0.1}
-                          value={effectiveArrivalRate.ramp.startRps}
-                          onChange={(v) => onArrivalRateChange({ ramp: { ...effectiveArrivalRate.ramp!, startRps: v } })}
-                          disabled={isRunning}
-                        />
-                      </div>
-                      <div className="profile-field">
-                        <label>End RPS</label>
-                        <NumericInput
-                          min={0.1} max={100000} step={0.1}
-                          value={effectiveArrivalRate.ramp.endRps}
-                          onChange={(v) => onArrivalRateChange({ ramp: { ...effectiveArrivalRate.ramp!, endRps: v } })}
-                          disabled={isRunning}
-                        />
-                      </div>
-                      <div className="profile-field">
-                        <label>Ramp Duration (sec)</label>
-                        <NumericInput
-                          min={1} max={effectiveArrivalRate.durationSec}
-                          value={effectiveArrivalRate.ramp.rampDurationSec}
-                          onChange={(v) => onArrivalRateChange({ ramp: { ...effectiveArrivalRate.ramp!, rampDurationSec: v } })}
-                          disabled={isRunning}
-                        />
-                      </div>
-                    </>
-                  )}
-                </div>
+                )}
               </div>
             </div>
           </div>
