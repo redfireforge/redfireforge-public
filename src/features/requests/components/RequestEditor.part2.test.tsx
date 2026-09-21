@@ -784,6 +784,7 @@ describe('RequestEditor interaction branches', () => {
       expect(btn).toBeDisabled();
       expect(btn).toHaveAttribute('aria-busy', 'true');
       expect(btn).toHaveTextContent('Send');
+      expect(screen.getByTestId('req-sending-label')).toHaveTextContent('Preparing request');
     });
 
     await act(async () => { releaseAuth(); });
@@ -813,12 +814,57 @@ describe('RequestEditor interaction branches', () => {
       expect(btn).toHaveTextContent('Sending…');
       expect(btn).toBeDisabled();
       expect(btn).toHaveAttribute('aria-busy', 'true');
+      expect(screen.getByTestId('req-sending-overlay')).toBeInTheDocument();
+      expect(screen.getByTestId('req-sending-label')).toHaveTextContent('Sending request');
     });
 
     await act(async () => {
       releaseFetch({ status: 200, statusText: 'OK', headers: {}, body: '{}' });
     });
-    await waitFor(() => expect(screen.getByTestId('req-send-btn')).toHaveTextContent('Send'));
+    await waitFor(() => {
+      expect(screen.getByTestId('req-send-btn')).toHaveTextContent('Send');
+      expect(screen.queryByTestId('req-sending-overlay')).toBeNull();
+    });
+  });
+
+  it('Cancel request shows an Error result instead of the prior success', async () => {
+    vi.mocked(httpFetch)
+      .mockResolvedValueOnce({ status: 200, statusText: 'OK', headers: {}, body: '{"ok":true}' })
+      .mockImplementationOnce(
+        (_url, _method, _headers, _body, signal) => new Promise((resolve) => {
+          signal?.addEventListener('abort', () => {
+            resolve({ status: 0, statusText: '', headers: {}, body: '', error: 'Aborted' });
+          }, { once: true });
+        }),
+      );
+
+    render(
+      <RequestEditor
+        {...defaultProps}
+        request={makeRequest({ url: 'https://slow.example/x' })}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('req-send-btn'));
+    await waitFor(() => {
+      expect(screen.getByTestId('req-status-pill')).toHaveTextContent('200 OK');
+    });
+
+    fireEvent.click(screen.getByTestId('req-send-btn'));
+    await waitFor(() => expect(screen.getByTestId('req-sending-cancel')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('req-sending-cancel'));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('req-sending-overlay')).toBeNull();
+      expect(screen.getByTestId('req-status-pill')).toHaveTextContent('Error');
+      expect(screen.getByTestId('req-status-pill')).toHaveClass('error');
+      expect(screen.getByTestId('req-response-size')).toHaveTextContent('0 B');
+      expect(screen.getByTestId('req-cancelled-preview')).toHaveTextContent('Request was cancelled');
+      expect(screen.getByTestId('req-cancelled-preview')).toHaveTextContent('Sending request');
+      expect(screen.getByText(/https:\/\/slow\.example\/x/)).toBeInTheDocument();
+      expect(screen.queryByTestId('req-resp-expand-all')).toBeNull();
+      expect(screen.getByTestId('req-send-btn')).toHaveTextContent('Send');
+    });
   });
 
   it('forwards tab, mode, response, and history changes to controlled callbacks', async () => {

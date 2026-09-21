@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { resolveEffectiveAuth, buildRequestHeaders, useRequestSend } from './useRequestSend';
+import { resolveEffectiveAuth, buildRequestHeaders, useRequestSend, isSendAborted, buildCancelledSendResponse, REQUEST_CANCELLED_MESSAGE } from './useRequestSend';
 import type { RequestItem, RequestCollection, AuthConfig, Scenario, GlobalAuthProfile } from '@shared/types';
 import type { RequestFolder, Microservice } from '@shared/types';
 
@@ -22,6 +22,14 @@ vi.mock('../utils/requestUrlResolver', () => ({
 vi.mock('../../../shared/utils/yieldToPaint', () => ({
   yieldToPaint: () => Promise.resolve(),
 }));
+vi.mock('../../../shared/utils/applyAuthHeaders', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../shared/utils/applyAuthHeaders')>();
+  return { applyAuthHeaders: vi.fn(actual.applyAuthHeaders) };
+});
+vi.mock('../../../shared/utils/platform', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../shared/utils/platform')>();
+  return { ...actual, isTauri: vi.fn(() => false) };
+});
 
 function makeRequest(overrides: Partial<RequestItem> = {}): RequestItem {
   return {
@@ -491,5 +499,185 @@ describe('useRequestSend hook', () => {
     await act(async () => { await result.current.handleSend(vi.fn()); });
     const lines = (opts.setConsoleLines as ReturnType<typeof vi.fn>).mock.calls[0][0] as { text: string }[];
     expect(lines.some((l) => l.text.includes('TTFB 12 ms') && l.text.includes('download 4 ms'))).toBe(true);
+  });
+
+  describe('isSendAborted', () => {
+    it('detects abort signal, Aborted response, and abort errors', () => {
+      const ac = new AbortController();
+      expect(isSendAborted(ac.signal)).toBe(false);
+      ac.abort();
+      expect(isSendAborted(ac.signal)).toBe(true);
+      expect(isSendAborted(undefined, { error: 'Aborted' })).toBe(true);
+      expect(isSendAborted(undefined, null, new DOMException('Aborted', 'AbortError'))).toBe(true);
+      expect(isSendAborted(undefined, null, new Error('connection aborted'))).toBe(true);
+      expect(isSendAborted(undefined, null, new Error('timeout'))).toBe(false);
+    });
+  });
+
+  it('buildCancelledSendResponse is an Error with an empty body', () => {
+    expect(buildCancelledSendResponse()).toEqual({
+      status: 0,
+      statusText: 'Error',
+      headers: {},
+      body: '',
+      error: REQUEST_CANCELLED_MESSAGE,
+    });
+  });
+
+  it('cancelSend records a detailed Error result instead of keeping the last response', async () => {
+    const { httpFetch } = await import('../../../shared/utils/httpClient');
+    vi.mocked(httpFetch).mockImplementationOnce((_url, _method, _headers, _body, signal) => (
+      new Promise((resolve) => {
+        signal?.addEventListener('abort', () => {
+          resolve({ status: 0, statusText: '', headers: {}, body: '', error: 'Aborted' });
+        }, { once: true });
+      })
+    ));
+    const opts = makeHookOpts();
+    const setSending = vi.fn();
+    const { result } = renderHook(() => useRequestSend(opts));
+    let done!: Promise<void>;
+    await act(async () => {
+      done = result.current.handleSend(setSending);
+    });
+    await act(async () => {
+      result.current.cancelSend();
+      await done;
+    });
+    const cancelled = (opts.setResponse as ReturnType<typeof vi.fn>).mock.calls[0][0] as { error?: string; status: number };
+    expect(cancelled.status).toBe(0);
+    expect(cancelled.error).toContain(REQUEST_CANCELLED_MESSAGE);
+    expect(cancelled.error).toContain('GET http://localhost:4000/api');
+    expect(cancelled.error).toContain('Stopped during: Sending request');
+    expect(cancelled.error).toContain('Received: 0 B');
+    expect(opts.setResponseTime).toHaveBeenCalledWith(expect.any(Number));
+    const lines = (opts.setConsoleLines as ReturnType<typeof vi.fn>).mock.calls[0][0] as { text: string }[];
+    expect(lines.some((l) => l.text === REQUEST_CANCELLED_MESSAGE)).toBe(true);
+    expect(lines.some((l) => l.text.includes('Stopped by user during Sending request'))).toBe(true);
+    expect(lines.some((l) => l.text === 'No response received')).toBe(true);
+    expect(opts.pushHistory).toHaveBeenCalledWith(expect.objectContaining({
+      response: expect.objectContaining({ error: cancelled.error }),
+    }));
+    expect(setSending).toHaveBeenCalledWith(false);
+  });
+
+  it('a replacement Send does not record cancelled for the replaced call', async () => {
+    const { httpFetch } = await import('../../../shared/utils/httpClient');
+    vi.mocked(httpFetch)
+      .mockImplementationOnce((_url, _method, _headers, _body, signal) => (
+        new Promise((resolve) => {
+          signal?.addEventListener('abort', () => {
+            resolve({ status: 0, statusText: '', headers: {}, body: '', error: 'Aborted' });
+          }, { once: true });
+        })
+      ))
+      .mockResolvedValueOnce({ status: 200, statusText: 'OK', headers: {}, body: '{}' });
+    const opts = makeHookOpts();
+    const { result } = renderHook(() => useRequestSend(opts));
+    let first!: Promise<void>;
+    await act(async () => {
+      first = result.current.handleSend(vi.fn());
+    });
+    await act(async () => {
+      await result.current.handleSend(vi.fn());
+    });
+    await act(async () => { await first; });
+    const responses = (opts.setResponse as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0] as { error?: string; status?: number });
+    expect(responses.some((r) => r?.error?.startsWith(REQUEST_CANCELLED_MESSAGE))).toBe(false);
+    expect(responses.at(-1)).toEqual(expect.objectContaining({ status: 200 }));
+  });
+
+  it('cancel during auth prep records a Preparing request Error', async () => {
+    const { applyAuthHeaders } = await import('../../../shared/utils/applyAuthHeaders');
+    let release!: () => void;
+    vi.mocked(applyAuthHeaders).mockImplementationOnce(() => new Promise((resolve) => {
+      release = () => resolve();
+    }));
+    const opts = makeHookOpts({
+      request: makeRequest({ auth: { type: 'bearer', token: 't' } }),
+    });
+    const { result } = renderHook(() => useRequestSend(opts));
+    let done!: Promise<void>;
+    await act(async () => {
+      done = result.current.handleSend(vi.fn(), vi.fn());
+    });
+    await act(async () => {
+      result.current.cancelSend();
+      release();
+      await done;
+    });
+    const cancelled = (opts.setResponse as ReturnType<typeof vi.fn>).mock.calls[0][0] as { error?: string };
+    expect(cancelled.error).toContain('Stopped during: Preparing request');
+    expect(cancelled.error).toContain(REQUEST_CANCELLED_MESSAGE);
+  });
+
+  it('a transport Aborted result without Cancel does not write a cancelled Error', async () => {
+    const { httpFetch } = await import('../../../shared/utils/httpClient');
+    vi.mocked(httpFetch).mockResolvedValueOnce({
+      status: 0, statusText: '', headers: {}, body: '', error: 'Aborted',
+    });
+    const opts = makeHookOpts();
+    const setSending = vi.fn();
+    const { result } = renderHook(() => useRequestSend(opts));
+    await act(async () => { await result.current.handleSend(setSending, vi.fn()); });
+    expect(opts.setResponse).not.toHaveBeenCalled();
+    expect(setSending).toHaveBeenCalledWith(false);
+  });
+
+  it('cancel during draft throw records cancelled with the request URL fallback', async () => {
+    let cancel = () => {};
+    const opts = makeHookOpts({
+      asDraftScenario: () => {
+        cancel();
+        throw new DOMException('Aborted', 'AbortError');
+      },
+    });
+    const { result } = renderHook(() => useRequestSend(opts));
+    cancel = () => result.current.cancelSend();
+    await act(async () => { await result.current.handleSend(vi.fn(), vi.fn()); });
+    const cancelled = (opts.setResponse as ReturnType<typeof vi.fn>).mock.calls[0][0] as { error?: string };
+    expect(cancelled.error).toContain(REQUEST_CANCELLED_MESSAGE);
+    expect(cancelled.error).toContain('GET /api/test');
+    expect(cancelled.error).toContain('Stopped during: Preparing request');
+  });
+
+  it('logs native HTTP and TLS when running in Tauri', async () => {
+    const { isTauri } = await import('../../../shared/utils/platform');
+    vi.mocked(isTauri).mockReturnValue(true);
+    const opts = makeHookOpts({
+      asDraftScenario: () => ({
+        id: 'r1', name: 'Test', url: 'https://secure.api.com/v1', method: 'GET',
+        headers: [], body: '', bodyType: 'none',
+        auth: { type: 'none' }, validation: { mode: 'none' },
+      }) as Scenario,
+    });
+    const { result } = renderHook(() => useRequestSend(opts));
+    await act(async () => { await result.current.handleSend(vi.fn()); });
+    const lines = (opts.setConsoleLines as ReturnType<typeof vi.fn>).mock.calls[0][0] as { text: string }[];
+    expect(lines.some((l) => l.text.includes('native HTTP'))).toBe(true);
+    expect(lines.some((l) => l.text.includes('native client'))).toBe(true);
+    vi.mocked(isTauri).mockReturnValue(false);
+  });
+
+  it('treats a missing response body as 0 B and uses GET when the draft throws', async () => {
+    const { httpFetch } = await import('../../../shared/utils/httpClient');
+    vi.mocked(httpFetch).mockResolvedValueOnce({
+      status: 204, statusText: 'No Content', headers: {}, body: undefined as unknown as string,
+    });
+    const opts = makeHookOpts();
+    const { result } = renderHook(() => useRequestSend(opts));
+    await act(async () => { await result.current.handleSend(vi.fn()); });
+    const lines = (opts.setConsoleLines as ReturnType<typeof vi.fn>).mock.calls[0][0] as { text: string }[];
+    expect(lines.some((l) => l.text.includes('Received 0 B'))).toBe(true);
+
+    const boom = makeHookOpts({
+      asDraftScenario: () => { throw new Error('draft failed'); },
+    });
+    const boomHook = renderHook(() => useRequestSend(boom));
+    await act(async () => { await boomHook.result.current.handleSend(vi.fn()); });
+    expect(boom.pushHistory).toHaveBeenCalledWith(expect.objectContaining({
+      method: 'GET',
+      url: '/api/test',
+    }));
   });
 });

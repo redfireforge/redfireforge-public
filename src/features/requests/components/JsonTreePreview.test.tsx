@@ -4,7 +4,7 @@
 import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import JsonPreview, { buildJTree, collectJTreePaths, collectDefaultCollapsedPaths, JSON_TREE_LARGE_ARRAY_COLLAPSE, nodeMatches, collectMatchNodes, type JNode } from './JsonTreePreview';
+import JsonPreview, { buildJTree, collectJTreePaths, collectDefaultCollapsedPaths, defaultCollapsedPathsForPreview, JSON_TREE_EXPAND_ALL_MAX_BYTES, JSON_TREE_LARGE_ARRAY_COLLAPSE, nodeMatches, collectMatchNodes, type JNode } from './JsonTreePreview';
 import { stubScrollIntoView } from '@test-utils/domMocks';
 
 // Mock scrollIntoView
@@ -130,6 +130,27 @@ describe('JsonTreePreview', () => {
     });
   });
 
+  describe('defaultCollapsedPathsForPreview', () => {
+    it('expands everything for typical request bodies', () => {
+      const node = buildJTree({
+        offers: [{ id: 1, features: [{ name: 'a' }] }],
+      }, '');
+      expect(defaultCollapsedPathsForPreview(node, 8_000)).toEqual([]);
+    });
+
+    it('uses the shallow collapse set once the body is large', () => {
+      const node = buildJTree({
+        products: [
+          { id: 1, nested: { a: 1 } },
+          { id: 2, nested: { a: 2 } },
+        ],
+      }, '');
+      const paths = defaultCollapsedPathsForPreview(node, JSON_TREE_EXPAND_ALL_MAX_BYTES + 1);
+      expect(paths).toContain('/products/0');
+      expect(paths).toContain('/products/1');
+    });
+  });
+
   describe('nodeMatches', () => {
     it('returns false for empty search term', () => {
       const node = buildJTree('test', 'key');
@@ -209,6 +230,12 @@ describe('JsonTreePreview', () => {
     it('renders error message when error prop is provided', () => {
       render(<JsonPreview {...defaultProps} error="Parse error" />);
       expect(screen.getByText('Parse error')).toBeInTheDocument();
+    });
+
+    it('renders a cancelled summary instead of a bare error line', () => {
+      render(<JsonPreview {...defaultProps} error={'Request was cancelled\n\nStopped by Cancel request before a response arrived.\n\nRequest: GET https://api.example.com/x\nStopped during: Sending request\nElapsed: 1.2 s\nReceived: 0 B\nCancelled at: 2026-09-21T10:00:00.000Z'} />);
+      expect(screen.getByTestId('req-cancelled-preview')).toHaveTextContent('Sending request');
+      expect(screen.getByText('GET https://api.example.com/x')).toBeInTheDocument();
     });
 
     it('renders empty message when body is empty', () => {

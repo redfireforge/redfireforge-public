@@ -122,12 +122,17 @@ export const REQ = {
   // ── Response Body ─────────────────────────────────────────────
   RESP_CONTENT:             '[data-testid="req-resp-content"]',
   JSON_PREVIEW:             '[data-testid="req-json-preview"]',
+  CANCELLED_PREVIEW:        '[data-testid="req-cancelled-preview"]',
   RESP_SEARCH_INPUT:        '.req-resp-search-input',
   RESP_SEARCH_COUNT:        '[data-testid="req-resp-search-count"]',
   RESP_EXPAND_ALL:          '[data-testid="req-resp-expand-all"]',
   RESP_COLLAPSE_ALL:        '[data-testid="req-resp-collapse-all"]',
   RESP_PLACEHOLDER:         '[data-testid="req-resp-placeholder"]',
   RESP_LOADING:             '[data-testid="req-resp-loading"]',
+  SENDING_OVERLAY:          '[data-testid="req-sending-overlay"]',
+  SENDING_LABEL:            '[data-testid="req-sending-label"]',
+  SENDING_ELAPSED:          '[data-testid="req-sending-elapsed"]',
+  SENDING_CANCEL:           '[data-testid="req-sending-cancel"]',
 
   // ── Console & History ─────────────────────────────────────────
   CONSOLE_LOG:              '[data-testid="req-console-log"]',
