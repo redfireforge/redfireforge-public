@@ -313,7 +313,7 @@
     "@types/supertest": "^7.2.0",
     "@vitejs/plugin-react": "^6.0.1",
     "@vitest/coverage-v8": "^5.0.1",
-    "@zumer/snapdom": "^2.24.18",
+    "@zumer/snapdom": "^3.0.0",
     "cross-env": "^10.1.0",
     "esbuild": "^0.28.0",
     "eslint": "^10.10.0",
