@@ -290,6 +290,8 @@ describe('WebSocketSavedConnections', () => {
 
   describe('export', () => {
     it('exports profiles when button exists', () => {
+      const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:ws-export');
+      const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
       const props = defaultProps({ profiles: [makeProfile()] });
       render(<WebSocketSavedConnections {...props} />);
       const exportBtn = screen.queryByTestId('export-btn');
@@ -297,6 +299,8 @@ describe('WebSocketSavedConnections', () => {
         fireEvent.click(exportBtn);
         expect(props.onExportProfiles).toHaveBeenCalled();
       }
+      createObjectURL.mockRestore();
+      revoke.mockRestore();
     });
   });
 
@@ -365,12 +369,16 @@ describe('WebSocketSavedConnections', () => {
 
   describe('export', () => {
     it('calls onExportProfiles and copies to clipboard', () => {
+      const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:ws-export');
+      const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
       const onExport = vi.fn().mockReturnValue('[{"name":"Test"}]');
       Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } });
       const profiles = [makeProfile()];
       render(<WebSocketSavedConnections {...defaultProps({ profiles, onExportProfiles: onExport })} />);
       fireEvent.click(screen.getByTestId('export-btn'));
       expect(onExport).toHaveBeenCalled();
+      createObjectURL.mockRestore();
+      revoke.mockRestore();
     });
   });
 

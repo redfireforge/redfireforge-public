@@ -198,7 +198,7 @@ describe('apiMockPageHelpers', () => {
     panel.className = 'demo-live-panel';
     document.body.append(panel);
     const click = vi.fn();
-    const originalCreateElement = document.createElement.bind(document);
+    const originalCreateElement = Document.prototype.createElement;
     vi.spyOn(document, 'createElement').mockImplementation(((tagName: string, options?: ElementCreationOptions) => {
       if (tagName.toLowerCase() === 'a') {
         const anchor = originalCreateElement.call(document, 'a', options) as HTMLAnchorElement;
@@ -207,12 +207,16 @@ describe('apiMockPageHelpers', () => {
       }
       return originalCreateElement.call(document, tagName, options);
     }) as typeof document.createElement);
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:live-demo');
+    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
     expect(isApiMockLiveDemoActive()).toBe(true);
     downloadJsonFile('demo.har', { ok: true });
     expect(click).not.toHaveBeenCalled();
     saveTextFileToDisk('forced.json', '{"ok":true}', 'application/json');
     expect(click).toHaveBeenCalled();
     panel.remove();
+    createObjectURL.mockRestore();
+    revoke.mockRestore();
     vi.restoreAllMocks();
   });
 
