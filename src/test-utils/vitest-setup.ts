@@ -1,6 +1,42 @@
 import { vi } from 'vitest';
 
 /**
+ * Vitest 5's jsdom URL shim converts Blobs via `blob[impl]._buffer`.
+ * jsdom 30 no longer exposes that field, so `URL.createObjectURL` throws
+ * `Cannot read properties of undefined (reading '_buffer')` during export
+ * clicks and leaks as an uncaught exception. Fall back to a stub URL.
+ */
+function installJsdomCreateObjectURLCompat(): void {
+  if (typeof document === 'undefined' || typeof URL === 'undefined') return;
+  const create = typeof URL.createObjectURL === 'function'
+    ? URL.createObjectURL.bind(URL)
+    : undefined;
+  const revoke = typeof URL.revokeObjectURL === 'function'
+    ? URL.revokeObjectURL.bind(URL)
+    : undefined;
+  let seq = 0;
+  URL.createObjectURL = (obj: Blob | MediaSource) => {
+    if (create) {
+      try {
+        return create(obj);
+      } catch {
+        // Vitest 5 + jsdom 30 compat miss — keep tests from crashing.
+      }
+    }
+    return `blob:vitest-jsdom-${++seq}`;
+  };
+  URL.revokeObjectURL = (url: string) => {
+    try {
+      revoke?.(url);
+    } catch {
+      // ignore revoke failures on stub URLs
+    }
+  };
+}
+
+installJsdomCreateObjectURLCompat();
+
+/**
  * Global Vitest setup — polyfills required by Monaco Editor in jsdom.
  */
 if (typeof document !== 'undefined' && typeof document.queryCommandSupported !== 'function') {
