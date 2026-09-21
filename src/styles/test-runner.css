@@ -1241,6 +1241,38 @@ tr:hover td { background: var(--surface-hover); }
   margin-top: 3px;
 }
 
+.arrival-ramp-toggle {
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.arrival-ramp-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.arrival-ramp-toggle-label input[type="checkbox"] {
+  accent-color: var(--primary);
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.arrival-ramp-toggle-label:has(input:disabled) {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* SVG Preview — right column, stretches full height */
 .profile-preview-container {
   flex-shrink: 0;

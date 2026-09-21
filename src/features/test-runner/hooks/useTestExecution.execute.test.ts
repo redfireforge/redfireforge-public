@@ -15,6 +15,7 @@ import {
   mockIsRustAvailable,
   mockComputeMetrics,
   mockSaveTestRun,
+  mockResolveOAuth2ForRust,
 } from './__test-utils__/useTestExecutionTestSetup';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
@@ -52,6 +53,12 @@ vi.mock('../utils/rustBridge', async () => {
     canUseRustExecutor: mockCanUseRust,
     runTestViaRust: mockRunTestViaRust,
   };
+});
+vi.mock('../utils/resolveOAuth2ForRust', async () => {
+  const { mockResolveOAuth2ForRust } = await import(
+    './__test-utils__/useTestExecutionTestSetup'
+  );
+  return { resolveOAuth2ScenariosForRust: mockResolveOAuth2ForRust };
 });
 vi.mock('uuid', () => ({
   v4: vi.fn(() => 'test-uuid'),
@@ -770,7 +777,7 @@ describe('useTestExecution - Execute', () => {
     expect(mockRunTest).not.toHaveBeenCalled();
   });
 
-  it('uses oauth-specific constant-arrival error when rust is unavailable but canUseRust is true', async () => {
+  it('uses rust-executor constant-arrival error on desktop when rust is unavailable', async () => {
     const config = {
       ...createMockConfig(),
       executionMode: 'constant-arrival' as const,
@@ -786,10 +793,46 @@ describe('useTestExecution - Execute', () => {
       await result.current.execute(config, [createMockScenario()]);
     });
 
+    expect(mockResolveOAuth2ForRust).toHaveBeenCalled();
     expect(result.current.error).toBe(
-      'Constant Arrival Rate requires the Rust executor (not available with OAuth2 auth)',
+      'Constant Arrival Rate requires the Rust executor',
     );
 
     delete (window as unknown as { __TAURI__?: unknown }).__TAURI__;
+  });
+
+  it('pre-resolves OAuth2 to bearer then runs constant-arrival on Rust', async () => {
+    const config = {
+      ...createMockConfig(),
+      executionMode: 'constant-arrival' as const,
+      arrivalRate: { targetRps: 10, durationSec: 30 },
+    };
+    const oauthScenario = createMockScenario();
+    oauthScenario.auth = {
+      type: 'oauth2',
+      tokenUrl: 'https://auth.example.com/token',
+      clientId: 'cid',
+      clientSecret: 'csec',
+    };
+    const bearerScenario = {
+      ...oauthScenario,
+      auth: { type: 'bearer' as const, token: 'access-token', prefix: 'Bearer' },
+    };
+    mockResolveOAuth2ForRust.mockResolvedValueOnce([bearerScenario]);
+    mockCanUseRust.mockReturnValue(true);
+    mockIsRustAvailable.mockResolvedValue(true);
+    mockRunTestViaRust.mockResolvedValue({ results: [createMockResult()] });
+
+    const { result } = renderHook(() => useTestExecution());
+
+    await act(async () => {
+      await result.current.execute(config, [oauthScenario]);
+    });
+
+    expect(mockResolveOAuth2ForRust).toHaveBeenCalledWith([oauthScenario]);
+    expect(mockCanUseRust).toHaveBeenCalledWith(config, [bearerScenario]);
+    expect(mockRunTestViaRust).toHaveBeenCalled();
+    expect(mockRunTestViaRust.mock.calls[0][1]).toEqual([bearerScenario]);
+    expect(result.current.error).toBeNull();
   });
 });

@@ -2,7 +2,7 @@ import { existsSync } from 'fs';
 import { resolve } from 'path';
 import type { Plugin } from 'vite';
 
-const ROOT = resolve(__dirname, '..');
+const ROOT = resolve(import.meta.dirname, '..');
 
 const UTILS_SEARCH_BASES = [
   'src/features/graphql/utils',

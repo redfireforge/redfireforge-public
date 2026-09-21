@@ -296,7 +296,8 @@ export async function abortRustLoadTest(): Promise<void> {
 
 /**
  * Check whether Rust executor can handle this test configuration.
- * Falls back to JS when: workflow mode, OAuth2 auth, or sub-workflow resolver needed.
+ * Falls back to JS when: workflow mode, unresolved OAuth2 auth, or sub-workflow resolver needed.
+ * Constant-arrival pre-resolves OAuth2 to bearer in useTestExecution before this check.
  */
 export function canUseRustExecutor(
   config: TestConfig,

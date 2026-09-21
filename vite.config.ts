@@ -407,7 +407,7 @@ function proxyPlugin(): Plugin {
 }
 
 function docsPlugin(): Plugin {
-  const docsRoot = resolve(__dirname, 'docs');
+  const docsRoot = resolve(import.meta.dirname, 'docs');
 
   function attachDocsMiddleware(server: ViteDevServer | PreviewServer) {
     server.middlewares.use('/docs', (req, res, next) => {
@@ -435,7 +435,7 @@ function docsPlugin(): Plugin {
   };
 }
 
-const pkg = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf-8'))
+const pkg = JSON.parse(readFileSync(resolve(import.meta.dirname, 'package.json'), 'utf-8'))
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -474,33 +474,33 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@redfireforge/demo-hub': resolve(__dirname, 'packages/demo-hub/src'),
-      '@shared': resolve(__dirname, 'src/shared'),
-      '@graphql': resolve(__dirname, 'src/features/graphql'),
-      '@grpc': resolve(__dirname, 'src/features/grpc'),
-      '@workflow': resolve(__dirname, 'src/features/workflow'),
-      '@engine': resolve(__dirname, 'src/engine'),
-      '@engine/core': resolve(__dirname, 'src/engine/core'),
-      '@engine/grpc': resolve(__dirname, 'src/engine/grpc'),
-      '@engine/load': resolve(__dirname, 'src/engine/load'),
-      '@test-utils': resolve(__dirname, 'src/test-utils'),
-      '@app': resolve(__dirname, 'src/app'),
-      'fs/promises': resolve(__dirname, 'src/shims/fs-promises-browser.ts'),
-      fs: resolve(__dirname, 'src/shims/fs-browser.ts'),
-      'node:fs/promises': resolve(__dirname, 'src/shims/fs-promises-browser.ts'),
-      'node:fs': resolve(__dirname, 'src/shims/fs-browser.ts'),
-      stream: resolve(__dirname, 'src/shims/stream-browser.ts'),
-      'node:stream': resolve(__dirname, 'src/shims/stream-browser.ts'),
+      '@redfireforge/demo-hub': resolve(import.meta.dirname, 'packages/demo-hub/src'),
+      '@shared': resolve(import.meta.dirname, 'src/shared'),
+      '@graphql': resolve(import.meta.dirname, 'src/features/graphql'),
+      '@grpc': resolve(import.meta.dirname, 'src/features/grpc'),
+      '@workflow': resolve(import.meta.dirname, 'src/features/workflow'),
+      '@engine': resolve(import.meta.dirname, 'src/engine'),
+      '@engine/core': resolve(import.meta.dirname, 'src/engine/core'),
+      '@engine/grpc': resolve(import.meta.dirname, 'src/engine/grpc'),
+      '@engine/load': resolve(import.meta.dirname, 'src/engine/load'),
+      '@test-utils': resolve(import.meta.dirname, 'src/test-utils'),
+      '@app': resolve(import.meta.dirname, 'src/app'),
+      'fs/promises': resolve(import.meta.dirname, 'src/shims/fs-promises-browser.ts'),
+      fs: resolve(import.meta.dirname, 'src/shims/fs-browser.ts'),
+      'node:fs/promises': resolve(import.meta.dirname, 'src/shims/fs-promises-browser.ts'),
+      'node:fs': resolve(import.meta.dirname, 'src/shims/fs-browser.ts'),
+      stream: resolve(import.meta.dirname, 'src/shims/stream-browser.ts'),
+      'node:stream': resolve(import.meta.dirname, 'src/shims/stream-browser.ts'),
       // openapi-format (pretty-YAML normalization) eagerly requires these at load
       // time for remote-$ref support we never use; stub them for the browser bundle.
-      path: resolve(__dirname, 'src/shims/path-browser.ts'),
-      'node:path': resolve(__dirname, 'src/shims/path-browser.ts'),
-      http: resolve(__dirname, 'src/shims/http-browser.ts'),
-      'node:http': resolve(__dirname, 'src/shims/http-browser.ts'),
-      https: resolve(__dirname, 'src/shims/https-browser.ts'),
-      'node:https': resolve(__dirname, 'src/shims/https-browser.ts'),
-      url: resolve(__dirname, 'src/shims/url-browser.ts'),
-      'node:url': resolve(__dirname, 'src/shims/url-browser.ts'),
+      path: resolve(import.meta.dirname, 'src/shims/path-browser.ts'),
+      'node:path': resolve(import.meta.dirname, 'src/shims/path-browser.ts'),
+      http: resolve(import.meta.dirname, 'src/shims/http-browser.ts'),
+      'node:http': resolve(import.meta.dirname, 'src/shims/http-browser.ts'),
+      https: resolve(import.meta.dirname, 'src/shims/https-browser.ts'),
+      'node:https': resolve(import.meta.dirname, 'src/shims/https-browser.ts'),
+      url: resolve(import.meta.dirname, 'src/shims/url-browser.ts'),
+      'node:url': resolve(import.meta.dirname, 'src/shims/url-browser.ts'),
     },
   },
   clearScreen: false,
@@ -520,7 +520,7 @@ export default defineConfig({
       ignored: [
         (id: string) => {
           const n = id.replace(/\\/g, '/');
-          const root = resolve(__dirname, 'data').replace(/\\/g, '/');
+          const root = resolve(import.meta.dirname, 'data').replace(/\\/g, '/');
           return n === root || n.startsWith(`${root}/`);
         },
         '**/*.db',
