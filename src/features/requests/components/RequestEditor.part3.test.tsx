@@ -550,7 +550,8 @@ describe('RequestEditor interaction branches', () => {
 
     await waitFor(() => {
       const pill = view.container.querySelector('.req-status-pill');
-      expect(pill?.textContent ?? '').toMatch(/^\s*0\b/);
+      expect(pill?.textContent ?? '').toMatch(/Error/);
+      expect(pill).toHaveClass('error');
     });
     await waitFor(() =>
       expect(responseCacheHarness.history.length).toBeGreaterThanOrEqual(1),

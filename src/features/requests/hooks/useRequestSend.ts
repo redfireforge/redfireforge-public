@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import type {
   RequestCollection, RequestItem,
   GlobalAuthProfile, Scenario, AuthConfig,
@@ -15,6 +15,13 @@ import type { ConsoleLine, ResponseHistoryEntry } from './useResponseCache';
 import { resolveFullSendUrl } from '../utils/requestUrlResolver';
 import { formatBytes, toErrorMessage } from '@shared/utils/helpers';
 import type { UrlResolverContext } from '../utils/requestUrlResolver';
+import {
+  buildCancelledSendResponse,
+  cancelledConsoleNotes,
+} from '../utils/requestCancelSummary';
+
+export { REQUEST_CANCELLED_MESSAGE, buildCancelledSendResponse, isCancelledSendError } from '../utils/requestCancelSummary';
+export type { CancelledSendSummary } from '../utils/requestCancelSummary';
 
 export interface UseRequestSendOptions {
   request: RequestItem;
@@ -59,6 +66,18 @@ export function resolveEffectiveAuth(
     }
   }
   return { type: 'none' };
+}
+
+export function isSendAborted(
+  signal?: AbortSignal,
+  resp?: Pick<HttpResponse, 'error'> | null,
+  err?: unknown,
+): boolean {
+  if (signal?.aborted) return true;
+  if (resp?.error === 'Aborted') return true;
+  if (err instanceof DOMException && err.name === 'AbortError') return true;
+  if (err instanceof Error && /aborted/i.test(err.message)) return true;
+  return false;
 }
 
 export async function buildRequestHeaders(
@@ -117,10 +136,23 @@ export function useRequestSend({
     return buildRequestHeaders(scenario, contentType, resolveAuth, envId);
   }, [resolveAuth]);
 
+  const abortRef = useRef<AbortController | null>(null);
+  const userCancelRef = useRef(false);
+
+  const cancelSend = useCallback(() => {
+    userCancelRef.current = true;
+    abortRef.current?.abort();
+  }, []);
+
   const handleSend = useCallback(async (
     setSending: (v: boolean) => void,
     setBusy?: (v: boolean) => void,
   ) => {
+    abortRef.current?.abort();
+    userCancelRef.current = false;
+    const ac = new AbortController();
+    abortRef.current = ac;
+
     setBusy?.(true);
     setSendAllResults(null);
     const log: ConsoleLine[] = [];
@@ -130,6 +162,55 @@ export function useRequestSend({
 
     let sendUrl = '';
     let sendMethod = '';
+    let t0 = 0;
+    const startedAt = performance.now();
+
+    const commitCancelled = (elapsedMs: number) => {
+      const summary = {
+        method: sendMethod || 'GET',
+        url: sendUrl || request.url,
+        phase: t0 ? 'sending' as const : 'preparing' as const,
+        elapsedMs,
+        cancelledAt: new Date().toISOString(),
+      };
+      for (const line of cancelledConsoleNotes(summary)) info(line);
+      const cancelled = buildCancelledSendResponse(summary);
+      flushSync(() => {
+        setSending(false);
+        setBusy?.(false);
+        setResponseTime(elapsedMs);
+        setResponse(cancelled);
+        setConsoleLines(log);
+      });
+      const hid = pushHistory({
+        timestamp: Date.now(),
+        method: sendMethod || 'GET',
+        url: sendUrl || request.url,
+        response: cancelled,
+        responseTime: elapsedMs,
+        consoleLines: log,
+      });
+      setActiveHistoryId(hid);
+    };
+
+    const elapsedSinceStart = () => Math.round(performance.now() - startedAt);
+
+    const settleThisSend = (elapsedMs = elapsedSinceStart()): boolean => {
+      if (abortRef.current !== ac) return true;
+      if (userCancelRef.current) commitCancelled(elapsedMs);
+      else {
+        flushSync(() => {
+          setSending(false);
+          setBusy?.(false);
+        });
+      }
+      return true;
+    };
+
+    const finishIfAborted = (): boolean => {
+      if (!isSendAborted(ac.signal)) return false;
+      return settleThisSend();
+    };
 
     try {
       const scenario = asDraftScenario();
@@ -163,6 +244,7 @@ export function useRequestSend({
       }
 
       const headers = await buildHeaders(scenario, contentType, effectiveEnvId);
+      if (finishIfAborted()) return;
 
       if (auth.type === 'oauth2') info('OAuth2 token acquired successfully');
       if (auth.type === 'bearer') info('Using Bearer token authentication');
@@ -196,8 +278,12 @@ export function useRequestSend({
       }
 
       flushSync(() => setSending(true));
-      const t0 = performance.now();
-      const resp = await httpFetch(scenario.url, scenario.method, headers, reqBody);
+      t0 = performance.now();
+      const resp = await httpFetch(scenario.url, scenario.method, headers, reqBody, ac.signal);
+      if (isSendAborted(ac.signal, resp)) {
+        settleThisSend();
+        return;
+      }
       const elapsed = Math.round(performance.now() - t0);
       flushSync(() => {
         setSending(false);
@@ -225,6 +311,10 @@ export function useRequestSend({
       const hid = pushHistory({ timestamp: Date.now(), method: sendMethod, url: sendUrl, response: resp, responseTime: elapsed, consoleLines: log });
       setActiveHistoryId(hid);
     } catch (err) {
+      if (isSendAborted(ac.signal, null, err)) {
+        settleThisSend();
+        return;
+      }
       const msg = toErrorMessage(err);
       log.push({ prefix: '', text: '' });
       info(`ERROR: ${msg}`);
@@ -241,8 +331,11 @@ export function useRequestSend({
       const hid = pushHistory({ timestamp: Date.now(), method: sendMethod || 'GET', url: sendUrl || request.url, response: errResp, responseTime: 0, consoleLines: log });
       setActiveHistoryId(hid);
     } finally {
-      setSending(false);
-      setBusy?.(false);
+      if (abortRef.current === ac) {
+        abortRef.current = null;
+        setSending(false);
+        setBusy?.(false);
+      }
     }
   }, [asDraftScenario, buildHeaders, resolveAuth, urlCtx, pushHistory, request.url,
       setResponse, setResponseTime, setSendAllResults, setConsoleLines, setActiveHistoryId,
@@ -250,6 +343,7 @@ export function useRequestSend({
 
   return {
     handleSend,
+    cancelSend,
     resolveAuth,
     buildHeaders,
   };
