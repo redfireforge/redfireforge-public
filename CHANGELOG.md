@@ -8,6 +8,13 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Fixed
+- **Constant Arrival Rate + OAuth2** — CAR used to refuse OAuth2 tests (`not available with OAuth2 auth`) because the Rust executor cannot fetch tokens. Desktop CAR now acquires the client-credentials token once and sends it as a bearer header.
+- **Constant Arrival ramp labels** — Enable Ramp no longer shares a row with Start / End RPS, so those names no longer overlap.
+
+### Changed
+- **Vitest config** — use `import.meta.dirname` and explicit `.ts` config imports so Vite's upcoming native config loader does not warn.
+
 ## [0.8.14] — 2026-09-21
 
 ### Added
