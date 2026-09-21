@@ -8,6 +8,9 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Fixed
+- **CI product coverage** — Vitest 5 + jsdom 30 crashed `URL.createObjectURL` (`blob[impl]._buffer`) on export clicks, so the product job failed with an uncaught exception in WebSocket saved connections and a failed API Mock live-demo download test. Tests now stub blob URLs in jsdom, and product coverage include is limited to `src` / `src-server` / `cli` TypeScript so CSS, fixtures, and test-utils no longer appear in the shard table.
+
 ## [0.8.12] — 2026-09-16
 
 ### Added
