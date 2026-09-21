@@ -5,6 +5,7 @@ import {
   COMMON_TEST_EXCLUDE,
   DEMO_TEST_GLOBS,
   PRODUCT_COVERAGE_EXCLUDE,
+  PRODUCT_COVERAGE_INCLUDE,
   PRODUCT_TEST_EXCLUDE,
 } from './vitest.projectPatterns';
 import { demoHubRootImportsPlugin } from './vite/demoHubRootImports';
@@ -82,6 +83,7 @@ export default defineConfig({
             reporter: ['text', 'json-summary', 'json'],
             clean: false,
             excludeAfterRemap: true,
+            include: PRODUCT_COVERAGE_INCLUDE,
             exclude: productCoverageExclude,
           },
         },

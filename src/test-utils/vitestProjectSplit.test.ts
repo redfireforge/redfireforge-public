@@ -10,6 +10,7 @@ import {
   isProductTestFile,
   matchesGlob,
   PRODUCT_COVERAGE_EXCLUDE,
+  PRODUCT_COVERAGE_INCLUDE,
   PRODUCT_TEST_EXCLUDE,
 } from '../../vitest.projectPatterns';
 
@@ -196,5 +197,33 @@ describe('vitest project split (Phase 1)', () => {
     expect(PRODUCT_COVERAGE_EXCLUDE.some((p) => matchesGlob(absTest, p))).toBe(true);
     expect(PRODUCT_COVERAGE_EXCLUDE.some((p) => matchesGlob(absUtils, p))).toBe(true);
     expect(PRODUCT_COVERAGE_EXCLUDE.some((p) => matchesGlob(absProduct, p))).toBe(false);
+  });
+
+  it('includes only product TypeScript so CSS and fixtures stay out of the shard table', () => {
+    expect(PRODUCT_COVERAGE_INCLUDE).toEqual(expect.arrayContaining([
+      'src/**/*.{ts,tsx}',
+      '**/src/**/*.{ts,tsx}',
+      '/**/src/**/*.{ts,tsx}',
+      'src-server/**/*.{ts,tsx}',
+      'cli/**/*.{ts,tsx}',
+    ]));
+    expect(PRODUCT_COVERAGE_EXCLUDE).toEqual(expect.arrayContaining([
+      '**/*.json',
+      '/**/*.json',
+      'vite/**',
+      '**/vite/**',
+    ]));
+
+    const absCss = '/home/runner/work/redfireforge-public/redfireforge-public/src/styles/data-mapper.css';
+    const absJson = '/home/runner/work/redfireforge-public/redfireforge-public/test-data/kafka/topics.json';
+    const absVite = '/home/runner/work/redfireforge-public/redfireforge-public/vite/localDocker/dockerBin.ts';
+    const absProduct = '/home/runner/work/redfireforge-public/redfireforge-public/src/shared/utils/platform.ts';
+    const absCli = '/home/runner/work/redfireforge-public/redfireforge-public/cli/dataLoader.ts';
+
+    expect(PRODUCT_COVERAGE_INCLUDE.some((p) => matchesGlob(absCss, p))).toBe(false);
+    expect(PRODUCT_COVERAGE_INCLUDE.some((p) => matchesGlob(absJson, p))).toBe(false);
+    expect(PRODUCT_COVERAGE_INCLUDE.some((p) => matchesGlob(absVite, p))).toBe(false);
+    expect(PRODUCT_COVERAGE_INCLUDE.some((p) => matchesGlob(absProduct, p))).toBe(true);
+    expect(PRODUCT_COVERAGE_INCLUDE.some((p) => matchesGlob(absCli, p))).toBe(true);
   });
 });
