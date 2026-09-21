@@ -8,6 +8,9 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Fixed
+- **CI product coverage** — Vitest 5 + jsdom 30 crashed `URL.createObjectURL` (`blob[impl]._buffer`) on export clicks, so the product job failed with an uncaught exception in WebSocket saved connections and a failed API Mock live-demo download test. Tests now stub blob URLs in jsdom, and product coverage include is limited to `src` / `src-server` / `cli` TypeScript so CSS, fixtures, and test-utils no longer appear in the shard table.
+
 ### Added
 - **Requests sending overlay** — Repeat Send of the same URL no longer looks idle. The response pane shows a status card with **Preparing request** and **Sending request** steps, a live elapsed timer, and **Cancel request** until the call finishes. Cancel records an **Error** result with method, URL, phase, elapsed time, and a console timeline (`Request was cancelled` / `No response received`) instead of leaving the last success on screen.
 - **Requests Preview expand-all** — Typical response bodies (32 KB and under) open fully expanded so nested offer/array objects are readable without **Expand all**. Larger payloads still start shallow so first paint stays fast.
