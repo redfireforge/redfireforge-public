@@ -3,6 +3,8 @@ import type { ReactNode, RefObject } from 'react';
 import { ChevronIcon, bestEffortFormat, countTextMatches } from '@shared/components/jsonTreeShared';
 import { buildJsonTree } from '@shared/utils/jsonTreeModel';
 import type { JsonTreeNode } from '@shared/utils/jsonTreeModel';
+import { isCancelledSendError } from '../utils/requestCancelSummary';
+import RequestCancelledPreview from './RequestCancelledPreview';
 
 /** @deprecated Use `JsonTreeNode` from `shared/utils/jsonTreeModel` */
 export type JNode = JsonTreeNode;
@@ -29,10 +31,21 @@ export function buildJTreeFromBody(body: string | null | undefined): JNode | nul
  * nested row on first paint (the Requests "Sending..." spinner otherwise stays
  * up for seconds after the HTTP call has already finished).
  *
+ * Typical catalog/offer payloads (~8 KB) stay fully expanded. Only bodies over
+ * {@link JSON_TREE_EXPAND_ALL_MAX_BYTES} use this shallow default.
+ *
  * Keeps the root object open, collapses array items, nested objects (depth ≥ 2),
  * and large arrays (more than 24 elements).
  */
 export const JSON_TREE_LARGE_ARRAY_COLLAPSE = 24;
+/** Expand every node by default when the raw body is at or under this size. */
+export const JSON_TREE_EXPAND_ALL_MAX_BYTES = 32 * 1024;
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function defaultCollapsedPathsForPreview(node: JNode, bodyBytes: number): string[] {
+  if (bodyBytes <= JSON_TREE_EXPAND_ALL_MAX_BYTES) return [];
+  return collectDefaultCollapsedPaths(node);
+}
 
 // eslint-disable-next-line react-refresh/only-export-components
 export function collectDefaultCollapsedPaths(node: JNode, prefix = '', depth = 0): string[] {
@@ -330,6 +343,13 @@ export default function JsonPreview({ body, error, search, currentMatchIdx = 0, 
 
   const activeNode = matchNodes[currentMatchIdx] ?? null;
 
+  if (error && isCancelledSendError(error)) {
+    return (
+      <div className="req-json-preview-wrapper">
+        <RequestCancelledPreview error={error} />
+      </div>
+    );
+  }
   if (error) return <div className="req-json-preview-wrapper"><pre className="jt-error">{error}</pre></div>;
   if (!body) return <div className="req-json-preview-wrapper"><pre className="jt-error">(empty response)</pre></div>;
   if (!tree) {

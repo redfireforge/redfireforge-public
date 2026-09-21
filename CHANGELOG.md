@@ -8,6 +8,10 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Added
+- **Requests sending overlay** — Repeat Send of the same URL no longer looks idle. The response pane shows a status card with **Preparing request** and **Sending request** steps, a live elapsed timer, and **Cancel request** until the call finishes. Cancel records an **Error** result with method, URL, phase, elapsed time, and a console timeline (`Request was cancelled` / `No response received`) instead of leaving the last success on screen.
+- **Requests Preview expand-all** — Typical response bodies (32 KB and under) open fully expanded so nested offer/array objects are readable without **Expand all**. Larger payloads still start shallow so first paint stays fast.
+
 ## [0.8.12] — 2026-09-16
 
 ### Added

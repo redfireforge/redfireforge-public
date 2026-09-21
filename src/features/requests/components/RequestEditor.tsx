@@ -19,7 +19,7 @@ import { PathParamsEditor } from './PathParamsEditor';
 import type { PathParamEntry } from './PathParamsEditor';
 import { resolvePathParamUrl } from '../utils/pathParamResolver';
 import RequestAuthEditor from './RequestAuthEditor';
-import JsonPreview, { buildJTreeFromBody, collectJTreePaths, collectDefaultCollapsedPaths, type JNode } from './JsonTreePreview';
+import JsonPreview, { buildJTreeFromBody, collectJTreePaths, defaultCollapsedPathsForPreview, type JNode } from './JsonTreePreview';
 import ConsoleLog from './ConsoleLog';
 import MultiEnvResultRow from './MultiEnvResultRow';
 import { ResponseHistoryDropdown } from './ResponseHistoryDropdown';
@@ -38,6 +38,7 @@ import { useSearchMatchNavigation } from '@shared/hooks/useSearchMatchNavigation
 import { useRequestSend } from '../hooks/useRequestSend';
 import { useRequestImportExport } from '../hooks/useRequestImportExport';
 import RequestImportExportMenu from './RequestImportExportMenu';
+import RequestSendingOverlay from './RequestSendingOverlay';
 
 import type { RequestSubTab, ResponseSubTab, RequestInputMode } from '@shared/types';
 
@@ -159,8 +160,10 @@ export default function RequestEditor({
 
   const responseTree = lazyTree && lazyTree.body === response?.body ? lazyTree.tree : null;
   const defaultCollapsed = useMemo(
-    () => (responseTree ? new Set(collectDefaultCollapsedPaths(responseTree)) : new Set<string>()),
-    [responseTree],
+    () => (responseTree
+      ? new Set(defaultCollapsedPathsForPreview(responseTree, response?.body?.length ?? 0))
+      : new Set<string>()),
+    [responseTree, response?.body],
   );
   const { collapsedSet, expandAllActive, handleTreeToggle, handleCollapseAll: collapseAll, handleExpandAll } = useJsonTreeCollapseState(
     responseTree ? (history[0]?.id ?? response?.body) : undefined,
@@ -308,7 +311,7 @@ export default function RequestEditor({
     auth: request.auth, validation: { mode: 'none' },
   }), [request, displayUrl]);
 
-  const { handleSend: doSend, resolveAuth } = useRequestSend({
+  const { handleSend: doSend, cancelSend, resolveAuth } = useRequestSend({
     request, collection, parentSubCollection, appGlobalAuthProfiles, appMicroservices,
     selectedEnvId, subColEnvId, urlCtx, asDraftScenario,
     setResponse, setResponseTime, setSendAllResults, setConsoleLines,
@@ -386,8 +389,8 @@ export default function RequestEditor({
         <div className="req-status-row">
           {response && (
             <>
-              <span className={`req-status-pill ${response.status >= 200 && response.status < 300 ? 'success' : response.status >= 400 ? 'error' : 'warn'}`} data-testid="req-status-pill">
-                {response.status} {response.statusText}
+              <span className={`req-status-pill ${response.status >= 200 && response.status < 300 && !response.error ? 'success' : response.error || response.status === 0 || response.status >= 400 ? 'error' : 'warn'}`} data-testid="req-status-pill">
+                {response.status === 0 ? (response.statusText || 'Error') : `${response.status} ${response.statusText}`}
               </span>
               <span className="req-stat" data-testid="req-response-time">{responseTime} ms</span>
               <span className="req-stat" data-testid="req-response-size">{formatBytes(response.body?.length ?? 0)}</span>
@@ -558,6 +561,12 @@ export default function RequestEditor({
 
         {/* RIGHT: Response panel or API Info drawer */}
         <div className="req-pane-right">
+          {(sendBusy || sending) && (
+            <RequestSendingOverlay
+              phase={sending ? 'sending' : 'preparing'}
+              onCancel={cancelSend}
+            />
+          )}
           {showApiInfo && request.catalogMeta ? (
             <RequestCatalogApiInfoDrawer
               method={request.method}
@@ -575,7 +584,7 @@ export default function RequestEditor({
             </button>
           </div>
 
-          {responseTab === 'preview' && (
+          {responseTab === 'preview' && !response?.error && (
             <ResponseBodySearchBar
               value={responseSearch}
               onChange={setResponseSearch}
