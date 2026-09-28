@@ -11,6 +11,7 @@ Format follows Keep a Changelog and Semantic Versioning.
 ### Fixed
 - **Catalog OAuth2 status** — Try it out shows the full client ID, token URL, and where those credentials come from (global profile, OpenAPI scheme, or this catalog entry).
 - **Catalog Export to Requests** — Select All stays visible, and the Preview column keeps its height when the endpoint table is wide.
+- **Correlation wait test** — The long-poll request starts before the webhook, so SuperTest 7.3 does not close the shared test server and refuse the connection.
 
 ## [0.8.14] — 2026-09-21
 
