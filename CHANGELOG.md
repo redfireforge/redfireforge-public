@@ -16,7 +16,7 @@ Format follows Keep a Changelog and Semantic Versioning.
 - **Correlation wait test** — The long-poll request starts before the webhook, so SuperTest 7.3 does not close the shared test server and refuse the connection.
 
 ### Changed
-- **Dependencies** — minor and patch updates, including `@scalar/openapi-upgrader` 0.3.1 and `@tauri-apps/plugin-updater` 2.12.0.
+- **Dependencies** — minor and patch updates, including `@scalar/openapi-upgrader` 0.3.1. `@tauri-apps/plugin-updater` stays on 2.11 so it matches the Rust updater crate.
 
 ## [0.8.14] — 2026-09-21
 
