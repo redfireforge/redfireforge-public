@@ -1180,7 +1180,22 @@
 
 /* ── Execute bar ───────────────────────────────── */
 .sw-exec-bar { display: flex; gap: 8px; align-items: center; margin: 16px 0; flex-wrap: wrap; }
-.sw-auth-status { font-size: 0.75rem; color: #aaa; margin-left: auto; font-family: monospace; }
+.sw-auth-status {
+  font-size: 0.75rem; color: var(--text-muted); margin-left: auto;
+  font-family: var(--font-mono, monospace);
+  min-width: 0; max-width: 100%;
+  white-space: normal; overflow-wrap: anywhere;
+}
+.sw-auth-oauth {
+  flex: 1 1 100%;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  margin-left: 0; margin-top: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--bg); color: var(--text);
+}
+.sw-auth-oauth-title { font-weight: 700; color: var(--text); }
+.sw-auth-oauth-row { color: var(--text-muted); }
 /* ── Workflow Exposure Dropdown ─────────────────────────── */
 .sw-wf-exposure {
   position: relative;
@@ -2528,7 +2543,7 @@
 }
 .cat-send-left {
   flex: 3; display: flex; flex-direction: column; gap: 14px;
-  overflow-y: auto; padding: 20px 22px;
+  overflow-x: hidden; overflow-y: auto; padding: 20px 22px;
   background: var(--surface); min-width: 0;
   border-right: 1px solid var(--border);
 }
@@ -2543,6 +2558,7 @@
 .cat-send-card {
   border: 1px solid var(--border); border-radius: 8px;
   padding: 14px 16px; background: color-mix(in srgb, var(--bg) 25%, var(--surface));
+  min-width: 0; max-width: 100%; box-sizing: border-box;
 }
 .cat-send-card-grow {
   flex: 1; min-height: 0; display: flex; flex-direction: column;
@@ -2550,28 +2566,36 @@
 
 .cat-send-section-header {
   display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 10px;
+  gap: 12px; margin-bottom: 10px; min-width: 0;
 }
 .cat-send-label {
   font-size: 0.78rem; font-weight: 700; color: var(--text);
   text-transform: uppercase; letter-spacing: 0.03em;
   display: flex; align-items: center; gap: 8px;
 }
+.cat-send-section-header .cat-send-label {
+  min-width: 0; flex: 1 1 auto;
+}
 .cat-send-count {
   font-weight: 500; color: var(--text-muted); font-size: 0.72rem;
-}
-.cat-send-toggle {
-  display: flex; align-items: center; gap: 5px;
-  font-size: 0.78rem; color: var(--text-muted); cursor: pointer;
   white-space: nowrap;
 }
-.cat-send-toggle input { cursor: pointer; }
+.cat-send-toggle {
+  display: flex; align-items: center; gap: 6px;
+  flex: 0 0 auto;
+  font-size: 0.78rem; color: var(--text); cursor: pointer;
+  white-space: nowrap;
+}
+.cat-send-toggle input {
+  cursor: pointer; width: 16px; height: 16px; margin: 0; flex-shrink: 0;
+  accent-color: var(--primary);
+}
 
 /* ── Environment table ── */
 
 .cat-send-env-table {
   width: 100%; border-collapse: collapse; font-size: 0.82rem;
-  margin-top: 4px;
+  margin-top: 4px; table-layout: fixed;
 }
 .cat-send-env-table th {
   text-align: left; padding: 5px 8px; font-weight: 600; font-size: 0.7rem;
@@ -2587,16 +2611,18 @@
 .cat-send-env-table input[type="checkbox"] { cursor: pointer; }
 .cat-send-env-name {
   font-weight: 700; color: var(--text); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
 }
+.cat-send-env-url-cell { overflow: hidden; }
 .cat-send-env-url-cell code {
-  font-size: 0.72rem; color: var(--text-muted);
-  word-break: break-all;
+  display: block; font-size: 0.72rem; color: var(--text-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
 /* ── Endpoint table ── */
 
 .cat-send-ep-table-wrap {
-  flex: 1; overflow-y: auto; min-height: 0;
+  flex: 1; overflow: auto; min-height: 0; min-width: 0; max-width: 100%;
 }
 .cat-send-ep-table {
   width: 100%; border-collapse: collapse; font-size: 0.82rem;

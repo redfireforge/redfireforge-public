@@ -8,6 +8,10 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Fixed
+- **Catalog OAuth2 status** — Try it out shows the full client ID, token URL, and where those credentials come from (global profile, OpenAPI scheme, or this catalog entry).
+- **Catalog Export to Requests** — Select All stays visible, and the Preview column keeps its height when the endpoint table is wide.
+
 ## [0.8.14] — 2026-09-21
 
 ### Added
