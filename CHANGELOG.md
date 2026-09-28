@@ -8,6 +8,16 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.8.15] — 2026-09-28
+
+### Fixed
+- **Catalog OAuth2 status** — Try it out shows the full client ID, token URL, and where those credentials come from (global profile, OpenAPI scheme, or this catalog entry).
+- **Catalog Export to Requests** — Select All stays visible, and the Preview column keeps its height when the endpoint table is wide.
+- **Correlation wait test** — The long-poll request starts before the webhook, so SuperTest 7.3 does not close the shared test server and refuse the connection.
+
+### Changed
+- **Dependencies** — minor and patch updates, including `@scalar/openapi-upgrader` 0.3.1 and `@tauri-apps/plugin-updater` 2.12.0.
+
 ## [0.8.14] — 2026-09-21
 
 ### Added

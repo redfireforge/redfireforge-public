@@ -325,7 +325,12 @@ describe('correlation-handler — HTTP routes', () => {
         correlationJsonPath: 'correlationId',
       });
 
-      const waitPromise = request.get('/api/correlations/park-1/wait?timeoutMs=5000');
+      // SuperTest 7.3 shares one server per app and closes it when the
+      // in-flight count hits zero. Calling `.then()` starts the long-poll
+      // so the webhook POST below cannot close the server first.
+      const waitPromise = request
+        .get('/api/correlations/park-1/wait?timeoutMs=5000')
+        .then(res => res);
 
       await new Promise(r => setTimeout(r, 50));
       const cb = await request

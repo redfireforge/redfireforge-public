@@ -340,7 +340,9 @@ describe('CatalogEndpointCard', () => {
     renderCard({ auth: { type: 'oauth2', tokenUrl: 'https://auth.example.com', clientId: 'client12345' } });
     fireEvent.click(screen.getByText('/users/{id}'));
     await userEvent.click(screen.getByText('Try it out'));
-    expect(screen.getByText(/OAuth2/)).toBeInTheDocument();
+    expect(screen.getByText(/OAuth2 client credentials/)).toBeInTheDocument();
+    expect(screen.getByText(/client12345/)).toBeInTheDocument();
+    expect(screen.getByText(/https:\/\/auth.example.com/)).toBeInTheDocument();
   });
 
   it('renders empty bearer token warning', async () => {
