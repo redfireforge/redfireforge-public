@@ -42,6 +42,34 @@ const MBG: Record<string, string> = {
   DELETE: 'rgba(249,62,62,0.1)',
 };
 
+function oauthSourceLabel(auth: AuthConfig): string {
+  if (auth.__globalProfileName) return `Global profile ${auth.__globalProfileName}`;
+  if (auth.__inherit) return auth.__schemeName ? `OpenAPI scheme ${auth.__schemeName}` : 'OpenAPI security scheme';
+  return 'Saved on this catalog entry';
+}
+
+function AuthStatusLine({ auth }: { auth: AuthConfig }) {
+  if (auth.type === 'oauth2') {
+    if (!auth.tokenUrl) {
+      return <span className="sw-auth-status">OAuth2 not configured</span>;
+    }
+    return (
+      <span className="sw-auth-status sw-auth-oauth" data-testid="catalog-oauth-status">
+        <span className="sw-auth-oauth-title">OAuth2 client credentials</span>
+        <span className="sw-auth-oauth-row">{oauthSourceLabel(auth)}</span>
+        <span className="sw-auth-oauth-row">Client ID {auth.clientId || '—'}</span>
+        <span className="sw-auth-oauth-row">Token URL {auth.tokenUrl}</span>
+      </span>
+    );
+  }
+  const text = auth.type === 'none' ? 'No auth' :
+    auth.type === 'bearer' ? (auth.token ? `Bearer ${auth.token.slice(0, 8)}…` : 'Bearer token empty') :
+    auth.type === 'basic' ? (auth.username ? `Basic ${auth.username}` : 'Basic creds empty') :
+    auth.type === 'apikey' ? (auth.apiKeyValue ? `${auth.apiKeyName}: ${auth.apiKeyValue.slice(0, 8)}…` : `${auth.apiKeyName ?? 'API Key'} value empty`) :
+    `? type=${auth.type}`;
+  return <span className="sw-auth-status">{text}</span>;
+}
+
 export default function CatalogEndpointCard({ endpoint, servers, hostConfig, auth, savedValues, onValuesChange, environments, linkedMicroservice, onExportSingle, onSendToHarness, onExportToApiMock, onSetWorkflowExposure, currentExposureMode, isPublicationStale, publishPermission, coverage, onNavigateToRequest }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [tryItOpen, setTryItOpen] = useState(false);
@@ -346,14 +374,7 @@ export default function CatalogEndpointCard({ endpoint, servers, hostConfig, aut
                   })}
                 />
               )}
-              <span className="sw-auth-status">
-                {auth.type === 'none' ? '⚠ No auth' :
-                 auth.type === 'oauth2' ? (auth.tokenUrl ? `🔒 OAuth2 (${auth.clientId?.slice(0, 8) ?? '?'}…)` : '⚠ OAuth2 not configured') :
-                 auth.type === 'bearer' ? (auth.token ? `🔒 Bearer ${auth.token.slice(0, 8)}…` : '⚠ Bearer token empty') :
-                 auth.type === 'basic' ? (auth.username ? `🔒 Basic ${auth.username}` : '⚠ Basic creds empty') :
-                 auth.type === 'apikey' ? (auth.apiKeyValue ? `🔒 ${auth.apiKeyName}: ${auth.apiKeyValue.slice(0, 8)}…` : `⚠ ${auth.apiKeyName ?? 'API Key'} value empty`) :
-                 `? type=${auth.type}`}
-              </span>
+              <AuthStatusLine auth={auth} />
             </div>
           )}
 
