@@ -227,7 +227,7 @@ export function KafkaClusterEditor({
                     />
                     {draft.authMode === 'oauthbearer' && (
                       <div className="kafka-editor-section-note">
-                        Uses the Azure CLI login on this machine. Run az login before connecting. No username or password.
+                        Install the Azure CLI (<code>az</code>) and run <code>az login</code> on this machine before connecting. RedfireForge requests an Event Hubs token from that session. No username or password is stored.
                       </div>
                     )}
                   </div>

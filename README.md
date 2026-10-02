@@ -236,6 +236,7 @@ Other guides:
 - [CLI Reference](docs/guides/cli-reference.md) · [CLI CI/CD Guide](docs/guides/cli-ci-cd.md)
 - [Workflow HAR Import Guide](docs/guides/workflow-har-import-guide.md) — bootstrap a workflow from recorded browser traffic
 - [API Mock Import/Export Guide](docs/guides/api-mock/import-export.md)
+- [Azure Event Hubs (Kafka)](docs/guides/kafka-azure-event-hubs.md) — install the Azure CLI and sign in before using Azure OAUTHBEARER
 
 ---
 
