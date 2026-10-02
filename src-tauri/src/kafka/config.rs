@@ -8,6 +8,7 @@ use std::collections::HashMap;
 
 use rdkafka::config::ClientConfig;
 
+use super::oauth::event_hub_resource;
 use super::state::ClientHandle;
 use super::types::{KafkaAuthConfig, KafkaConnectionConfig, KafkaTlsConfig};
 
@@ -20,6 +21,7 @@ pub(super) fn is_auth_error(err_msg: &str) -> bool {
     msg.contains("sasl authentication failed")
         || msg.contains("authentication failed")
         || msg.contains("invalid credentials")
+        || msg.contains("azure cli")
 }
 
 /// Classify a connect-phase error into one of three KAFKA_CONNECT_* codes.
@@ -46,11 +48,18 @@ pub(crate) fn build_rdkafka_config(conn: &KafkaConnectionConfig) -> ClientConfig
 
     let conn_timeout = conn.connection_timeout_ms.unwrap_or(5_000);
     let req_timeout = conn.request_timeout_ms.unwrap_or(10_000);
-    cfg.set("socket.connection.setup.timeout.ms", &conn_timeout.to_string());
+    cfg.set(
+        "socket.connection.setup.timeout.ms",
+        &conn_timeout.to_string(),
+    );
     cfg.set("request.timeout.ms", &req_timeout.to_string());
 
     let has_tls = conn.tls.as_ref().map(|t| t.enabled).unwrap_or(false);
-    let auth_mode = conn.auth.as_ref().map(|a| a.mode.as_str()).unwrap_or("none");
+    let auth_mode = conn
+        .auth
+        .as_ref()
+        .map(|a| a.mode.as_str())
+        .unwrap_or("none");
     let has_sasl = auth_mode != "none";
 
     let security_protocol = match (has_tls, has_sasl) {
@@ -61,17 +70,29 @@ pub(crate) fn build_rdkafka_config(conn: &KafkaConnectionConfig) -> ClientConfig
     };
     cfg.set("security.protocol", security_protocol);
 
-    apply_sasl_config(&mut cfg, conn.auth.as_ref());
+    apply_sasl_config(&mut cfg, conn.auth.as_ref(), &conn.brokers);
     apply_tls_config(&mut cfg, conn.tls.as_ref());
 
     cfg
 }
 
-fn apply_sasl_config(cfg: &mut ClientConfig, auth: Option<&KafkaAuthConfig>) {
+/// `request.timeout.ms` applies only to producers. A consumer ignores it and
+/// librdkafka prints CONFWARN for every client that still has the property.
+pub(crate) fn prepare_consumer_config(cfg: &mut ClientConfig) {
+    cfg.remove("request.timeout.ms");
+}
+
+fn apply_sasl_config(cfg: &mut ClientConfig, auth: Option<&KafkaAuthConfig>, brokers: &[String]) {
     let auth = match auth {
         Some(a) => a,
         None => return,
     };
+    if auth.mode == "oauthbearer" {
+        cfg.set("sasl.mechanism", "OAUTHBEARER");
+        let resource = event_hub_resource(brokers).unwrap_or_default();
+        cfg.set("sasl.oauthbearer.config", &resource);
+        return;
+    }
     let mechanism = match auth.mode.as_str() {
         "plain" => "PLAIN",
         "scram-sha-256" => "SCRAM-SHA-256",
@@ -91,6 +112,10 @@ fn apply_tls_config(cfg: &mut ClientConfig, tls: Option<&KafkaTlsConfig>) {
     let reject = tls.reject_unauthorized.unwrap_or(true);
     if !reject {
         cfg.set("enable.ssl.certificate.verification", "false");
+    } else if tls.ca_pem.is_none() {
+        // Event Hubs uses a public CA. "probe" loads the OS trust store
+        // (macOS keychain / Windows store) instead of an empty OpenSSL bundle.
+        cfg.set("ssl.ca.location", "probe");
     }
     if let Some(ca_pem) = &tls.ca_pem {
         cfg.set("ssl.ca.pem", ca_pem);
@@ -146,6 +171,17 @@ mod tests {
     }
 
     #[test]
+    fn prepare_consumer_config_drops_producer_timeout() {
+        let mut conn = base_conn();
+        conn.request_timeout_ms = Some(8_000);
+        let mut cfg = build_rdkafka_config(&conn);
+        assert_eq!(cfg.get("request.timeout.ms"), Some("8000"));
+        prepare_consumer_config(&mut cfg);
+        assert_eq!(cfg.get("request.timeout.ms"), None);
+        assert_eq!(cfg.get("bootstrap.servers"), Some("b1:9092"));
+    }
+
+    #[test]
     fn build_rdkafka_config_custom_timeouts() {
         let mut conn = base_conn();
         conn.connection_timeout_ms = Some(3_000);
@@ -187,7 +223,30 @@ mod tests {
             enabled: true,
             reject_unauthorized: Some(false),
             server_name: None,
-            ca_pem: Some("-----BEGIN CERTIFICATE-----\nfake\n-----END CERTIFICATE-----".to_string()),
+            ca_pem: Some(
+                "-----BEGIN CERTIFICATE-----\nfake\n-----END CERTIFICATE-----".to_string(),
+            ),
+            cert_pem: None,
+            key_pem: None,
+            passphrase: None,
+        });
+        let _cfg = build_rdkafka_config(&conn);
+    }
+
+    #[test]
+    fn build_rdkafka_config_oauthbearer_event_hub() {
+        let mut conn = base_conn();
+        conn.brokers = vec!["a218876-t01-musea2-evhns.servicebus.windows.net:9093".to_string()];
+        conn.auth = Some(KafkaAuthConfig {
+            mode: "oauthbearer".to_string(),
+            username: None,
+            password: None,
+        });
+        conn.tls = Some(KafkaTlsConfig {
+            enabled: true,
+            reject_unauthorized: Some(true),
+            server_name: None,
+            ca_pem: None,
             cert_pem: None,
             key_pem: None,
             passphrase: None,
@@ -242,7 +301,10 @@ mod tests {
             connect_error_code("Connection timed out after 5000ms"),
             "KAFKA_CONNECT_TIMEOUT"
         );
-        assert_eq!(connect_error_code("broker timeout"), "KAFKA_CONNECT_TIMEOUT");
+        assert_eq!(
+            connect_error_code("broker timeout"),
+            "KAFKA_CONNECT_TIMEOUT"
+        );
         assert_eq!(
             connect_error_code("timed out connecting to broker"),
             "KAFKA_CONNECT_TIMEOUT"
@@ -260,6 +322,10 @@ mod tests {
             "KAFKA_AUTH_FAILED"
         );
         assert_eq!(
+            connect_error_code("Azure CLI authentication failed. Run az login"),
+            "KAFKA_AUTH_FAILED"
+        );
+        assert_eq!(
             connect_error_code("Invalid credentials provided"),
             "KAFKA_AUTH_FAILED"
         );
@@ -267,8 +333,14 @@ mod tests {
 
     #[test]
     fn connect_error_code_non_timeout_variants() {
-        assert_eq!(connect_error_code("SSL handshake failed"), "KAFKA_CONNECT_FAILED");
-        assert_eq!(connect_error_code("Connection refused"), "KAFKA_CONNECT_FAILED");
+        assert_eq!(
+            connect_error_code("SSL handshake failed"),
+            "KAFKA_CONNECT_FAILED"
+        );
+        assert_eq!(
+            connect_error_code("Connection refused"),
+            "KAFKA_CONNECT_FAILED"
+        );
     }
 
     #[test]

@@ -90,6 +90,14 @@ vi.mock('kafkajs', () => ({
   Kafka: mocks.kafkaCtor,
 }));
 
+const tokenMocks = vi.hoisted(() => ({
+  acquireAzureEventHubToken: vi.fn(async () => 'azure-token'),
+}));
+
+vi.mock('./azure-event-hub-token.js', () => ({
+  acquireAzureEventHubToken: tokenMocks.acquireAzureEventHubToken,
+}));
+
 import { createKafkaRuntimeAdapter } from './kafka-adapter.js';
 
 function makeConnection(overrides: Partial<KafkaConnectionConfig> = {}): KafkaConnectionConfig {
@@ -224,6 +232,25 @@ describe('kafka-adapter', () => {
       ssl: undefined,
       sasl: undefined,
     }));
+  });
+
+  it('maps Azure OAUTHBEARER to a token provider', async () => {
+    const runtime = createKafkaRuntimeAdapter();
+    runtime.createAdmin(makeConnection({
+      brokers: ['a218876-t01-musea2-evhns.servicebus.windows.net:9093'],
+      auth: { mode: 'oauthbearer' },
+      tls: { enabled: true },
+    }));
+
+    const sasl = mocks.kafkaCtor.mock.calls.at(-1)?.[0]?.sasl as {
+      mechanism: string;
+      oauthBearerProvider: () => Promise<{ value: string }>;
+    };
+    expect(sasl.mechanism).toBe('oauthbearer');
+    await expect(sasl.oauthBearerProvider()).resolves.toEqual({ value: 'azure-token' });
+    expect(tokenMocks.acquireAzureEventHubToken).toHaveBeenCalledWith([
+      'a218876-t01-musea2-evhns.servicebus.windows.net:9093',
+    ]);
   });
 
   it('defaults missing auth credentials to empty strings and tls rejectUnauthorized to true', () => {

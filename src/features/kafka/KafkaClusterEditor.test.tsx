@@ -128,6 +128,32 @@ describe('KafkaClusterEditor', () => {
     expect(updateDraft).toHaveBeenCalledWith({ authPassword: 'next-pass' });
   });
 
+  it('selecting Azure OAUTHBEARER turns TLS on and hides credentials', () => {
+    const updateDraft = vi.fn();
+    const { rerender } = render(
+      <KafkaClusterEditor {...makeProps({ updateDraft })} />,
+    );
+
+    fireEvent.change(screen.getByLabelText('Mechanism'), { target: { value: 'oauthbearer' } });
+    expect(updateDraft).toHaveBeenCalledWith({ authMode: 'oauthbearer', tlsEnabled: true });
+
+    rerender(
+      <KafkaClusterEditor
+        {...makeProps({
+          updateDraft,
+          draft: {
+            ...defaultClusterDraft(1),
+            authMode: 'oauthbearer',
+            tlsEnabled: true,
+            brokers: ['a218876-t01-musea2-evhns.servicebus.windows.net:9093'],
+          },
+        })}
+      />,
+    );
+    expect(screen.queryByLabelText('Username')).toBeNull();
+    expect(screen.getByText(/Install the Azure CLI/)).toBeTruthy();
+  });
+
   it('toggles TLS controls and passphrase visibility', () => {
     const updateDraft = vi.fn();
     const draft = {

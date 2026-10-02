@@ -407,6 +407,36 @@ describe('useKafkaState', () => {
     expect(result.current.statusPollFailureStreak).toBe(1);
   });
 
+  it('keeps a connect failure when a later status says disconnected', async () => {
+    mocks.dispatchKafkaOperation.mockImplementation(async (op: string) => {
+      if (op === 'connect') {
+        throw new Error('Meta data fetch error: BrokerTransportFailure');
+      }
+      if (op === 'status') {
+        return {
+          ok: true,
+          op: 'status',
+          data: { state: 'disconnected', clusterId: 'cluster-b' },
+        };
+      }
+      return { ok: true, op, data: {} };
+    });
+
+    const { result } = renderHook(() => useKafkaState());
+    await waitFor(() => expect(result.current.loaded).toBe(true));
+
+    await act(async () => {
+      await result.current.connectSelectedCluster();
+    });
+    await act(async () => {
+      await result.current.refreshConnectionStatus({ force: true });
+    });
+
+    expect(result.current.connection.state).toBe('error');
+    expect(result.current.lastError).toContain('BrokerTransportFailure');
+    expect(result.current.lastErrorDetail?.message).toContain('BrokerTransportFailure');
+  });
+
   it('refreshConnectionStatus skips while connect is in flight', async () => {
     let resolveConnect: ((value: unknown) => void) | null = null;
     const connectPromise = new Promise((resolve) => {

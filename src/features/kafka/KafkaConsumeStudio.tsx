@@ -76,6 +76,8 @@ export function KafkaConsumeStudio({
     streamPinnedToBottom,
     streamSearch,
     setStreamSearch,
+    streamSearchCaseSensitive,
+    setStreamSearchCaseSensitive,
     handleStreamScroll,
     scrollStreamToBottom,
     handleExportStream,
@@ -118,7 +120,7 @@ export function KafkaConsumeStudio({
   }, [mode, selectMessage, streamMode]);
 
   return (
-    <div className="kafka-ms-card">
+    <div className="kafka-ms-card kafka-ms-consume-layout">
       <div className="kafka-ms-card-header">
         <div className="kafka-ms-card-header-left">
           <span className="kafka-ms-card-title">Consume</span>
@@ -558,6 +560,9 @@ export function KafkaConsumeStudio({
                     filteredStreamRows.length,
                     streamSearchActive,
                   )}
+                  {streamMode.streamMaxReached && (
+                    <span className="kafka-ms-max-reached" data-testid="stream-max-reached"> (max reached)</span>
+                  )}
                 </span>
                 {streamMode.isStreaming && (
                   <span className="kafka-ms-streaming-badge" data-testid="stream-live-badge">
@@ -575,6 +580,26 @@ export function KafkaConsumeStudio({
                       data-testid="stream-search-input"
                       aria-label="Filter stream messages"
                     />
+                    <div className="kmd-search-case" role="group" aria-label="Case matching">
+                      <button
+                        type="button"
+                        className={streamSearchCaseSensitive ? '' : 'is-active'}
+                        aria-pressed={!streamSearchCaseSensitive}
+                        onClick={() => setStreamSearchCaseSensitive(false)}
+                        data-testid="stream-search-ignore-case"
+                      >
+                        Ignore case
+                      </button>
+                      <button
+                        type="button"
+                        className={streamSearchCaseSensitive ? 'is-active' : ''}
+                        aria-pressed={streamSearchCaseSensitive}
+                        onClick={() => setStreamSearchCaseSensitive(true)}
+                        data-testid="stream-search-match-case"
+                      >
+                        Match case
+                      </button>
+                    </div>
                     {streamSearchActive && (
                       <button
                         type="button"

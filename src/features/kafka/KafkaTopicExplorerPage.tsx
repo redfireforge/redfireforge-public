@@ -275,7 +275,7 @@ export function KafkaTopicExplorerContent({ kafkaState }: KafkaTopicExplorerCont
                       <td>{t.partitions}</td>
                       <td>{cached ? cached.replicationFactor : '—'}</td>
                       <td>{cached ? formatTraffic(cached.partitions.reduce((s, p) => s + p.messageCount, 0)) : '—'}</td>
-                      <td>{cached ? cached.consumerGroups.length : '—'}</td>
+                      <td>{cached ? (cached.groupsPending ? '…' : cached.consumerGroups.length) : '—'}</td>
                       <td>
                         {cached ? (
                           <span className={`kafka-topic-health-badge kafka-topic-health-${cached.healthStatus}`}>

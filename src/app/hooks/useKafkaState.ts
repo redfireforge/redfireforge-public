@@ -18,14 +18,16 @@ import type {
   KafkaConnectionState,
   KafkaTopicSummary,
 } from '@shared/kafka/kafkaConfig';
-
-const DEFAULT_CONNECTION_SNAPSHOT: KafkaConnectionSnapshot = {
-  state: 'disconnected',
-};
-
-const STATUS_POLL_BASE_INTERVAL_MS = 4_000;
-const STATUS_POLL_MAX_INTERVAL_MS = 30_000;
-const STATUS_POLL_MAX_FAILURE_STREAK = 6;
+import {
+  DEFAULT_CONNECTION_SNAPSHOT,
+  STATUS_POLL_MAX_FAILURE_STREAK,
+  canBrowseTopics,
+  connectionSnapshotsEqual,
+  nextBackoffDelayMs,
+  parseConnectionState,
+  resolveSelectedClusterId,
+  toConnectRequest,
+} from './kafkaStateHelpers';
 
 export interface UseKafkaStateReturn {
   loaded: boolean;
@@ -57,67 +59,13 @@ export interface UseKafkaStateReturn {
   clearError: () => void;
 }
 
-function resolveSelectedClusterId(clusters: KafkaClusterConfig[], selectedClusterId: string | null): string | null {
-  if (selectedClusterId && clusters.some((cluster) => cluster.clusterId === selectedClusterId)) {
-    return selectedClusterId;
-  }
-  return clusters[0]?.clusterId ?? null;
-}
-
-function nextBackoffDelayMs(failureStreak: number): number {
-  const bounded = Math.min(Math.max(failureStreak, 0), STATUS_POLL_MAX_FAILURE_STREAK);
-  const computed = STATUS_POLL_BASE_INTERVAL_MS * (2 ** bounded);
-  return Math.min(computed, STATUS_POLL_MAX_INTERVAL_MS);
-}
-
-function toConnectRequest(cluster: KafkaClusterConfig): Record<string, unknown> {
-  return {
-    connection: {
-      clusterId: cluster.clusterId,
-      clientId: cluster.clientId,
-      brokers: cluster.brokers,
-      connectionTimeoutMs: cluster.connectionTimeoutMs,
-      requestTimeoutMs: cluster.requestTimeoutMs,
-      auth: cluster.auth,
-      tls: cluster.tls,
-    },
-  };
-}
-
-function parseConnectionState(raw: unknown): KafkaConnectionState {
-  if (raw === 'connected' || raw === 'testing' || raw === 'error') {
-    return raw;
-  }
-  return 'disconnected';
-}
-
-function canBrowseTopics(
-  loaded: boolean,
-  selectedClusterId: string | null,
-  connection: KafkaConnectionSnapshot,
-): selectedClusterId is string {
-  return loaded
-    && !!selectedClusterId
-    && connection.state === 'connected'
-    && connection.clusterId === selectedClusterId;
-}
-
-/** Avoid status-poll churn creating a new connection object every few seconds. */
-function connectionSnapshotsEqual(
-  a: KafkaConnectionSnapshot,
-  b: KafkaConnectionSnapshot,
-): boolean {
-  return a.state === b.state
-    && a.clusterId === b.clusterId
-    && a.connectedAt === b.connectedAt
-    && a.lastError === b.lastError;
-}
-
 export function useKafkaState(): UseKafkaStateReturn {
   const [loaded, setLoaded] = useState(false);
   const [clusters, setClusters] = useState<KafkaClusterConfig[]>([]);
   const [selectedClusterId, setSelectedClusterIdState] = useState<string | null>(null);
   const [connection, setConnection] = useState<KafkaConnectionSnapshot>(DEFAULT_CONNECTION_SNAPSHOT);
+  const connectionRef = useRef(connection);
+  connectionRef.current = connection;
   const [lastError, setLastError] = useState<string | null>(null);
   const [lastErrorDetail, setLastErrorDetail] = useState<KafkaUiSafeError | null>(null);
   const [statusPollFailureStreak, setStatusPollFailureStreak] = useState(0);
@@ -207,6 +155,11 @@ export function useKafkaState(): UseKafkaStateReturn {
         : undefined;
 
       setConnection((prev) => {
+        // A later "disconnected" status is not a new result. Keep the connect
+        // failure until the user clears it or a connect succeeds.
+        if (state !== 'connected' && prev.state === 'error' && prev.clusterId === requestedClusterId && prev.lastError) {
+          return prev;
+        }
         const next: KafkaConnectionSnapshot = {
           state,
           clusterId: clusterIdFromServer,
@@ -214,9 +167,21 @@ export function useKafkaState(): UseKafkaStateReturn {
         };
         return connectionSnapshotsEqual(prev, next) ? prev : next;
       });
-      setLastError(null);
-      setLastErrorDetail(null);
-      updateFailureStreak(0);
+      setLastError((prev) => {
+        if (state !== 'connected' && connectionRef.current.state === 'error' && connectionRef.current.clusterId === requestedClusterId && prev) {
+          return prev;
+        }
+        return null;
+      });
+      setLastErrorDetail((prev) => {
+        if (state !== 'connected' && connectionRef.current.state === 'error' && connectionRef.current.clusterId === requestedClusterId && prev) {
+          return prev;
+        }
+        return null;
+      });
+      if (state === 'connected' || connectionRef.current.state !== 'error') {
+        updateFailureStreak(0);
+      }
     } catch (error) {
       if (latestStatusRequestIdRef.current !== requestId) {
         return;
@@ -614,8 +579,8 @@ export function useKafkaState(): UseKafkaStateReturn {
     if (ok) {
       await new Promise<void>((resolve) => { setTimeout(resolve, 800); });
       await disconnectActiveCluster();
+      testResultTimerRef.current = setTimeout(() => setLastTestResult(null), 15_000);
     }
-    testResultTimerRef.current = setTimeout(() => setLastTestResult(null), ok ? 15_000 : 10_000);
     return ok;
   }, [connection, connectSelectedCluster, disconnectActiveCluster, refreshConnectionStatus, selectedCluster]);
 
@@ -647,6 +612,7 @@ export function useKafkaState(): UseKafkaStateReturn {
   const clearError = useCallback(() => {
     setLastError(null);
     setLastErrorDetail(null);
+    setLastTestResult(null);
     setConnection((prev) => ({
       ...prev,
       lastError: undefined,

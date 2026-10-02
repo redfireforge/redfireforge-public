@@ -203,26 +203,35 @@ export function KafkaClusterEditor({
                   <div className="kafka-subcard-header">
                     <span className="kafka-subcard-title">Authentication</span>
                     <span className="kafka-editor-section-note">
-                      PLAINTEXT, SASL/PLAIN, and SCRAM supported.
+                      PLAINTEXT, SASL/PLAIN, SCRAM, and Azure OAUTHBEARER supported.
                     </span>
                   </div>
                   <div className="kafka-editor-field">
                     <label htmlFor="kafka-auth-mode">Mechanism</label>
                     <CustomSelect
                       value={draft.authMode ?? 'none'}
-                      onChange={(v) =>
-                        updateDraft({ authMode: v as KafkaClusterDraft['authMode'] })
-                      }
+                      onChange={(v) => {
+                        const authMode = v as KafkaClusterDraft['authMode'];
+                        updateDraft(authMode === 'oauthbearer'
+                          ? { authMode, tlsEnabled: true }
+                          : { authMode });
+                      }}
                       options={[
                         { value: 'none', label: 'No authentication' },
                         { value: 'plain', label: 'SASL / PLAIN' },
                         { value: 'scram-sha-256', label: 'SCRAM-SHA-256' },
                         { value: 'scram-sha-512', label: 'SCRAM-SHA-512' },
+                        { value: 'oauthbearer', label: 'Azure OAUTHBEARER' },
                       ]}
                       aria-label="Mechanism"
                     />
+                    {draft.authMode === 'oauthbearer' && (
+                      <div className="kafka-editor-section-note">
+                        Install the Azure CLI (<code>az</code>) and run <code>az login</code> on this machine before connecting. RedfireForge requests an Event Hubs token from that session. No username or password is stored.
+                      </div>
+                    )}
                   </div>
-                  {(draft.authMode ?? 'none') !== 'none' && (
+                  {(draft.authMode ?? 'none') !== 'none' && draft.authMode !== 'oauthbearer' && (
                     <div className="kafka-subcard-fields">
                       <div className="kafka-editor-field">
                         <label htmlFor="kafka-auth-username">Username</label>
@@ -299,6 +308,9 @@ export function KafkaClusterEditor({
                       Verify server certificate
                     </label>
                   </div>
+                  {draftErrors.tlsEnabled && (
+                    <div className="kafka-editor-error">{draftErrors.tlsEnabled}</div>
+                  )}
                   {draft.tlsEnabled && (
                     <div className="kafka-subcard-fields">
                       <div className="kafka-editor-field kafka-editor-field-full">

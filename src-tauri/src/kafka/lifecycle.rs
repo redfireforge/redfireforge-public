@@ -10,12 +10,20 @@ use std::time::{Duration, Instant};
 use rdkafka::consumer::{BaseConsumer, Consumer};
 use serde_json::Value;
 
-use super::config::{build_rdkafka_config, connect_error_code, resolve_cluster};
-use super::envelope::{disconnected_status, error_envelope, handle_to_status, now_iso, success_envelope};
+use super::config::{
+    build_rdkafka_config, connect_error_code, prepare_consumer_config, resolve_cluster,
+};
+use super::envelope::{
+    disconnected_status, error_envelope, handle_to_status, now_iso, success_envelope,
+};
+use super::oauth::{create_rdkafka_client, fetch_cluster_metadata, AzureEventHubContext};
+use super::topic_groups::{
+    admin_request_still_running, clear_admin_request_flag, groups_for_topic, topic_config,
+};
 use super::state::{ClientHandle, KafkaState};
 use super::types::{
     KafkaConnectResult, KafkaConnectionConfig, KafkaDisconnectResult, KafkaServiceStatus,
-    KafkaTopicSummary, KafkaTopicsResult,
+    KafkaTopicDetail, KafkaTopicPartitionDetail, KafkaTopicSummary, KafkaTopicsResult,
 };
 
 // ─── kafka_connect ────────────────────────────────────────────────────────────
@@ -54,11 +62,15 @@ pub async fn kafka_connect(
 
     let connect_result = tokio::task::spawn_blocking(move || {
         let mut admin_cfg = cfg_for_check;
-        admin_cfg.set("group.id", "rf-admin-connect-check");
-        let consumer: BaseConsumer = admin_cfg.create().map_err(|e| e.to_string())?;
-        consumer
-            .fetch_metadata(None, Duration::from_millis(timeout_ms))
-            .map_err(|e| e.to_string())
+        prepare_consumer_config(&mut admin_cfg);
+        // No group.id: a consumer group redirects the main queue, and the
+        // OAUTHBEARER token refresh is delivered on that queue.
+        let consumer: BaseConsumer<AzureEventHubContext> = create_rdkafka_client(&admin_cfg)?;
+        let refresh_oauth = admin_cfg
+            .get("sasl.mechanism")
+            .is_some_and(|mechanism| mechanism.eq_ignore_ascii_case("OAUTHBEARER"));
+        fetch_cluster_metadata(&consumer, Duration::from_millis(timeout_ms), refresh_oauth)
+            .map(|_| ())
     })
     .await
     .map_err(|e| e.to_string())?;
@@ -95,7 +107,12 @@ pub async fn kafka_connect(
                 Some(duration_ms),
             ))
         }
-        Err(e) => Ok(error_envelope("connect", connect_error_code(&e), &e, Some(true))),
+        Err(e) => Ok(error_envelope(
+            "connect",
+            connect_error_code(&e),
+            &e,
+            Some(true),
+        )),
     }
 }
 
@@ -202,11 +219,12 @@ pub async fn kafka_topics(
 
     let metadata_result = tokio::task::spawn_blocking(move || {
         let mut admin_cfg = rdkafka_config;
-        admin_cfg.set("group.id", "rf-admin-topics-fetch");
-        let consumer: BaseConsumer = admin_cfg.create().map_err(|e| e.to_string())?;
-        consumer
-            .fetch_metadata(None, Duration::from_millis(10_000))
-            .map_err(|e| e.to_string())
+        prepare_consumer_config(&mut admin_cfg);
+        let consumer: BaseConsumer<AzureEventHubContext> = create_rdkafka_client(&admin_cfg)?;
+        let refresh_oauth = admin_cfg
+            .get("sasl.mechanism")
+            .is_some_and(|mechanism| mechanism.eq_ignore_ascii_case("OAUTHBEARER"));
+        fetch_cluster_metadata(&consumer, Duration::from_millis(10_000), refresh_oauth)
     })
     .await
     .map_err(|e| e.to_string())?;
@@ -241,7 +259,223 @@ pub async fn kafka_topics(
                 Some(duration_ms),
             ))
         }
-        Err(e) => Ok(error_envelope("topics", "KAFKA_TOPICS_FAILED", &e, Some(true))),
+        Err(e) => Ok(error_envelope(
+            "topics",
+            "KAFKA_TOPICS_FAILED",
+            &e,
+            Some(true),
+        )),
+    }
+}
+
+// ─── kafka_topic_detail ───────────────────────────────────────────────────────
+
+/// Topic metadata, watermarks, and config. Consumer groups load separately
+/// so this call is not blocked by a namespace-wide group scan.
+#[tauri::command]
+pub async fn kafka_topic_detail(
+    state: tauri::State<'_, KafkaState>,
+    topic_name: String,
+    cluster_id: Option<String>,
+) -> Result<Value, String> {
+    let start = Instant::now();
+    let topic_name = topic_name.trim().to_string();
+    if topic_name.is_empty() {
+        return Ok(error_envelope(
+            "topic-detail",
+            "KAFKA_TOPIC_DETAIL_FAILED",
+            "topicName is required",
+            Some(false),
+        ));
+    }
+
+    let rdkafka_config = {
+        let map = state.inner.lock().map_err(|e| e.to_string())?;
+        match resolve_cluster(&map, cluster_id.as_deref()) {
+            Some((config, _)) => config,
+            None => {
+                return Ok(error_envelope(
+                    "topic-detail",
+                    "KAFKA_NOT_CONNECTED",
+                    "No Kafka cluster is connected. Call kafka_connect first.",
+                    Some(false),
+                ));
+            }
+        }
+    };
+
+    let detail_result = tokio::task::spawn_blocking(move || {
+        read_topic_detail(&rdkafka_config, &topic_name)
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let duration_ms = start.elapsed().as_millis() as u64;
+    match detail_result {
+        Ok(detail) => Ok(success_envelope("topic-detail", detail, Some(duration_ms))),
+        Err(e) => Ok(error_envelope(
+            "topic-detail",
+            "KAFKA_TOPIC_DETAIL_FAILED",
+            &e,
+            Some(true),
+        )),
+    }
+}
+
+fn read_topic_detail(rdkafka_config: &rdkafka::config::ClientConfig, topic_name: &str) -> Result<KafkaTopicDetail, String> {
+    let mut consumer_cfg = rdkafka_config.clone();
+    prepare_consumer_config(&mut consumer_cfg);
+    let consumer: BaseConsumer<AzureEventHubContext> = create_rdkafka_client(&consumer_cfg)?;
+    let refresh_oauth = rdkafka_config
+        .get("sasl.mechanism")
+        .is_some_and(|mechanism| mechanism.eq_ignore_ascii_case("OAUTHBEARER"));
+    let metadata = fetch_cluster_metadata(&consumer, Duration::from_millis(10_000), refresh_oauth)?;
+    let topic_meta = metadata
+        .topics()
+        .iter()
+        .find(|candidate| candidate.name() == topic_name)
+        .ok_or_else(|| format!("Topic '{topic_name}' was not found on the cluster"))?;
+    if let Some(err) = topic_meta.error() {
+        return Err(format!("Topic '{topic_name}' is not readable: {err:?}"));
+    }
+
+    let mut partitions = Vec::new();
+    for partition in topic_meta.partitions() {
+        let id = partition.id();
+        let (low, high) = consumer
+            .fetch_watermarks(topic_name, id, Duration::from_secs(5))
+            .map_err(|err| format!("Could not read offsets for {topic_name} partition {id}: {err}"))?;
+        let message_count = (high - low).max(0);
+        partitions.push(KafkaTopicPartitionDetail {
+            partition_id: id,
+            leader: partition.leader(),
+            replicas: partition.replicas().to_vec(),
+            isr: partition.isr().to_vec(),
+            earliest_offset: low.to_string(),
+            latest_offset: high.to_string(),
+            message_count,
+        });
+    }
+
+    let replication_factor = partitions.first().map(|partition| partition.replicas.len() as i32).unwrap_or(0);
+    let health_status = if partitions.is_empty() {
+        "unknown".to_string()
+    } else if partitions.iter().any(|partition| partition.isr.len() < partition.replicas.len()) {
+        "degraded".to_string()
+    } else {
+        "healthy".to_string()
+    };
+
+    clear_admin_request_flag();
+    let config = topic_config(&consumer, topic_name);
+    if admin_request_still_running() {
+        // Dropping the client while a config request is still in flight asserts
+        // inside librdkafka and kills the app.
+        std::mem::forget(consumer);
+    }
+
+    Ok(KafkaTopicDetail {
+        name: topic_name.to_string(),
+        partition_count: partitions.len() as i32,
+        replication_factor,
+        is_internal: topic_name.starts_with("__"),
+        partitions,
+        consumer_groups: Vec::new(),
+        config,
+        health_status,
+        groups_pending: true,
+    })
+}
+
+fn read_topic_groups(
+    rdkafka_config: &rdkafka::config::ClientConfig,
+    topic_name: &str,
+) -> Result<Vec<super::types::KafkaTopicConsumerGroupSummary>, String> {
+    let mut consumer_cfg = rdkafka_config.clone();
+    prepare_consumer_config(&mut consumer_cfg);
+    let consumer: BaseConsumer<AzureEventHubContext> = create_rdkafka_client(&consumer_cfg)?;
+    let refresh_oauth = rdkafka_config
+        .get("sasl.mechanism")
+        .is_some_and(|mechanism| mechanism.eq_ignore_ascii_case("OAUTHBEARER"));
+    let metadata = fetch_cluster_metadata(&consumer, Duration::from_millis(10_000), refresh_oauth)?;
+    let topic_meta = metadata
+        .topics()
+        .iter()
+        .find(|candidate| candidate.name() == topic_name)
+        .ok_or_else(|| format!("Topic '{topic_name}' was not found on the cluster"))?;
+    if let Some(err) = topic_meta.error() {
+        return Err(format!("Topic '{topic_name}' is not readable: {err:?}"));
+    }
+
+    let mut watermarks = Vec::new();
+    for partition in topic_meta.partitions() {
+        let id = partition.id();
+        let (_, high) = consumer
+            .fetch_watermarks(topic_name, id, Duration::from_secs(5))
+            .map_err(|err| format!("Could not read offsets for {topic_name} partition {id}: {err}"))?;
+        watermarks.push((id, high));
+    }
+
+    clear_admin_request_flag();
+    let groups = groups_for_topic(&consumer, topic_name, &watermarks);
+    if admin_request_still_running() {
+        std::mem::forget(consumer);
+    }
+    Ok(groups)
+}
+
+/// Consumer groups that have committed offsets on this topic.
+#[tauri::command]
+pub async fn kafka_topic_groups(
+    state: tauri::State<'_, KafkaState>,
+    topic_name: String,
+    cluster_id: Option<String>,
+) -> Result<Value, String> {
+    let start = Instant::now();
+    let topic_name = topic_name.trim().to_string();
+    if topic_name.is_empty() {
+        return Ok(error_envelope(
+            "topic-groups",
+            "KAFKA_TOPIC_GROUPS_FAILED",
+            "topicName is required",
+            Some(false),
+        ));
+    }
+
+    let rdkafka_config = {
+        let map = state.inner.lock().map_err(|e| e.to_string())?;
+        match resolve_cluster(&map, cluster_id.as_deref()) {
+            Some((config, _)) => config,
+            None => {
+                return Ok(error_envelope(
+                    "topic-groups",
+                    "KAFKA_NOT_CONNECTED",
+                    "No Kafka cluster is connected. Call kafka_connect first.",
+                    Some(false),
+                ));
+            }
+        }
+    };
+
+    let groups_result = tokio::task::spawn_blocking(move || {
+        read_topic_groups(&rdkafka_config, &topic_name)
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let duration_ms = start.elapsed().as_millis() as u64;
+    match groups_result {
+        Ok(consumer_groups) => Ok(success_envelope(
+            "topic-groups",
+            serde_json::json!({ "consumerGroups": consumer_groups }),
+            Some(duration_ms),
+        )),
+        Err(e) => Ok(error_envelope(
+            "topic-groups",
+            "KAFKA_TOPIC_GROUPS_FAILED",
+            &e,
+            Some(true),
+        )),
     }
 }
 
