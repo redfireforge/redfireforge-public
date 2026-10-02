@@ -8,6 +8,8 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.8.16] — 2026-10-01
+
 ### Added
 - **Kafka Azure OAUTHBEARER** — Cluster profiles can sign in to Azure Event Hubs with the Azure CLI session. Install the Azure CLI, run `az login`, choose mechanism Azure OAUTHBEARER, set the `*.servicebus.windows.net:9093` broker, and enable TLS. See [Azure Event Hubs](docs/guides/kafka-azure-event-hubs.md).
 - **Kafka message body search** — Message Detail has a search field under Message Body. It highlights matches, shows the match count, and moves with the arrows or Enter. Ignore case and Match case choose whether letter case matters, including the stream message search.
