@@ -21,7 +21,7 @@ export type KafkaServiceState = 'disconnected' | 'connecting' | 'connected' | 'e
 /** Serialization format for key and value fields in a produce request. */
 export type KafkaSerdeFormat = 'string' | 'json' | 'base64' | 'hex';
 
-export type KafkaAuthMode = 'none' | 'plain' | 'scram-sha-256' | 'scram-sha-512';
+export type KafkaAuthMode = 'none' | 'plain' | 'scram-sha-256' | 'scram-sha-512' | 'oauthbearer';
 
 export interface KafkaAuthConfig {
   mode: KafkaAuthMode;

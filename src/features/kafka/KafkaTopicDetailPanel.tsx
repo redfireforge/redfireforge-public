@@ -155,7 +155,7 @@ export function KafkaTopicDetailPanel({ detail, loading, error, browser }: Kafka
               </div>
               <div className="kafka-explorer-metric-box">
                 <span className="kafka-explorer-metric-label">Consumer Groups</span>
-                <span className="kafka-explorer-metric-value">{detail.consumerGroups.length}</span>
+                <span className="kafka-explorer-metric-value">{detail.groupsPending ? '…' : detail.consumerGroups.length}</span>
               </div>
             </div>
 
@@ -418,7 +418,9 @@ export function KafkaTopicDetailPanel({ detail, loading, error, browser }: Kafka
 
         {tab === 'groups' && (
           <div data-testid="detail-groups-tab">
-            {detail.consumerGroups.length === 0 ? (
+            {detail.groupsPending ? (
+              <p className="kafka-ms-empty-state">Loading consumer groups…</p>
+            ) : detail.consumerGroups.length === 0 ? (
               <p className="kafka-ms-empty-state">No consumer groups found for this topic.</p>
             ) : (
               <table className="kafka-consumer-group-table">

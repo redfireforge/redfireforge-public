@@ -3,6 +3,7 @@ import {
   parseKafkaTimestamp,
   formatRelativeAge,
   formatAbsolute,
+  formatKafkaDateTime,
   formatTimestampTooltip,
 } from './kafkaTimestamp';
 
@@ -86,6 +87,13 @@ describe('formatRelativeAge', () => {
 
   it('shows "just now" for exactly 0ms diff', () => {
     expect(formatRelativeAge(NOW, NOW)).toBe('just now');
+  });
+});
+
+describe('formatKafkaDateTime', () => {
+  it('shows the local date and time', () => {
+    const d = new Date(2026, 5, 17, 9, 5, 6);
+    expect(formatKafkaDateTime(d)).toBe('2026-06-17 09:05:06');
   });
 });
 

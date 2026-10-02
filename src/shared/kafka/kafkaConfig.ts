@@ -1,4 +1,4 @@
-export type KafkaAuthMode = 'none' | 'plain' | 'scram-sha-256' | 'scram-sha-512';
+export type KafkaAuthMode = 'none' | 'plain' | 'scram-sha-256' | 'scram-sha-512' | 'oauthbearer';
 
 export interface KafkaAuthConfig {
   mode: KafkaAuthMode;
@@ -44,7 +44,7 @@ export interface KafkaConnectionSnapshot {
   lastError?: string;
 }
 
-const VALID_AUTH_MODES: ReadonlySet<KafkaAuthMode> = new Set(['none', 'plain', 'scram-sha-256', 'scram-sha-512']);
+const VALID_AUTH_MODES: ReadonlySet<KafkaAuthMode> = new Set(['none', 'plain', 'scram-sha-256', 'scram-sha-512', 'oauthbearer']);
 
 function asTrimmedString(value: unknown): string | null {
   if (typeof value !== 'string') {
@@ -89,8 +89,8 @@ function parseAuth(input: unknown): KafkaAuthConfig {
       : 'none';
     const username = asTrimmedString(source.username) ?? undefined;
     const password = asTrimmedString(source.password) ?? undefined;
-    if (mode === 'none') {
-      return { mode: 'none' };
+    if (mode === 'none' || mode === 'oauthbearer') {
+      return { mode };
     }
     return { mode, username, password };
   }
@@ -143,7 +143,7 @@ export function normalizeKafkaClusterConfig(candidate: unknown, now = Date.now()
   const updatedAt = parseTimestamp(source.updatedAt, createdAt);
   const auth = parseAuth(source.auth ?? source.authMode);
 
-  if (auth.mode !== 'none') {
+  if (auth.mode !== 'none' && auth.mode !== 'oauthbearer') {
     auth.username = auth.username ?? asTrimmedString(source.username) ?? undefined;
     auth.password = auth.password ?? asTrimmedString(source.password) ?? undefined;
   }

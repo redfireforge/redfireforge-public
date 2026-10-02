@@ -85,7 +85,8 @@ const COMMAND_MAP: Record<KafkaOperation, CommandSpec> = {
   unsubscribe: { command: 'kafka_unsubscribe', paramKey: 'request' },
   // Phase 3A — ring buffer polling via Express; no native Rust command yet
   'subscription-messages': { command: '_server_proxy' },
-  'topic-detail': { command: '_server_proxy' },
+  'topic-detail': { command: 'kafka_topic_detail' },
+  'topic-groups': { command: 'kafka_topic_groups' },
   // Schema registry ops: no Rust command — always route through the Express server proxy
   'schema-subjects': { command: '_server_proxy' },
   'schema-versions': { command: '_server_proxy' },
@@ -98,6 +99,16 @@ const COMMAND_MAP: Record<KafkaOperation, CommandSpec> = {
  * Restore JS booleans that buildQuery() serialised to strings for URL params.
  * Only 'true' and 'false' are mapped; all other strings stay as-is.
  */
+function topicNameFromDetailPath(path: string): string | undefined {
+  const match = /\/topics\/([^/?]+)\/(?:detail|groups)/.exec(path);
+  if (!match?.[1]) return undefined;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return match[1];
+  }
+}
+
 function restoreQueryTypes(
   query: Record<string, string>,
 ): Record<string, string | boolean> {
@@ -140,12 +151,16 @@ export const kafkaNativeTauriTransport: KafkaClientTransport = async (
   const { invoke } = await import('@tauri-apps/api/core');
 
   const body = request.body ?? {};
-  const args =
+  const args: Record<string, unknown> =
     request.method === 'GET'
-      ? restoreQueryTypes(request.query)
+      ? { ...restoreQueryTypes(request.query) }
       : paramKey !== undefined
         ? { [paramKey]: body }
-        : body;
+        : { ...body };
+  if (request.op === 'topic-detail' || request.op === 'topic-groups') {
+    const topicName = topicNameFromDetailPath(request.path);
+    if (topicName) args.topicName = topicName;
+  }
 
   let envelope: KafkaEnvelope;
   try {
@@ -206,6 +221,37 @@ export async function listenKafkaSubscriptionMessage(
   const { listen } = await import('@tauri-apps/api/event');
   return listen<KafkaSubscriptionMessage>(
     'kafka-subscription-message',
+    (e) => callback(e.payload),
+  );
+}
+
+export interface KafkaSubscriptionError {
+  subscriptionId: string;
+  message: string;
+}
+
+export interface KafkaSubscriptionEnded {
+  subscriptionId: string;
+  reason: string;
+}
+
+/** Broker failure for a desktop stream. The web app polls instead. */
+export async function listenKafkaSubscriptionError(
+  callback: (payload: KafkaSubscriptionError) => void,
+): Promise<() => void> {
+  const { listen } = await import('@tauri-apps/api/event');
+  return listen<KafkaSubscriptionError>(
+    'kafka-subscription-error',
+    (e) => callback(e.payload),
+  );
+}
+
+export async function listenKafkaSubscriptionEnded(
+  callback: (payload: KafkaSubscriptionEnded) => void,
+): Promise<() => void> {
+  const { listen } = await import('@tauri-apps/api/event');
+  return listen<KafkaSubscriptionEnded>(
+    'kafka-subscription-ended',
     (e) => callback(e.payload),
   );
 }

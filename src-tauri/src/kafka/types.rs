@@ -4,8 +4,8 @@
 //! All output types use the same to produce camelCase JSON for the TypeScript
 //! response parsers in Phase 9C.
 
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 // ─── Input types ──────────────────────────────────────────────────────────────
 
@@ -72,6 +72,9 @@ pub struct KafkaMessageFilter {
     pub headers_match: Option<HashMap<String, String>>,
     pub json_path: Option<String>,
     pub json_equals: Option<String>,
+    /// Case-insensitive substring of the raw message value.
+    #[serde(default)]
+    pub body_contains: Option<String>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -87,6 +90,7 @@ pub struct KafkaConsumeOnceRequest {
     pub filter: Option<KafkaMessageFilter>,
     pub sort_order: Option<String>,
     pub seek_offsets: Option<Vec<KafkaSeekOffset>>,
+    pub partition: Option<i32>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -104,6 +108,8 @@ pub struct KafkaSubscribeRequest {
     pub group_id: Option<String>,
     pub from_beginning: Option<bool>,
     pub filter: Option<KafkaMessageFilter>,
+    /// Stop after this many messages that pass the filter.
+    pub max_messages: Option<usize>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -194,6 +200,44 @@ pub struct KafkaTopicsResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cluster_id: Option<String>,
     pub topics: Vec<KafkaTopicSummary>,
+}
+
+/// Aligned with `KafkaTopicPartitionDetail` in contracts.ts.
+#[derive(Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct KafkaTopicPartitionDetail {
+    pub partition_id: i32,
+    pub leader: i32,
+    pub replicas: Vec<i32>,
+    pub isr: Vec<i32>,
+    pub earliest_offset: String,
+    pub latest_offset: String,
+    pub message_count: i64,
+}
+
+/// Aligned with `KafkaTopicConsumerGroupSummary` in contracts.ts.
+#[derive(Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct KafkaTopicConsumerGroupSummary {
+    pub group_id: String,
+    pub state: String,
+    pub total_lag: i64,
+}
+
+/// Aligned with `KafkaTopicDetail` in contracts.ts.
+#[derive(Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct KafkaTopicDetail {
+    pub name: String,
+    pub partition_count: i32,
+    pub replication_factor: i32,
+    pub is_internal: bool,
+    pub partitions: Vec<KafkaTopicPartitionDetail>,
+    pub consumer_groups: Vec<KafkaTopicConsumerGroupSummary>,
+    pub config: HashMap<String, String>,
+    pub health_status: String,
+    /// True when consumer groups are still loading. Partitions and config are ready.
+    pub groups_pending: bool,
 }
 
 /// Aligned with `KafkaProduceRecordResult` in contracts.ts.
@@ -291,6 +335,22 @@ pub struct KafkaUnsubscribeResult {
 pub struct KafkaSubscriptionEventPayload {
     pub subscription_id: String,
     pub record: KafkaConsumeRecord,
+}
+
+/// Broker failure for a live stream. Emitted as `"kafka-subscription-error"`.
+#[derive(Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct KafkaSubscriptionErrorPayload {
+    pub subscription_id: String,
+    pub message: String,
+}
+
+/// The live reader stopped because it reached Max Messages.
+#[derive(Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct KafkaSubscriptionEndedPayload {
+    pub subscription_id: String,
+    pub reason: String,
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -577,7 +637,8 @@ mod tests {
 
     #[test]
     fn subscribe_request_with_filter() {
-        let json = r#"{"topic":"t","filter":{"keyEquals":"k1","jsonPath":"$.status","jsonEquals":"ok"}}"#;
+        let json =
+            r#"{"topic":"t","filter":{"keyEquals":"k1","jsonPath":"$.status","jsonEquals":"ok"}}"#;
         let req: KafkaSubscribeRequest = serde_json::from_str(json).unwrap();
         let f = req.filter.unwrap();
         assert_eq!(f.key_equals, Some("k1".to_string()));

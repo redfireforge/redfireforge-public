@@ -12,6 +12,7 @@ kafkajs.CompressionCodecs[kafkajs.CompressionTypes.Snappy] = SnappyCodec;
 // Suppress the KafkaJS v2 default-partitioner switch warning — we intentionally
 // use the new default partitioner and don't need the migration reminder.
 process.env['KAFKAJS_NO_PARTITIONER_WARNING'] = '1';
+import { acquireAzureEventHubToken } from './azure-event-hub-token.js';
 import type {
   KafkaConnectionConfig,
   KafkaTopicPartitionDetail,
@@ -120,6 +121,15 @@ function toSasl(config: KafkaConnectionConfig): SASLOptions | undefined {
 
   const username = auth.username ?? '';
   const password = auth.password ?? '';
+
+  if (auth.mode === 'oauthbearer') {
+    return {
+      mechanism: 'oauthbearer',
+      oauthBearerProvider: async () => ({
+        value: await acquireAzureEventHubToken(config.brokers),
+      }),
+    };
+  }
 
   if (auth.mode === 'plain') {
     return {

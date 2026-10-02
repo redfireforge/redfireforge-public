@@ -20,6 +20,8 @@ vi.mock('../utils/httpClient', () => ({
 
 import {
   kafkaNativeTauriTransport,
+  listenKafkaSubscriptionEnded,
+  listenKafkaSubscriptionError,
   listenKafkaSubscriptionMessage,
   type KafkaSubscriptionMessage,
 } from './kafkaNativeTauriTransport';
@@ -81,6 +83,42 @@ describe('kafkaNativeTauriTransport — command name routing', () => {
     invokeMock.mockResolvedValue(okEnvelope('consume-once'));
     await kafkaNativeTauriTransport(makeRequest('consume-once', 'POST'));
     expect(invokeMock).toHaveBeenCalledWith('kafka_consume_once', expect.anything());
+  });
+
+  it('topic-detail invokes kafka_topic_detail with the topic from the path', async () => {
+    invokeMock.mockResolvedValue(okEnvelope('topic-detail'));
+    await kafkaNativeTauriTransport(makeRequest('topic-detail', 'GET', {
+      path: '/api/kafka/topics/221498-ons-retail-enrollment-event/detail',
+      query: { clusterId: 'abc' },
+    }));
+    expect(invokeMock).toHaveBeenCalledWith('kafka_topic_detail', {
+      topicName: '221498-ons-retail-enrollment-event',
+      clusterId: 'abc',
+    });
+  });
+
+  it('keeps a topic name when the path encoding cannot be decoded', async () => {
+    invokeMock.mockResolvedValue(okEnvelope('topic-detail'));
+    await kafkaNativeTauriTransport(makeRequest('topic-detail', 'GET', {
+      path: '/api/kafka/topics/%E0%A4%A/detail',
+      query: { clusterId: 'abc' },
+    }));
+    expect(invokeMock).toHaveBeenCalledWith('kafka_topic_detail', {
+      topicName: '%E0%A4%A',
+      clusterId: 'abc',
+    });
+  });
+
+  it('topic-groups invokes kafka_topic_groups with the topic from the path', async () => {
+    invokeMock.mockResolvedValue(okEnvelope('topic-groups'));
+    await kafkaNativeTauriTransport(makeRequest('topic-groups', 'GET', {
+      path: '/api/kafka/topics/221498-ons-retail-enrollment-event/groups',
+      query: { clusterId: 'abc' },
+    }));
+    expect(invokeMock).toHaveBeenCalledWith('kafka_topic_groups', {
+      topicName: '221498-ons-retail-enrollment-event',
+      clusterId: 'abc',
+    });
   });
 
   it('maps subscriptions to kafka_subscriptions (not kafka_subscription)', async () => {
@@ -517,6 +555,24 @@ describe('listenKafkaSubscriptionMessage', () => {
 
     expect(callback).toHaveBeenCalledOnce();
     expect(callback).toHaveBeenCalledWith(payload);
+  });
+
+  it('listens for desktop stream errors and the max-reached end', async () => {
+    let errorHandler: ((e: { payload: { subscriptionId: string; message: string } }) => void) | null = null;
+    let endedHandler: ((e: { payload: { subscriptionId: string; reason: string } }) => void) | null = null;
+    listenMock.mockImplementation((event: string, handler: (e: { payload: never }) => void) => {
+      if (event === 'kafka-subscription-error') errorHandler = handler;
+      if (event === 'kafka-subscription-ended') endedHandler = handler;
+      return Promise.resolve(vi.fn());
+    });
+    const onError = vi.fn();
+    const onEnded = vi.fn();
+    await listenKafkaSubscriptionError(onError);
+    await listenKafkaSubscriptionEnded(onEnded);
+    errorHandler?.({ payload: { subscriptionId: 'sub', message: 'down' } });
+    endedHandler?.({ payload: { subscriptionId: 'sub', reason: 'max-reached' } });
+    expect(onError).toHaveBeenCalledWith({ subscriptionId: 'sub', message: 'down' });
+    expect(onEnded).toHaveBeenCalledWith({ subscriptionId: 'sub', reason: 'max-reached' });
   });
 
   it('returns the unlisten function from the listen call', async () => {

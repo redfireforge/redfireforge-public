@@ -51,6 +51,26 @@ function makeGroupId(): string {
   return `redfireforge-debug-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+function recentWindowMs(timeWindow: TimeWindow): number | null {
+  if (timeWindow === 'last-1h') return 3_600_000;
+  if (timeWindow === 'last-24h') return 86_400_000;
+  return null;
+}
+
+function keepRowsInTimeWindow(
+  rows: KafkaConsumeResultRow[],
+  timeWindow: TimeWindow,
+  now = Date.now(),
+): KafkaConsumeResultRow[] {
+  const windowMs = recentWindowMs(timeWindow);
+  if (windowMs == null) return rows;
+  const cutoff = now - windowMs;
+  return rows.filter((row) => {
+    const ts = parseInt(row.timestamp ?? '', 10);
+    return Number.isFinite(ts) && ts >= cutoff;
+  });
+}
+
 function makeDefaultDraft(): TopicMessageBrowserDraft {
   return {
     groupId: makeGroupId(),
@@ -100,14 +120,12 @@ export function useTopicMessageBrowser(
   }, []);
 
   const buildBody = useCallback((seekOffsets?: KafkaConsumeCursor[]) => {
-    // Time-window semantics for Topic Explorer browse:
-    // - earliest / last-* → read from the beginning (then optionally filter by age)
-    // - latest → fetch the newest available records (server desc seek), NOT "wait at tip"
-    //   Waiting at the tip only returns brand-new publishes and commonly times out with 0.
-    const fromBeginning = draft.timeWindow === 'earliest'
-      || draft.timeWindow === 'last-1h'
-      || draft.timeWindow === 'last-24h';
-    const fetchNewestAvailable = draft.timeWindow === 'latest';
+    // Latest and Last 1/24 hours read records already on the topic, starting at
+    // the newest. Last 1/24 hours then drops rows older than that window.
+    // Earliest starts at the beginning. Waiting at the high watermark returns
+    // nothing unless a new record arrives during the timeout.
+    const fromBeginning = draft.timeWindow === 'earliest';
+    const fetchNewestAvailable = draft.timeWindow !== 'earliest';
     const filter = buildConsumeFilter({
       topic: topicName,
       groupId: draft.groupId,
@@ -161,16 +179,9 @@ export function useTopicMessageBrowser(
       }>('consume-once', body);
 
       if (envelope.ok && envelope.data) {
-        let rows = envelope.data.messages ?? [];
-        if (draft.timeWindow === 'last-1h' || draft.timeWindow === 'last-24h') {
-          const cutoff = Date.now() - (draft.timeWindow === 'last-1h' ? 3_600_000 : 86_400_000);
-          rows = rows.filter((r) => {
-            const ts = parseInt(r.timestamp ?? '0', 10);
-            return ts >= cutoff;
-          });
-        }
-        // Latest fetches via server desc seek; re-order when the user chose Oldest First.
-        if (draft.timeWindow === 'latest' && draft.sortOrder === 'asc') {
+        let rows = keepRowsInTimeWindow(envelope.data.messages ?? [], draft.timeWindow);
+        // Newest fetch comes back newest-first; re-order when the user chose Oldest First.
+        if (draft.timeWindow !== 'earliest' && draft.sortOrder === 'asc') {
           rows = [...rows].sort((a, b) => parseInt(a.offset, 10) - parseInt(b.offset, 10));
         }
         setResult(rows);
@@ -196,9 +207,8 @@ export function useTopicMessageBrowser(
         nextCursor?: KafkaConsumeCursor[];
       }>('consume-once', body);
       if (envelope.ok && envelope.data) {
-        setResult((prev) =>
-          prev ? [...prev, ...envelope.data!.messages] : envelope.data!.messages,
-        );
+        const more = keepRowsInTimeWindow(envelope.data.messages ?? [], draft.timeWindow);
+        setResult((prev) => (prev ? [...prev, ...more] : more));
         setHasMore(envelope.data.hasMore ?? false);
         setNextCursor(envelope.data.nextCursor ?? null);
       }
@@ -207,7 +217,7 @@ export function useTopicMessageBrowser(
     } finally {
       setLoadMoreLoading(false);
     }
-  }, [nextCursor, buildBody, dispatch]);
+  }, [nextCursor, buildBody, dispatch, draft.timeWindow]);
 
   const clearResult = useCallback(() => {
     setResult(null);
