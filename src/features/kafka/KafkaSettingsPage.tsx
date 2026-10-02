@@ -8,6 +8,7 @@ import {
   draftFromCluster,
   hasDraftErrors,
   normalizeBrokerEntries,
+  authConfigFromDraft,
   type KafkaClusterDraft,
   type KafkaClusterDraftErrors,
   validateKafkaClusterDraft,
@@ -206,13 +207,7 @@ export default function KafkaSettingsPage({ kafkaState }: KafkaSettingsPageProps
       brokers: cleanedBrokers,
       connectionTimeoutMs: parseOptionalTimeoutMs(draft.connectionTimeoutMs),
       requestTimeoutMs: parseOptionalTimeoutMs(draft.requestTimeoutMs),
-      auth: draft.authMode === 'none'
-        ? { mode: 'none' }
-        : {
-            mode: draft.authMode,
-            username: draft.authUsername.trim(),
-            password: draft.authPassword.trim(),
-          },
+      auth: authConfigFromDraft(draft),
       tls: buildTlsConfig(draft),
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,

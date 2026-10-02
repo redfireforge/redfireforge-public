@@ -9,10 +9,11 @@ export interface IndexedStreamRow {
 export function filterIndexedStreamRows(
   rows: KafkaConsumeResultRow[],
   streamSearch: string,
+  caseSensitive = false,
 ): IndexedStreamRow[] {
   return rows
     .map((row, index) => ({ row, index }))
-    .filter(({ row }) => matchesKafkaResultSearch(row, streamSearch));
+    .filter(({ row }) => matchesKafkaResultSearch(row, streamSearch, caseSensitive));
 }
 
 export function formatStreamCountLabel(

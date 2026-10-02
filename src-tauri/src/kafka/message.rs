@@ -9,7 +9,6 @@
 
 use std::collections::HashMap;
 
-use chrono::SecondsFormat;
 use rdkafka::message::Headers;
 use rdkafka::Timestamp;
 
@@ -36,14 +35,17 @@ pub(super) fn extract_headers<H: Headers>(headers: &H) -> Option<HashMap<String,
 
 // ─── Timestamp conversion ─────────────────────────────────────────────────────
 
-pub(super) fn kafka_timestamp_to_iso(ts: Timestamp) -> Option<String> {
+/// Epoch milliseconds, matching the string the topic table parses with `parseInt`.
+pub(super) fn kafka_timestamp_millis(ts: Timestamp) -> Option<String> {
     let ms = match ts {
         Timestamp::CreateTime(ms) => ms,
         Timestamp::LogAppendTime(ms) => ms,
         _ => return None,
     };
-    chrono::DateTime::<chrono::Utc>::from_timestamp_millis(ms)
-        .map(|dt| dt.to_rfc3339_opts(SecondsFormat::Millis, true))
+    if ms <= 0 {
+        return None;
+    }
+    Some(ms.to_string())
 }
 
 // ─── Message-to-record conversion ─────────────────────────────────────────────
@@ -56,7 +58,7 @@ pub(super) fn consume_record_from_message(
         topic: msg.topic().to_string(),
         partition: msg.partition(),
         offset: msg.offset().to_string(),
-        timestamp: kafka_timestamp_to_iso(msg.timestamp()),
+        timestamp: kafka_timestamp_millis(msg.timestamp()),
         key: msg
             .key()
             .and_then(|k| std::str::from_utf8(k).ok().map(|s| s.to_string())),
@@ -118,7 +120,10 @@ pub(super) fn read_json_path(json_text: &str, path: &str) -> Option<String> {
 /// Returns true when `record` passes all active criteria in `filter`.
 /// A `None` filter always matches.  Mirrors `matchesKafkaConsumeFilter` from
 /// `src-server/kafka/kafka-service-utils.ts`.
-pub(super) fn matches_filter(record: &KafkaConsumeRecord, filter: Option<&KafkaMessageFilter>) -> bool {
+pub(super) fn matches_filter(
+    record: &KafkaConsumeRecord,
+    filter: Option<&KafkaMessageFilter>,
+) -> bool {
     let filter = match filter {
         Some(f) => f,
         None => return true,
@@ -147,7 +152,72 @@ pub(super) fn matches_filter(record: &KafkaConsumeRecord, filter: Option<&KafkaM
             return false;
         }
     }
+    if let Some(needle) = filter.body_contains.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        if !body_has_text(&record.value, needle) {
+            return false;
+        }
+    }
     true
+}
+
+/// True when `needle` appears in the raw record or in the text after JSON
+/// string escapes are decoded. `event.body` is stored as one escaped string,
+/// so the payload contains `\"accountType\":\"PN\"` while the message view
+/// shows `"accountType":"PN"`.
+pub(super) fn body_has_text(value: &str, needle: &str) -> bool {
+    let needle = normalize_quotes(needle).to_lowercase();
+    if needle.is_empty() {
+        return true;
+    }
+    let value = value.to_lowercase();
+    let value_text = json_unescape(&value);
+    let needle_text = json_unescape(&needle);
+    value.contains(&needle)
+        || value.contains(&needle_text)
+        || value_text.contains(&needle)
+        || value_text.contains(&needle_text)
+}
+
+fn normalize_quotes(value: &str) -> String {
+    value
+        .chars()
+        .map(|ch| match ch {
+            '\u{201c}' | '\u{201d}' | '\u{201e}' => '"',
+            _ => ch,
+        })
+        .collect()
+}
+
+fn json_unescape(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    let mut chars = input.chars();
+    while let Some(ch) = chars.next() {
+        if ch != '\\' {
+            out.push(ch);
+            continue;
+        }
+        match chars.next() {
+            Some('"') => out.push('"'),
+            Some('\\') => out.push('\\'),
+            Some('/') => out.push('/'),
+            Some('n') => out.push('\n'),
+            Some('t') => out.push('\t'),
+            Some('r') => out.push('\r'),
+            Some(other) => {
+                out.push('\\');
+                out.push(other);
+            }
+            None => out.push('\\'),
+        }
+    }
+    out
+}
+
+pub(super) fn filter_narrows(filter: &KafkaMessageFilter) -> bool {
+    filter.body_contains.as_deref().is_some_and(|text| !text.trim().is_empty())
+        || filter.key_equals.is_some()
+        || filter.json_path.is_some()
+        || filter.headers_match.as_ref().is_some_and(|headers| !headers.is_empty())
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -157,7 +227,11 @@ mod tests {
     use super::*;
     use crate::kafka::types::{KafkaConsumeRecord, KafkaMessageFilter};
 
-    fn record(key: Option<&str>, value: &str, headers: Option<HashMap<String, String>>) -> KafkaConsumeRecord {
+    fn record(
+        key: Option<&str>,
+        value: &str,
+        headers: Option<HashMap<String, String>>,
+    ) -> KafkaConsumeRecord {
         KafkaConsumeRecord {
             topic: "t".to_string(),
             partition: 0,
@@ -258,6 +332,7 @@ mod tests {
             headers_match: None,
             json_path: None,
             json_equals: None,
+            body_contains: None,
         };
         assert!(matches_filter(&r, Some(&f)));
     }
@@ -270,6 +345,7 @@ mod tests {
             headers_match: None,
             json_path: None,
             json_equals: None,
+            body_contains: None,
         };
         assert!(!matches_filter(&r, Some(&f)));
     }
@@ -282,6 +358,7 @@ mod tests {
             headers_match: None,
             json_path: None,
             json_equals: None,
+            body_contains: None,
         };
         assert!(!matches_filter(&r, Some(&f)));
     }
@@ -296,6 +373,7 @@ mod tests {
             headers_match: Some(mh),
             json_path: None,
             json_equals: None,
+            body_contains: None,
         };
         assert!(matches_filter(&r, Some(&f)));
     }
@@ -310,6 +388,7 @@ mod tests {
             headers_match: Some(mh),
             json_path: None,
             json_equals: None,
+            body_contains: None,
         };
         assert!(!matches_filter(&r, Some(&f)));
     }
@@ -324,6 +403,7 @@ mod tests {
             headers_match: Some(mh),
             json_path: None,
             json_equals: None,
+            body_contains: None,
         };
         assert!(!matches_filter(&r, Some(&f)));
     }
@@ -336,6 +416,7 @@ mod tests {
             headers_match: None,
             json_path: Some("$.status".to_string()),
             json_equals: Some("paid".to_string()),
+            body_contains: None,
         };
         assert!(matches_filter(&r, Some(&f)));
     }
@@ -348,6 +429,7 @@ mod tests {
             headers_match: None,
             json_path: Some("$.status".to_string()),
             json_equals: Some("paid".to_string()),
+            body_contains: None,
         };
         assert!(!matches_filter(&r, Some(&f)));
     }
@@ -360,8 +442,41 @@ mod tests {
             headers_match: None,
             json_path: Some("$.status".to_string()),
             json_equals: None,
+            body_contains: None,
         };
         assert!(matches_filter(&r, Some(&f)));
+    }
+
+    #[test]
+    fn filter_body_contains_matches_escaped_json_string() {
+        let raw = r#"{"event":{"body":"{\"accountType\":\"PN\",\"vin\":\"1\"}"}}"#;
+        let r = record(None, raw, None);
+        let f = KafkaMessageFilter {
+            key_equals: None,
+            headers_match: None,
+            json_path: None,
+            json_equals: None,
+            body_contains: Some(r#"\"accountType\":\"PN\""#.to_string()),
+        };
+        assert!(matches_filter(&r, Some(&f)));
+        let visible = KafkaMessageFilter {
+            body_contains: Some(r#""accountType":"PN""#.to_string()),
+            ..f.clone()
+        };
+        assert!(matches_filter(&r, Some(&visible)));
+        let mut curly_text = String::from(r#"\"accountType\":\"#);
+        curly_text.push('\u{201d}');
+        curly_text.push_str(r#"PN\""#);
+        let curly = KafkaMessageFilter {
+            body_contains: Some(curly_text),
+            ..f.clone()
+        };
+        assert!(matches_filter(&r, Some(&curly)));
+        let other = KafkaMessageFilter {
+            body_contains: Some(r#"\"accountType\":\"FL\""#.to_string()),
+            ..f
+        };
+        assert!(!matches_filter(&r, Some(&other)));
     }
 
     #[test]
@@ -372,6 +487,7 @@ mod tests {
             headers_match: None,
             json_path: Some("$.status".to_string()),
             json_equals: None,
+            body_contains: None,
         };
         assert!(!matches_filter(&r, Some(&f)));
     }
@@ -386,6 +502,7 @@ mod tests {
             headers_match: Some(mh),
             json_path: None,
             json_equals: None,
+            body_contains: None,
         };
         assert!(matches_filter(&r, Some(&f)));
     }
@@ -400,28 +517,26 @@ mod tests {
             headers_match: Some(mh),
             json_path: None,
             json_equals: None,
+            body_contains: None,
         };
         assert!(!matches_filter(&r, Some(&f)));
     }
 
     #[test]
-    fn kafka_timestamp_to_iso_create_time() {
+    fn kafka_timestamp_millis_create_time() {
         let ts = Timestamp::CreateTime(1_748_822_400_000);
-        let iso = kafka_timestamp_to_iso(ts);
-        assert!(iso.is_some());
-        let s = iso.unwrap();
-        assert!(s.contains("2025") || s.contains("2026"), "Unexpected year in: {}", s);
+        assert_eq!(kafka_timestamp_millis(ts).as_deref(), Some("1748822400000"));
     }
 
     #[test]
-    fn kafka_timestamp_to_iso_log_append_time() {
+    fn kafka_timestamp_millis_log_append_time() {
         let ts = Timestamp::LogAppendTime(1_748_822_400_000);
-        assert!(kafka_timestamp_to_iso(ts).is_some());
+        assert_eq!(kafka_timestamp_millis(ts).as_deref(), Some("1748822400000"));
     }
 
     #[test]
     fn kafka_timestamp_not_available_returns_none() {
-        let ts = Timestamp::NotAvailable;
-        assert!(kafka_timestamp_to_iso(ts).is_none());
+        assert!(kafka_timestamp_millis(Timestamp::NotAvailable).is_none());
+        assert!(kafka_timestamp_millis(Timestamp::CreateTime(0)).is_none());
     }
 }

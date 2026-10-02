@@ -146,6 +146,15 @@ describe('formatSecurityProfile', () => {
     expect(label).toContain('TLS enabled');
   });
 
+  it('shows Azure OAUTHBEARER', () => {
+    const label = formatSecurityProfile(makeCluster(
+      { mode: 'oauthbearer' },
+      { enabled: true, rejectUnauthorized: true },
+    ));
+    expect(label).toContain('Azure OAUTHBEARER');
+    expect(label).toContain('TLS enabled');
+  });
+
   it('shows TLS without cert verification when rejectUnauthorized is false', () => {
     const label = formatSecurityProfile(makeCluster(
       { mode: 'none' },

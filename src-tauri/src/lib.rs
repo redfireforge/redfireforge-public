@@ -104,6 +104,8 @@ pub fn run() {
       kafka::lifecycle::kafka_disconnect,
       kafka::lifecycle::kafka_status,
       kafka::lifecycle::kafka_topics,
+      kafka::lifecycle::kafka_topic_detail,
+      kafka::lifecycle::kafka_topic_groups,
       kafka::operations::kafka_produce,
       kafka::operations::kafka_consume_once,
       kafka::operations::kafka_subscribe,

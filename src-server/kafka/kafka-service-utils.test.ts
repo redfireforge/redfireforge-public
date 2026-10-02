@@ -357,6 +357,13 @@ describe('matchesKafkaConsumeFilter', () => {
     expect(matchesKafkaConsumeFilter(record(), { jsonPath: '$.missing', jsonEquals: 'anything' })).toBe(false);
   });
 
+  it('matches accountType inside an escaped event body string', () => {
+    const value = '{"event":{"body":"{\\"accountType\\":\\"PN\\",\\"vin\\":\\"1\\"}"}}';
+    expect(matchesKafkaConsumeFilter(record({ value }), { bodyContains: '"accountType":"PN"' })).toBe(true);
+    expect(matchesKafkaConsumeFilter(record({ value }), { bodyContains: '\\"accountType\\":\\"PN\\"' })).toBe(true);
+    expect(matchesKafkaConsumeFilter(record({ value }), { bodyContains: '"accountType":"FL"' })).toBe(false);
+  });
+
   it('accepts a record matching all combined filter fields', () => {
     const filter = {
       keyEquals: 'key-1',

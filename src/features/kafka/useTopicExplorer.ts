@@ -36,6 +36,8 @@ export interface KafkaTopicDetail {
   consumerGroups: KafkaTopicConsumerGroupSummary[];
   config: Record<string, string>;
   healthStatus: 'healthy' | 'degraded' | 'unknown';
+  /** Desktop fills consumer groups after partitions are already on screen. */
+  groupsPending?: boolean;
 }
 
 export interface UseTopicExplorerReturn {
@@ -147,6 +149,28 @@ export function useTopicExplorer(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kafkaState.topics, searchText, healthFilter, partitionFilter, retentionFilter, showInternal, domainChip, detailCacheVersion]);
 
+  const loadTopicGroups = useCallback(async (topicName: string, clusterId: string) => {
+    try {
+      const envelope = await dispatch<{ consumerGroups: KafkaTopicConsumerGroupSummary[] }>('topic-groups', {
+        topicName,
+        clusterId,
+      });
+      const current = detailCacheRef.current.get(topicName);
+      if (!current) return;
+      detailCacheRef.current.set(topicName, {
+        ...current,
+        consumerGroups: envelope.ok && envelope.data ? envelope.data.consumerGroups ?? [] : current.consumerGroups,
+        groupsPending: false,
+      });
+      setDetailCacheVersion((v) => v + 1);
+    } catch {
+      const current = detailCacheRef.current.get(topicName);
+      if (!current?.groupsPending) return;
+      detailCacheRef.current.set(topicName, { ...current, groupsPending: false });
+      setDetailCacheVersion((v) => v + 1);
+    }
+  }, [dispatch]);
+
   const selectTopic = useCallback(async (name: string | null) => {
     setSelectedTopicName(name);
     setDetailError(null);
@@ -163,13 +187,16 @@ export function useTopicExplorer(
       if (envelope.ok && envelope.data) {
         detailCacheRef.current.set(name, envelope.data);
         setDetailCacheVersion((v) => v + 1);
+        if (envelope.data.groupsPending) {
+          void loadTopicGroups(name, kafkaState.selectedClusterId ?? '');
+        }
       }
     } catch (err) {
       setDetailError(toKafkaUiSafeError(err, 'topic-detail'));
     } finally {
       setDetailLoading(false);
     }
-  }, [dispatch, kafkaState.selectedClusterId]);
+  }, [dispatch, kafkaState.selectedClusterId, loadTopicGroups]);
 
   const selectedDetail = selectedTopicName ? detailCacheRef.current.get(selectedTopicName) ?? null : null;
 

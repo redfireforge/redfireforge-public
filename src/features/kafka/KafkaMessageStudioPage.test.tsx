@@ -7,10 +7,24 @@ import userEvent from '@testing-library/user-event';
 import { KafkaMessageStudioPage } from './KafkaMessageStudioPage';
 import type { UseKafkaStateReturn } from '@app/hooks/useKafkaState';
 
-vi.mock('./KafkaTopicExplorerPage', () => ({
-  KafkaTopicExplorerContent: () => <div data-testid="topic-explorer-page">Topic Explorer Content</div>,
-  KafkaTopicExplorerPage: () => <div>Topic Explorer Page</div>,
-}));
+vi.mock('./KafkaTopicExplorerPage', async () => {
+  const { useState } = await import('react');
+  function KafkaTopicExplorerContent() {
+    const [note, setNote] = useState('fresh');
+    return (
+      <div data-testid="topic-explorer-page">
+        <span data-testid="topic-explorer-note">{note}</span>
+        <button type="button" data-testid="topic-explorer-mark" onClick={() => setNote('kept')}>
+          Mark
+        </button>
+      </div>
+    );
+  }
+  return {
+    KafkaTopicExplorerContent,
+    KafkaTopicExplorerPage: () => <div>Topic Explorer Page</div>,
+  };
+});
 vi.mock('./KafkaSchemaRegistryPage', () => ({
   KafkaSchemaRegistryContent: () => <div data-testid="schema-registry-page">Schema Registry Content</div>,
   KafkaSchemaRegistryPage: () => <div>Schema Registry Page</div>,
@@ -215,6 +229,27 @@ describe('KafkaMessageStudioPage', () => {
     await user.click(screen.getByRole('button', { name: 'Topics' }));
     expect(screen.getByRole('button', { name: 'Topics' }).className).toContain('active');
     expect(screen.getByTestId('topic-explorer-page')).toBeTruthy();
+  });
+
+  it('keeps the Topics page mounted when switching to another Kafka tab', async () => {
+    const user = userEvent.setup();
+    render(
+      <KafkaMessageStudioPage
+        kafkaState={makeKafkaState()}
+        onNavigateToKafkaSettings={vi.fn()}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Topics' }));
+    await user.click(screen.getByTestId('topic-explorer-mark'));
+    expect(screen.getByTestId('topic-explorer-note').textContent).toBe('kept');
+
+    await user.click(screen.getByRole('button', { name: 'Consume' }));
+    expect(screen.getByTestId('kafka-topics-pane').hidden).toBe(true);
+    expect(screen.getByTestId('topic-explorer-note', { hidden: true }).textContent).toBe('kept');
+
+    await user.click(screen.getByRole('button', { name: 'Topics' }));
+    expect(screen.getByTestId('kafka-topics-pane').hidden).toBe(false);
+    expect(screen.getByTestId('topic-explorer-note').textContent).toBe('kept');
   });
 
   it('switches to Schema Registry tab and renders schema content', async () => {

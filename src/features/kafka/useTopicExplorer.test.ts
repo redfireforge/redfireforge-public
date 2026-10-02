@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
+import { renderHook, act, waitFor } from '@testing-library/react';
 import {
   useTopicExplorer,
   type KafkaTopicDetail,
@@ -267,6 +267,49 @@ describe('useTopicExplorer', () => {
     expect(result.current.selectedTopicName).toBe('orders.created');
     expect(result.current.selectedDetail).toEqual(detail);
     expect(result.current.detailCache.get('orders.created')).toEqual(detail);
+  });
+
+  it('selectTopic loads consumer groups after a pending topic detail', async () => {
+    const detail = { ...makeDetail('orders.created'), consumerGroups: [], groupsPending: true };
+    const dispatch = vi.fn(async (op: string) => {
+      if (op === 'topic-groups') {
+        return { ok: true, data: { consumerGroups: [{ groupId: 'billing', state: 'Stable', totalLag: 2 }] } };
+      }
+      return { ok: true, data: detail };
+    });
+
+    const { result } = renderHook(() => useTopicExplorer(makeKafkaState(), { dispatch }));
+
+    await act(async () => {
+      await result.current.selectTopic('orders.created');
+    });
+
+    await waitFor(() => {
+      expect(result.current.selectedDetail?.consumerGroups).toEqual([
+        { groupId: 'billing', state: 'Stable', totalLag: 2 },
+      ]);
+    });
+    expect(result.current.detailLoading).toBe(false);
+    expect(result.current.selectedDetail?.groupsPending).toBe(false);
+  });
+
+  it('clears the pending flag when the consumer-group load fails', async () => {
+    const detail = { ...makeDetail('orders.created'), consumerGroups: [], groupsPending: true };
+    const dispatch = vi.fn(async (op: string) => {
+      if (op === 'topic-groups') throw new Error('groups down');
+      return { ok: true, data: detail };
+    });
+
+    const { result } = renderHook(() => useTopicExplorer(makeKafkaState(), { dispatch }));
+
+    await act(async () => {
+      await result.current.selectTopic('orders.created');
+    });
+
+    await waitFor(() => {
+      expect(result.current.selectedDetail?.groupsPending).toBe(false);
+    });
+    expect(result.current.selectedDetail?.consumerGroups).toEqual([]);
   });
 
   it('selectTopic returns cached detail without re-dispatching on second call', async () => {

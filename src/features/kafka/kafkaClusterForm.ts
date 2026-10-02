@@ -1,4 +1,5 @@
 import type { KafkaAuthMode, KafkaClusterConfig } from '@shared/kafka/kafkaConfig';
+import { eventHubResourceFromBrokers } from '@shared/kafka/azureEventHubResource';
 
 export interface KafkaClusterDraft {
   clusterId: string;
@@ -30,6 +31,7 @@ export interface KafkaClusterDraftErrors {
   tlsCertPem?: string;
   tlsKeyPem?: string;
   tlsPassphrase?: string;
+  tlsEnabled?: string;
   brokers?: string;
   brokerRows?: Record<number, string>;
 }
@@ -104,6 +106,17 @@ export function draftFromCluster(cluster: KafkaClusterConfig): KafkaClusterDraft
   };
 }
 
+export function authConfigFromDraft(draft: KafkaClusterDraft): KafkaClusterConfig['auth'] {
+  if (draft.authMode === 'none' || draft.authMode === 'oauthbearer') {
+    return { mode: draft.authMode };
+  }
+  return {
+    mode: draft.authMode,
+    username: draft.authUsername.trim(),
+    password: draft.authPassword.trim(),
+  };
+}
+
 const BROKER_PATTERN = /^[^\s:]+:\d{2,5}$/;
 
 function validateOptionalPositiveInteger(value?: string): string | null {
@@ -161,14 +174,19 @@ export function validateKafkaClusterDraft(
   const authMode = draft.authMode ?? 'none';
   const authUsername = draft.authUsername?.trim() ?? '';
   const authPassword = draft.authPassword?.trim() ?? '';
+  const needsCredentials = authMode === 'plain' || authMode === 'scram-sha-256' || authMode === 'scram-sha-512';
 
-  if (authMode !== 'none') {
+  if (needsCredentials) {
     if (!authUsername) {
       errors.authUsername = 'Username is required for authenticated modes';
     }
     if (!authPassword) {
       errors.authPassword = 'Password is required for authenticated modes';
     }
+  }
+
+  if (authMode === 'oauthbearer' && !(draft.tlsEnabled ?? false)) {
+    errors.tlsEnabled = 'Azure OAUTHBEARER requires TLS';
   }
 
   if (draft.tlsEnabled ?? false) {
@@ -199,6 +217,8 @@ export function validateKafkaClusterDraft(
 
   if (draft.brokers.length === 0 || normalizedBrokers.length === 0) {
     errors.brokers = 'At least one broker is required';
+  } else if (authMode === 'oauthbearer' && !eventHubResourceFromBrokers(normalizedBrokers)) {
+    errors.brokers = 'Azure OAUTHBEARER needs a broker on *.servicebus.windows.net';
   }
   if (Object.keys(brokerRows).length > 0) {
     errors.brokerRows = brokerRows;

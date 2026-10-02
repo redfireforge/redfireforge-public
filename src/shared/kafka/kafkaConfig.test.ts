@@ -116,6 +116,16 @@ describe('normalizeKafkaClusterConfig', () => {
     expect(result?.auth.mode).toBe('none');
   });
 
+  it('keeps Azure OAUTHBEARER without stored credentials', () => {
+    const result = normalizeKafkaClusterConfig({
+      ...base(),
+      auth: { mode: 'oauthbearer', username: 'leftover', password: 'leftover' },
+      username: 'top',
+      password: 'top',
+    });
+    expect(result?.auth).toEqual({ mode: 'oauthbearer' });
+  });
+
   it('falls back to auth.mode=none when auth is null', () => {
     const result = normalizeKafkaClusterConfig({ ...base(), auth: null });
     expect(result?.auth.mode).toBe('none');

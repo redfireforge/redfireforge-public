@@ -127,6 +127,32 @@ describe('AppProtocolStudios', () => {
     expect(screen.getByTestId('grpc-page')).toBeTruthy();
   });
 
+  it('keeps the Kafka studio mounted when switching away', () => {
+    const props = {
+      kafkaState,
+      onNavigateToKafkaSettings,
+      onUseAsWorkflowInput,
+      lastWorkflowOutput,
+      resolvedBaseUrl,
+      selectedEnvName: 'Dev',
+      selectedSvcName: 'Orders',
+      selectedSvc,
+      selectedEnvId: 'env-dev',
+      appGlobalAuthProfiles,
+      workspaceDefaults,
+    };
+
+    const { rerender } = render(
+      <AppProtocolStudios {...props} activeTab="kafka-message-studio" />,
+    );
+    const pane = screen.getByTestId('kafka-page').parentElement;
+    expect(pane?.style.display).toBe('flex');
+
+    rerender(<AppProtocolStudios {...props} activeTab="preferences" />);
+    expect(screen.getByTestId('kafka-page')).toBeTruthy();
+    expect(pane?.style.display).toBe('none');
+  });
+
   it('renders api-mock studio when active and keeps it mounted when switching away', () => {
     const props = {
       kafkaState,

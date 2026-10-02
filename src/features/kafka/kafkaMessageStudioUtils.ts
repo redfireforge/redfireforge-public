@@ -104,19 +104,22 @@ export function headersToRecord(rows: KafkaHeaderRow[]): Record<string, string> 
 // ── Result search (client-side table filter) ───────────────────────────────
 
 /**
- * Case-insensitive substring match across offset, partition, key, and value.
- * Blank query matches every row (no filtering).
+ * Substring match across offset, partition, key, and value.
+ * Blank query matches every row. Case is ignored unless caseSensitive is set.
  */
 export function matchesKafkaResultSearch(
   row: Pick<KafkaConsumeResultRow, 'offset' | 'partition' | 'key' | 'value'>,
   query: string,
+  caseSensitive = false,
 ): boolean {
-  const q = query.trim().toLowerCase();
-  if (!q) return true;
-  if (String(row.offset).toLowerCase().includes(q)) return true;
-  if (String(row.partition).toLowerCase().includes(q)) return true;
-  if ((row.key ?? '').toLowerCase().includes(q)) return true;
-  if ((row.value ?? '').toLowerCase().includes(q)) return true;
+  const raw = query.trim();
+  if (!raw) return true;
+  const q = caseSensitive ? raw : raw.toLowerCase();
+  const field = (value: string) => (caseSensitive ? value : value.toLowerCase());
+  if (field(String(row.offset)).includes(q)) return true;
+  if (field(String(row.partition)).includes(q)) return true;
+  if (field(row.key ?? '').includes(q)) return true;
+  if (field(row.value ?? '').includes(q)) return true;
   return false;
 }
 
@@ -229,11 +232,14 @@ export function buildSubscribeRequest(
   draft: KafkaConsumeDraft,
   clusterId: string,
 ): Record<string, unknown> {
+  const maxMessagesRaw = parseInt(draft.maxMessages, 10);
+  const maxMessages = Number.isFinite(maxMessagesRaw) && maxMessagesRaw > 0 ? maxMessagesRaw : 50;
   const req: Record<string, unknown> = {
     clusterId,
     topic: draft.topic,
     fromBeginning: draft.startPosition === 'earliest',
-    maxInMemoryMessages: 200,
+    maxMessages,
+    maxInMemoryMessages: maxMessages,
   };
   if (draft.groupId.trim()) req.groupId = draft.groupId.trim();
   const filter = buildConsumeFilter(draft);

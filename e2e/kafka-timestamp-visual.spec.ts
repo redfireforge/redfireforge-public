@@ -132,16 +132,16 @@ test.describe('Kafka Consume — Timestamp column', () => {
     console.log('[KT-02] Timestamp header visible ✓');
   });
 
-  test('KT-03: 4 cells with relative age, 1 missing dash', async ({ page, context }) => {
+  test('KT-03: 4 cells with local time, 1 missing dash', async ({ page, context }) => {
     await setupWithResults(page, context);
 
     const tsCells = page.locator('[data-testid="ts-cell"]');
     await expect(tsCells).toHaveCount(4, { timeout: 5000 });
 
     const texts = await tsCells.allTextContents();
-    console.log('[KT-03] Relative ages:', texts);
+    console.log('[KT-03] Local times:', texts);
     for (const text of texts) {
-      expect(text).toMatch(/ago|just now/);
+      expect(text.trim()).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
     }
 
     const missingCells = page.locator('[data-testid="ts-cell-missing"]');

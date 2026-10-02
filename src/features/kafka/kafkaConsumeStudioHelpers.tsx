@@ -1,4 +1,4 @@
-import { parseKafkaTimestamp, formatRelativeAge, formatTimestampTooltip } from './kafkaTimestamp';
+import { parseKafkaTimestamp, formatKafkaDateTime, formatTimestampTooltip } from './kafkaTimestamp';
 
 export function renderKafkaTimestampCell(ts: string | undefined) {
   const date = parseKafkaTimestamp(ts);
@@ -9,7 +9,7 @@ export function renderKafkaTimestampCell(ts: string | undefined) {
       title={formatTimestampTooltip(date)}
       data-testid="ts-cell"
     >
-      {formatRelativeAge(date)}
+      {formatKafkaDateTime(date)}
     </td>
   );
 }
