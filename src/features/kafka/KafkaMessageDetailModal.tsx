@@ -79,8 +79,23 @@ export default function KafkaMessageDetailModal({
         bodySearchRef.current?.select();
       }
     };
+    const onCopySelection = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.key.toLowerCase() !== 'c') return;
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+      const text = window.getSelection()?.toString() ?? '';
+      if (!text) return;
+      event.preventDefault();
+      void navigator.clipboard.writeText(text);
+    };
     document.addEventListener('keydown', onFind);
-    return () => document.removeEventListener('keydown', onFind);
+    document.addEventListener('keydown', onCopySelection);
+    return () => {
+      document.removeEventListener('keydown', onFind);
+      document.removeEventListener('keydown', onCopySelection);
+    };
   }, []);
 
   const headers = message.headers && Object.keys(message.headers).length > 0
