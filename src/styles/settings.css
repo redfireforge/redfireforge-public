@@ -4000,6 +4000,8 @@ select.kafka-ms-form-select--fmt:focus,
 .kmd-pre {
   margin: 0;
   padding: 10px 12px;
+  user-select: text;
+  -webkit-user-select: text;
   border-radius: 6px;
   border: 1px solid var(--border);
   background: var(--bg);
@@ -4156,6 +4158,8 @@ select.kafka-ms-form-select--fmt:focus,
   border: 1px solid var(--border);
   border-radius: 6px;
   overflow: hidden;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .kmd-headers-table th,

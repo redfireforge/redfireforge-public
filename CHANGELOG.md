@@ -8,6 +8,9 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Fixed
+- **Desktop Copy** — Command+C copies selected message text, including Kafka header values. Edit → Copy uses that selection instead of staying disabled outside a text field.
+
 ## [0.8.16] — 2026-10-01
 
 ### Added
