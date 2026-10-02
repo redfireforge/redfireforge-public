@@ -151,7 +151,7 @@ describe('KafkaClusterEditor', () => {
       />,
     );
     expect(screen.queryByLabelText('Username')).toBeNull();
-    expect(screen.getByText(/Azure CLI login/)).toBeTruthy();
+    expect(screen.getByText(/Install the Azure CLI/)).toBeTruthy();
   });
 
   it('toggles TLS controls and passphrase visibility', () => {

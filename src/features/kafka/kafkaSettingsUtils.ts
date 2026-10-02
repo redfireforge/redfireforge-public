@@ -83,7 +83,7 @@ export function getClusterStatus(
 export function formatDiagnosticHint(kind: keyof typeof DIAGNOSTIC_LABELS, retryable: boolean): string {
   switch (kind) {
     case 'auth':
-      return 'Review the selected auth mode. SASL modes need a username and password. Azure OAUTHBEARER uses the Azure CLI login on this machine.';
+      return 'Review the selected auth mode. SASL modes need a username and password. Azure OAUTHBEARER needs the Azure CLI installed and an az login session on this machine.';
     case 'tls':
       return 'Check CA, certificate, key, and TLS verification settings.';
     case 'timeout':
