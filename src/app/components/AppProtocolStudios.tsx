@@ -39,12 +39,17 @@ export default function AppProtocolStudios({
   workspaceDefaults,
 }: Props) {
   const apiMockMounted = useRef(false);
+  const kafkaMounted = useRef(false);
   if (activeTab === 'api-mock-studio') apiMockMounted.current = true;
+  if (activeTab === 'kafka-message-studio') kafkaMounted.current = true;
 
   return (
     <>
-      {activeTab === 'kafka-message-studio' && (
-        <div className="app-tab-pane" style={{ display: 'flex', flexDirection: 'column' }}>
+      {kafkaMounted.current && (
+        <div
+          className="app-tab-pane"
+          style={{ display: activeTab === 'kafka-message-studio' ? 'flex' : 'none', flexDirection: 'column' }}
+        >
           <KafkaMessageStudioPage
             kafkaState={kafkaState}
             onNavigateToKafkaSettings={onNavigateToKafkaSettings}

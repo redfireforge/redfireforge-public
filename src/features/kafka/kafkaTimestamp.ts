@@ -2,9 +2,7 @@
  * Timestamp formatting utilities for the Kafka Consume results table.
  *
  * Kafka stores message timestamps as epoch-millisecond strings (e.g. "1750000000000").
- * We display:
- *   - Primary cell:   relative age ("2m ago", "just now", "3h ago")
- *   - Hover tooltip:  absolute datetime in local timezone ("Jun 17, 09:25:06")
+ * The results cell shows the local date and time. Hover adds milliseconds.
  */
 
 /** Epoch-ms string → Date. Returns null for missing / zero / non-numeric values. */
@@ -46,6 +44,15 @@ export function formatRelativeAge(date: Date, now = new Date()): string {
   if (diffDay < 30) return `${diffDay}d ago`;
 
   return formatAbsolute(date);
+}
+
+/**
+ * Local date and time for the results table.
+ * Example: "2026-06-17 09:25:06"
+ */
+export function formatKafkaDateTime(date: Date): string {
+  const pad = (v: number) => String(v).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
 /**

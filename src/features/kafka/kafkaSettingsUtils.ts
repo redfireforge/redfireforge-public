@@ -7,6 +7,7 @@ const AUTH_MODE_LABELS = {
   plain: 'SASL / PLAIN',
   'scram-sha-256': 'SCRAM-SHA-256',
   'scram-sha-512': 'SCRAM-SHA-512',
+  oauthbearer: 'Azure OAUTHBEARER',
 } as const;
 
 export const DIAGNOSTIC_LABELS = {
@@ -82,7 +83,7 @@ export function getClusterStatus(
 export function formatDiagnosticHint(kind: keyof typeof DIAGNOSTIC_LABELS, retryable: boolean): string {
   switch (kind) {
     case 'auth':
-      return 'Review the selected auth mode, username, and password before retrying.';
+      return 'Review the selected auth mode. SASL modes need a username and password. Azure OAUTHBEARER needs the Azure CLI installed and an az login session on this machine.';
     case 'tls':
       return 'Check CA, certificate, key, and TLS verification settings.';
     case 'timeout':

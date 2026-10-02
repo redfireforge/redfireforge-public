@@ -394,7 +394,8 @@ describe('useTopicMessageBrowser', () => {
     expect(result.current.result).toHaveLength(1);
     expect(result.current.result![0].offset).toBe('1');
     expect(dispatch).toHaveBeenCalledWith('consume-once', expect.objectContaining({
-      fromBeginning: true,
+      fromBeginning: false,
+      sortOrder: 'desc',
     }));
   });
 
@@ -424,6 +425,10 @@ describe('useTopicMessageBrowser', () => {
 
     expect(result.current.result).toHaveLength(1);
     expect(result.current.result![0].offset).toBe('1');
+    expect(dispatch).toHaveBeenCalledWith('consume-once', expect.objectContaining({
+      fromBeginning: false,
+      sortOrder: 'desc',
+    }));
   });
 
   it('consumeOnce: no-op when topicName is blank', async () => {

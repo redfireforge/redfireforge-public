@@ -12,6 +12,7 @@ export type KafkaOperation =
   | 'unsubscribe'
   | 'subscription-messages'
   | 'topic-detail'
+  | 'topic-groups'
   | 'schema-subjects'
   | 'schema-versions'
   | 'schema-fetch';
@@ -204,6 +205,7 @@ const OPERATION_MAP: Record<KafkaOperation, KafkaOperationSpec> = {
   unsubscribe: { method: 'POST', path: '/api/kafka/unsubscribe' },
   'subscription-messages': { method: 'GET', path: '/api/kafka/subscription-messages', queryKeys: ['subscriptionId', 'sinceCursor', 'clusterId'] },
   'topic-detail': { method: 'GET', path: '/api/kafka/topics/:topicName/detail', queryKeys: ['clusterId'] },
+  'topic-groups': { method: 'GET', path: '/api/kafka/topics/:topicName/groups', queryKeys: ['clusterId'] },
   'schema-subjects': { method: 'POST', path: '/api/kafka/schema-subjects' },
   'schema-versions': { method: 'POST', path: '/api/kafka/schema-versions' },
   'schema-fetch': { method: 'POST', path: '/api/kafka/schema-fetch' },

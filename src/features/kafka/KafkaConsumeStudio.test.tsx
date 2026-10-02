@@ -62,6 +62,7 @@ function makeStreamMode(overrides?: Partial<UseKafkaStreamModeReturn>): UseKafka
     streamMessages: [],
     streamError: null,
     streamSubscriptionId: null,
+    streamMaxReached: false,
     cursorGap: false,
     startStream: vi.fn().mockResolvedValue(undefined),
     stopStream: vi.fn().mockResolvedValue(undefined),
@@ -81,7 +82,7 @@ const defaultTemplateProps = () => ({
   onDeleteConsumeTemplate: vi.fn().mockResolvedValue(undefined),
 });
 
-// A timestamp 5 minutes in the past (relative: "5m ago")
+// A timestamp 5 minutes in the past (cell shows the local date and time)
 const FIVE_MIN_AGO_MS = String(Date.now() - 5 * 60 * 1000);
 
 const SAMPLE_MESSAGES: KafkaConsumeResultRow[] = [
@@ -167,11 +168,10 @@ describe('KafkaConsumeStudio — Consume Once', () => {
     expect(texts).toContain('Timestamp');
   });
 
-  it('shows relative age in timestamp cell when timestamp is present', () => {
+  it('shows the local date and time in the timestamp cell', () => {
     renderConsume({ studio: { consumeResult: SAMPLE_MESSAGES, consumeMessageCount: 2 } });
     const tsCells = screen.getAllByTestId('ts-cell');
-    // row 0 has a 5-minute-old timestamp → should contain "m ago"
-    expect(tsCells[0].textContent).toMatch(/m ago|just now|h ago/);
+    expect(tsCells[0].textContent).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
   });
 
   it('shows tooltip with full datetime on timestamp cell', () => {
@@ -405,6 +405,11 @@ describe('KafkaConsumeStudio — Stream Mode', () => {
     expect(screen.getByTestId('stream-count').textContent).toContain('3 messages');
   });
 
+  it('shows max reached when the stream stopped at Max Messages', () => {
+    renderStream({ stream: { streamMessages: STREAM_MESSAGES, streamMaxReached: true } });
+    expect(screen.getByTestId('stream-max-reached').textContent).toContain('max reached');
+  });
+
   it('shows cursorGap warning badge', () => {
     renderStream({ stream: { cursorGap: true } });
     expect(screen.getByTestId('stream-cursor-gap')).toBeTruthy();
@@ -486,6 +491,18 @@ describe('KafkaConsumeStudio — Stream Mode', () => {
     fireEvent.change(screen.getByTestId('stream-search-input'), { target: { value: 'sk-2' } });
     fireEvent.click(screen.getByTestId('stream-row-0'));
     expect(sm.selectStreamMessage).toHaveBeenCalledWith(2);
+  });
+
+  it('can ignore case or match case in the stream search', () => {
+    renderStream({ stream: { streamMessages: STREAM_MESSAGES } });
+    fireEvent.change(screen.getByTestId('stream-search-input'), { target: { value: 'SEQ' } });
+    expect(screen.getByTestId('stream-count').textContent).toContain('3 of 3');
+
+    fireEvent.click(screen.getByTestId('stream-search-match-case'));
+    expect(screen.getByTestId('stream-search-empty').textContent).toContain('No messages match');
+
+    fireEvent.change(screen.getByTestId('stream-search-input'), { target: { value: 'seq' } });
+    expect(screen.getByTestId('stream-count').textContent).toContain('3 of 3');
   });
 
   it('shows empty state when search matches nothing', () => {
@@ -742,6 +759,38 @@ describe('KafkaConsumeStudio — Form Fields', () => {
 // ─────────────────────── Detail Pane Extras ───────────────────────
 
 describe('KafkaConsumeStudio — Detail Pane Extras', () => {
+  it('shrinks details, key, and headers so the message body can use the space', () => {
+    const msgWithHeaders: KafkaConsumeResultRow = {
+      topic: 'orders.events', partition: 0, offset: '5', value: '{"x":1}', key: 'k1',
+      headers: { 'x-trace-id': 'abc123' },
+    };
+    renderConsume({
+      studio: {
+        consumeResult: [msgWithHeaders], consumeMessageCount: 1,
+        selectedMessageIndex: 0, selectedMessage: msgWithHeaders,
+      },
+    });
+
+    expect(screen.getByTestId('kmd-key')).toBeTruthy();
+    expect(screen.getByTestId('kmd-headers')).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId('kmd-toggle-details'));
+    expect(screen.queryByTestId('kmd-offset')).toBeNull();
+    expect(screen.getByTestId('kmd-toggle-details').getAttribute('aria-expanded')).toBe('false');
+
+    fireEvent.click(screen.getByTestId('kmd-toggle-key'));
+    expect(screen.queryByTestId('kmd-key')).toBeNull();
+    expect(screen.getByTestId('kmd-toggle-key').getAttribute('aria-expanded')).toBe('false');
+
+    fireEvent.click(screen.getByTestId('kmd-toggle-headers'));
+    expect(screen.queryByTestId('kmd-headers')).toBeNull();
+    expect(screen.getByTestId('kmd-toggle-headers').getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByTestId('kmd-body')).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId('kmd-toggle-headers'));
+    expect(screen.getByTestId('kmd-headers').textContent).toContain('x-trace-id');
+  });
+
   it('shows headers table when selected message has headers', () => {
     const msgWithHeaders: KafkaConsumeResultRow = {
       topic: 'orders.events', partition: 0, offset: '5', value: '{"x":1}', key: 'k1',

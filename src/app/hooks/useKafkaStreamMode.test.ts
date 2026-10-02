@@ -3,6 +3,19 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
+
+vi.mock('@shared/kafka/kafkaNativeTauriTransport', async () => {
+  const actual = await vi.importActual<typeof import('@shared/kafka/kafkaNativeTauriTransport')>(
+    '@shared/kafka/kafkaNativeTauriTransport',
+  );
+  return {
+    ...actual,
+    listenKafkaSubscriptionMessage: vi.fn(async () => vi.fn()),
+    listenKafkaSubscriptionError: vi.fn(async () => vi.fn()),
+    listenKafkaSubscriptionEnded: vi.fn(async () => vi.fn()),
+  };
+});
+
 import { useKafkaStreamMode } from './useKafkaStreamMode';
 import type { UseKafkaStateReturn } from './useKafkaState';
 import type { KafkaConsumeDraft } from '../../features/kafka/types';
@@ -650,5 +663,227 @@ describe('useKafkaStreamMode', () => {
     expect(result.current.selectedStreamMessage?.value).toBe('{"selected":true}');
 
     await act(async () => { await result.current.stopStream(); });
+  });
+
+  it('desktop stream appends native events and does not poll the web server', async () => {
+    (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {};
+    let deliver: ((payload: { subscriptionId: string; record: { topic: string; partition: number; offset: string; value: string } }) => void) | undefined;
+    const unlisten = vi.fn();
+    const listenMessages = vi.fn(async (cb: typeof deliver) => {
+      deliver = cb;
+      return unlisten;
+    });
+    const listenErrors = vi.fn(async () => vi.fn());
+    const listenEnded = vi.fn(async () => vi.fn());
+    const dispatch = vi.fn().mockImplementation((op: string) => {
+      if (op === 'subscribe') {
+        return Promise.resolve({
+          ok: true,
+          data: { subscription: { subscriptionId: 'sub-native', topic: 't', groupId: '$Default', createdAt: '' } },
+        });
+      }
+      return Promise.resolve({ ok: true, data: {} });
+    });
+
+    try {
+      const { result } = renderHook(() =>
+        useKafkaStreamMode(makeKafkaState(), { dispatch, listenMessages, listenErrors, listenEnded }),
+      );
+
+      await act(async () => {
+        await result.current.startStream(makeDraft(), 'cluster-1');
+      });
+
+      await act(async () => {
+        deliver?.({
+          subscriptionId: 'sub-native',
+          record: { topic: 't', partition: 2, offset: '9', value: '{"n":1}' },
+        });
+        deliver?.({
+          subscriptionId: 'other',
+          record: { topic: 't', partition: 0, offset: '1', value: 'skip' },
+        });
+      });
+
+      expect(result.current.streamMessages).toEqual([
+        { topic: 't', partition: 2, offset: '9', value: '{"n":1}' },
+      ]);
+      expect(dispatch.mock.calls.some(([op]) => op === 'subscription-messages')).toBe(false);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000);
+      });
+      expect(dispatch.mock.calls.some(([op]) => op === 'subscription-messages')).toBe(false);
+
+      await act(async () => { await result.current.stopStream(); });
+      expect(unlisten).toHaveBeenCalledOnce();
+    } finally {
+      delete (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__;
+    }
+  });
+
+  it('ignores a poll that finishes after the stream has stopped', async () => {
+    let resolvePoll: ((value: unknown) => void) | undefined;
+    const dispatch = vi.fn().mockImplementation((op: string) => {
+      if (op === 'subscribe') {
+        return Promise.resolve({
+          ok: true,
+          data: { subscription: { subscriptionId: 'sub-late', topic: 't', groupId: 'g', createdAt: '' } },
+        });
+      }
+      if (op === 'subscription-messages') {
+        return new Promise((resolve) => { resolvePoll = resolve; });
+      }
+      return Promise.resolve({ ok: true, data: {} });
+    });
+
+    const { result } = renderHook(() => useKafkaStreamMode(makeKafkaState(), { dispatch }));
+    await act(async () => { await result.current.startStream(makeDraft(), 'cluster-1'); });
+    act(() => { vi.advanceTimersByTime(1100); });
+    await act(async () => { await result.current.stopStream(); });
+    await act(async () => {
+      resolvePoll?.({
+        ok: true,
+        data: {
+          subscriptionId: 'sub-late',
+          messages: [{ topic: 't', partition: 0, offset: '1', value: 'late' }],
+          cursor: 1,
+        },
+      });
+    });
+    expect(result.current.streamMessages).toHaveLength(0);
+    expect(result.current.streamError).toBeNull();
+  });
+
+  it('uses the desktop listeners and a default max when the form value is not a count', async () => {
+    (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {};
+    const dispatch = vi.fn().mockImplementation((op: string) => {
+      if (op === 'subscribe') {
+        return Promise.resolve({
+          ok: true,
+          data: { subscription: { subscriptionId: 'sub-default', topic: 't', groupId: '$Default', createdAt: '' } },
+        });
+      }
+      return Promise.resolve({ ok: true, data: {} });
+    });
+
+    try {
+      const { result } = renderHook(() => useKafkaStreamMode(makeKafkaState(), { dispatch }));
+      await act(async () => {
+        await result.current.startStream({ ...makeDraft(), maxMessages: '0' }, 'cluster-1');
+      });
+      expect(result.current.isStreaming).toBe(true);
+      await act(async () => { await result.current.stopStream(); });
+    } finally {
+      delete (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__;
+    }
+  });
+
+  it('desktop stream records a broker error and stops when the max is reached', async () => {
+    (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {};
+    let deliverError: ((payload: { subscriptionId: string; message: string }) => void) | undefined;
+    let deliverEnded: ((payload: { subscriptionId: string; reason: string }) => void) | undefined;
+    const listenErrors = vi.fn(async (cb: typeof deliverError) => {
+      deliverError = cb;
+      return vi.fn();
+    });
+    const listenEnded = vi.fn(async (cb: typeof deliverEnded) => {
+      deliverEnded = cb;
+      return vi.fn();
+    });
+    const dispatch = vi.fn().mockImplementation((op: string) => {
+      if (op === 'subscribe') {
+        return Promise.resolve({
+          ok: true,
+          data: { subscription: { subscriptionId: 'sub-end', topic: 't', groupId: '$Default', createdAt: '' } },
+        });
+      }
+      return Promise.resolve({ ok: true, data: {} });
+    });
+
+    try {
+      const { result } = renderHook(() =>
+        useKafkaStreamMode(makeKafkaState(), {
+          dispatch,
+          listenMessages: vi.fn(async () => vi.fn()),
+          listenErrors,
+          listenEnded,
+        }),
+      );
+
+      await act(async () => {
+        await result.current.startStream(makeDraft(), 'cluster-1');
+      });
+
+      await act(async () => {
+        deliverError?.({ subscriptionId: 'other', message: 'ignore' });
+        deliverEnded?.({ subscriptionId: 'sub-end', reason: 'cancelled' });
+      });
+      expect(result.current.streamError).toBeNull();
+      expect(result.current.streamMaxReached).toBe(false);
+
+      await act(async () => {
+        deliverError?.({ subscriptionId: 'sub-end', message: 'broker down' });
+      });
+      expect(result.current.streamError?.message).toBe('broker down');
+
+      await act(async () => {
+        deliverEnded?.({ subscriptionId: 'other', reason: 'max-reached' });
+      });
+      expect(result.current.isStreaming).toBe(true);
+
+      await act(async () => {
+        deliverEnded?.({ subscriptionId: 'sub-end', reason: 'max-reached' });
+      });
+      expect(result.current.streamMaxReached).toBe(true);
+      expect(result.current.isStreaming).toBe(false);
+    } finally {
+      delete (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__;
+    }
+  });
+
+  it('desktop stream keeps only Max Messages and then stops', async () => {
+    (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {};
+    let deliver: ((payload: { subscriptionId: string; record: { topic: string; partition: number; offset: string; value: string } }) => void) | undefined;
+    const listenMessages = vi.fn(async (cb: typeof deliver) => {
+      deliver = cb;
+      return vi.fn();
+    });
+    const dispatch = vi.fn().mockImplementation((op: string) => {
+      if (op === 'subscribe') {
+        return Promise.resolve({
+          ok: true,
+          data: { subscription: { subscriptionId: 'sub-cap', topic: 't', groupId: '$Default', createdAt: '' } },
+        });
+      }
+      return Promise.resolve({ ok: true, data: {} });
+    });
+
+    try {
+      const { result } = renderHook(() =>
+        useKafkaStreamMode(makeKafkaState(), {
+          dispatch,
+          listenMessages,
+          listenErrors: vi.fn(async () => vi.fn()),
+          listenEnded: vi.fn(async () => vi.fn()),
+        }),
+      );
+
+      await act(async () => {
+        await result.current.startStream({ ...makeDraft(), maxMessages: '1' }, 'cluster-1');
+      });
+
+      await act(async () => {
+        deliver?.({ subscriptionId: 'sub-cap', record: { topic: 't', partition: 0, offset: '1', value: 'a' } });
+        deliver?.({ subscriptionId: 'sub-cap', record: { topic: 't', partition: 0, offset: '2', value: 'b' } });
+      });
+
+      expect(result.current.streamMessages.map((row) => row.value)).toEqual(['a']);
+      expect(result.current.streamMaxReached).toBe(true);
+      expect(result.current.isStreaming).toBe(false);
+      expect(dispatch).toHaveBeenCalledWith('unsubscribe', expect.objectContaining({ subscriptionId: 'sub-cap' }));
+    } finally {
+      delete (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__;
+    }
   });
 });

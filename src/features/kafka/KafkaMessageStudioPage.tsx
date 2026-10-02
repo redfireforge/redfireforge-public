@@ -26,6 +26,12 @@ export function KafkaMessageStudioPage({
   lastWorkflowOutput,
 }: KafkaMessageStudioPageProps) {
   const [activeTab, setActiveTab] = useState<KafkaStudioTab>('publish');
+  /** First visit mounts Topics; later tab switches hide it so the selection and filters stay. */
+  const [topicsMounted, setTopicsMounted] = useState(false);
+  const showTab = useCallback((tab: KafkaStudioTab) => {
+    if (tab === 'topics') setTopicsMounted(true);
+    setActiveTab(tab);
+  }, []);
   /** Survives Publish/Topics/Schema switches — ConsumeStudio unmounts with the outer tab. */
   const [consumeMode, setConsumeMode] = useState<KafkaConsumeMode>('once');
   const studio = useKafkaMessageStudio(kafkaState);
@@ -78,7 +84,7 @@ export function KafkaMessageStudioPage({
         <button
           type="button"
           className={`builder-tab ${activeTab === 'publish' ? 'active' : ''}`}
-          onClick={() => setActiveTab('publish')}
+          onClick={() => showTab('publish')}
           data-testid="tab-publish"
         >
           Publish
@@ -86,7 +92,7 @@ export function KafkaMessageStudioPage({
         <button
           type="button"
           className={`builder-tab ${activeTab === 'consume' ? 'active' : ''}`}
-          onClick={() => setActiveTab('consume')}
+          onClick={() => showTab('consume')}
           data-testid="tab-consume"
         >
           Consume
@@ -94,7 +100,7 @@ export function KafkaMessageStudioPage({
         <button
           type="button"
           className={`builder-tab ${activeTab === 'topics' ? 'active' : ''}`}
-          onClick={() => setActiveTab('topics')}
+          onClick={() => showTab('topics')}
           data-testid="tab-topics"
         >
           Topics
@@ -102,7 +108,7 @@ export function KafkaMessageStudioPage({
         <button
           type="button"
           className={`builder-tab ${activeTab === 'schema' ? 'active' : ''}`}
-          onClick={() => setActiveTab('schema')}
+          onClick={() => showTab('schema')}
           data-testid="tab-schema"
         >
           Schema Registry
@@ -143,15 +149,22 @@ export function KafkaMessageStudioPage({
             connected={isConnected}
           />
         )}
-        {activeTab === 'topics' && !isConnected && (
-          <KafkaStudioGuard
-            connection={kafkaState.connection}
-            hasClusters={kafkaState.clusters.length > 0}
-            onNavigateToSettings={onNavigateToKafkaSettings}
-          />
-        )}
-        {activeTab === 'topics' && isConnected && (
-          <KafkaTopicExplorerContent kafkaState={kafkaState} />
+        {topicsMounted && (
+          <div
+            className="kafka-ms-tab-pane"
+            hidden={activeTab !== 'topics'}
+            data-testid="kafka-topics-pane"
+          >
+            {!isConnected ? (
+              <KafkaStudioGuard
+                connection={kafkaState.connection}
+                hasClusters={kafkaState.clusters.length > 0}
+                onNavigateToSettings={onNavigateToKafkaSettings}
+              />
+            ) : (
+              <KafkaTopicExplorerContent kafkaState={kafkaState} />
+            )}
+          </div>
         )}
         {activeTab === 'schema' && (
           <KafkaSchemaRegistryContent kafkaState={kafkaState} />

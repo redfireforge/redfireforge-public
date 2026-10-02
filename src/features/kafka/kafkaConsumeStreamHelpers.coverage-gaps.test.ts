@@ -23,6 +23,13 @@ describe('kafkaConsumeStreamHelpers coverage gaps', () => {
       { row: rows[2], index: 2 },
     ]);
     expect(spy).toHaveBeenCalledTimes(3);
+    spy.mockRestore();
+  });
+
+  it('can match the value with case sensitivity on or off', () => {
+    const rows = [{ topic: 't', partition: 0, offset: '1', value: 'DD' }] as never;
+    expect(filterIndexedStreamRows(rows, 'dd', false)).toHaveLength(1);
+    expect(filterIndexedStreamRows(rows, 'dd', true)).toHaveLength(0);
   });
 
   it('formats count labels for filtered and unfiltered views', () => {

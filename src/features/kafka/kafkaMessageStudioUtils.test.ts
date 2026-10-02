@@ -36,6 +36,11 @@ describe('matchesKafkaResultSearch', () => {
     expect(matchesKafkaResultSearch(row, '0')).toBe(true);
   });
 
+  it('honors match case when requested', () => {
+    expect(matchesKafkaResultSearch(row, 'created', true)).toBe(false);
+    expect(matchesKafkaResultSearch(row, 'CREATED', true)).toBe(true);
+  });
+
   it('returns false when nothing matches', () => {
     expect(matchesKafkaResultSearch(row, 'zzzz-missing')).toBe(false);
   });
@@ -465,12 +470,19 @@ describe('valuePreview', () => {
 // ── buildSubscribeRequest ──────────────────────────────────────────────────
 
 describe('buildSubscribeRequest', () => {
-  it('includes topic, fromBeginning, maxInMemoryMessages, clusterId', () => {
+  it('includes topic, fromBeginning, maxMessages, clusterId', () => {
     const req = buildSubscribeRequest(baseDraft(), 'cluster-1');
     expect(req.clusterId).toBe('cluster-1');
     expect(req.topic).toBe('test');
     expect(req.fromBeginning).toBe(false);
-    expect(req.maxInMemoryMessages).toBe(200);
+    expect(req.maxMessages).toBe(50);
+    expect(req.maxInMemoryMessages).toBe(50);
+  });
+
+  it('uses the form max when it is set', () => {
+    const req = buildSubscribeRequest({ ...baseDraft(), maxMessages: '10' }, 'cluster-1');
+    expect(req.maxMessages).toBe(10);
+    expect(req.maxInMemoryMessages).toBe(10);
   });
 
   it('includes groupId when non-blank', () => {

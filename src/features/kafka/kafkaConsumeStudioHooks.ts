@@ -52,6 +52,7 @@ export function useKafkaConsumeStreamView({
   const streamResultsZoneRef = useRef<HTMLDivElement>(null);
   const [streamPinnedToBottom, setStreamPinnedToBottom] = useState(true);
   const [streamSearch, setStreamSearch] = useState('');
+  const [streamSearchCaseSensitive, setStreamSearchCaseSensitive] = useState(false);
 
   useEffect(() => {
     const el = streamListRef.current;
@@ -123,7 +124,11 @@ export function useKafkaConsumeStreamView({
   }, [streamMode]);
 
   const streamSearchActive = streamSearch.trim().length > 0;
-  const filteredStreamRows = filterIndexedStreamRows(streamMode.streamMessages, streamSearch);
+  const filteredStreamRows = filterIndexedStreamRows(
+    streamMode.streamMessages,
+    streamSearch,
+    streamSearchCaseSensitive,
+  );
 
   return {
     streamListRef,
@@ -132,6 +137,8 @@ export function useKafkaConsumeStreamView({
     streamPinnedToBottom,
     streamSearch,
     setStreamSearch,
+    streamSearchCaseSensitive,
+    setStreamSearchCaseSensitive,
     handleStreamScroll,
     scrollStreamToBottom,
     handleExportStream,

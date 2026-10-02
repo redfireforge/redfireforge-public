@@ -11,6 +11,7 @@ use std::time::{Duration, Instant};
 
 use futures::StreamExt;
 use rdkafka::consumer::{Consumer, StreamConsumer};
+use rdkafka::error::KafkaError;
 use rdkafka::message::OwnedHeaders;
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use serde_json::Value;
@@ -19,14 +20,17 @@ use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use super::config::{is_auth_error, resolve_cluster};
+use super::consume_assign::consume_assigned;
 use super::envelope::{error_envelope, now_iso, success_envelope};
 use super::message::{consume_record_from_message, matches_filter};
+use super::oauth::{create_rdkafka_client, AzureEventHubContext};
 use super::state::{KafkaState, SubscriptionHandle};
 use super::types::{
-    KafkaConsumeOnceRequest, KafkaConsumeResult, KafkaProduceRecordResult, KafkaProduceRequest,
+    KafkaConsumeOnceRequest, KafkaProduceRecordResult, KafkaProduceRequest,
     KafkaProduceResult, KafkaSubscribeInfo, KafkaSubscribeRequest, KafkaSubscribeResult,
-    KafkaSubscriptionEventPayload, KafkaSubscriptionsResult, KafkaUnsubscribeRequest,
-    KafkaUnsubscribeResult,
+    KafkaSubscriptionEndedPayload, KafkaSubscriptionErrorPayload, KafkaSubscriptionEventPayload,
+    KafkaSubscriptionsResult,
+    KafkaUnsubscribeRequest, KafkaUnsubscribeResult,
 };
 
 // ─── kafka_produce ────────────────────────────────────────────────────────────
@@ -84,7 +88,8 @@ pub async fn kafka_produce(
             if let Some(a) = acks {
                 producer_cfg.set("request.required.acks", &a.to_string());
             }
-            let producer: FutureProducer = producer_cfg.create().map_err(|e| e.to_string())?;
+            let producer: FutureProducer<AzureEventHubContext> =
+                create_rdkafka_client(&producer_cfg)?;
             let rt = tokio::runtime::Handle::current();
             let mut records = Vec::with_capacity(messages.len());
 
@@ -190,68 +195,42 @@ pub async fn kafka_consume_once(
 
     let max_messages = request.max_messages.unwrap_or(1).max(1);
     let timeout_ms = request.timeout_ms.unwrap_or(10_000);
-    let group_id = request.group_id.clone().unwrap_or_else(|| {
-        format!("rf-consume-once-{}", &Uuid::new_v4().to_string()[..8])
-    });
     let topic = request.topic.clone();
     let from_beginning = request.from_beginning.unwrap_or(false);
+    let sort_desc = request.sort_order.as_deref() == Some("desc");
+    let seek_offsets = request.seek_offsets.clone();
+    let partition = request.partition;
     let filter = request.filter.clone();
-
-    let consume_result: Result<KafkaConsumeResult, String> = async move {
-        let mut consumer_cfg = rdkafka_config;
-        consumer_cfg.set("group.id", &group_id);
-        consumer_cfg.set("enable.auto.commit", "false");
-        consumer_cfg.set(
-            "auto.offset.reset",
-            if from_beginning { "earliest" } else { "latest" },
-        );
-
-        let consumer: StreamConsumer = consumer_cfg.create().map_err(|e| e.to_string())?;
-        consumer
-            .subscribe(&[topic.as_str()])
-            .map_err(|e| e.to_string())?;
-
-        let deadline = Instant::now() + Duration::from_millis(timeout_ms);
-        let mut messages = Vec::with_capacity(max_messages);
-        let mut timed_out = false;
-        let stream = consumer.stream();
-        tokio::pin!(stream);
-
-        loop {
-            let remaining = deadline.saturating_duration_since(Instant::now());
-            if remaining.is_zero() {
-                timed_out = true;
-                break;
-            }
-            match tokio::time::timeout(remaining, stream.next()).await {
-                Ok(Some(Ok(msg))) => {
-                    let record = consume_record_from_message(&msg);
-                    if matches_filter(&record, filter.as_ref()) {
-                        messages.push(record);
-                        if messages.len() >= max_messages {
-                            break;
-                        }
-                    }
-                }
-                Ok(Some(Err(e))) => return Err(e.to_string()),
-                Ok(None) => break,
-                Err(_) => {
-                    timed_out = true;
-                    break;
-                }
-            }
-        }
-
-        let count = messages.len();
-        Ok(KafkaConsumeResult {
-            message_count: count,
-            messages,
-            timed_out,
-            has_more: None,
-            next_cursor: None,
+    let oauth = rdkafka_config
+        .get("sasl.mechanism")
+        .is_some_and(|mechanism| mechanism.eq_ignore_ascii_case("OAUTHBEARER"));
+    // librdkafka assign() requires a group id. Event Hubs already has $Default.
+    // A generated id is not created on the namespace because we assign partitions
+    // instead of joining the group.
+    let group_id = if oauth {
+        "$Default".to_string()
+    } else {
+        request.group_id.clone().unwrap_or_else(|| {
+            format!("rf-read-{}", &Uuid::new_v4().to_string()[..8])
         })
-    }
-    .await;
+    };
+
+    let consume_result = tokio::task::spawn_blocking(move || {
+        consume_assigned(
+            rdkafka_config,
+            &group_id,
+            &topic,
+            partition,
+            from_beginning,
+            sort_desc,
+            seek_offsets,
+            max_messages,
+            timeout_ms,
+            filter,
+        )
+    })
+    .await
+    .map_err(|err| err.to_string())?;
 
     let duration_ms = start.elapsed().as_millis() as u64;
     match consume_result {
@@ -306,23 +285,86 @@ pub async fn kafka_subscribe(
     };
 
     let subscription_id = Uuid::new_v4().to_string();
-    let group_id = request.group_id.clone().unwrap_or_else(|| {
-        format!("rf-subscribe-{}-{}", cluster_id, &subscription_id[..8])
-    });
     let topic = request.topic.clone();
     let from_beginning = request.from_beginning.unwrap_or(false);
     let filter = request.filter.clone();
+    let max_messages = request.max_messages.unwrap_or(50).clamp(1, 10_000);
     let created_at = now_iso();
+    // Event Hubs does not create consumer groups on subscribe. Assign the
+    // partitions on `$Default` instead, the same way Consume Once reads.
+    let oauth = rdkafka_config
+        .get("sasl.mechanism")
+        .is_some_and(|mechanism| mechanism.eq_ignore_ascii_case("OAUTHBEARER"));
+    let group_id = if oauth {
+        "$Default".to_string()
+    } else {
+        request.group_id.clone().unwrap_or_else(|| {
+            format!("rf-subscribe-{}-{}", cluster_id, &subscription_id[..8])
+        })
+    };
+
+    let assignment = if oauth {
+        let probe_cfg = rdkafka_config.clone();
+        let probe_topic = topic.clone();
+        let ids = match tokio::task::spawn_blocking(move || {
+            super::consume_assign::stream_partition_ids(
+                probe_cfg,
+                &probe_topic,
+                Duration::from_secs(10),
+            )
+        })
+        .await
+        {
+            Ok(Ok(ids)) => ids,
+            Ok(Err(err)) => {
+                return Ok(error_envelope(
+                    "subscribe",
+                    "KAFKA_SUBSCRIBE_FAILED",
+                    &err,
+                    Some(true),
+                ));
+            }
+            Err(err) => {
+                return Ok(error_envelope(
+                    "subscribe",
+                    "KAFKA_SUBSCRIBE_FAILED",
+                    &err.to_string(),
+                    Some(true),
+                ));
+            }
+        };
+        match super::consume_assign::build_stream_assignment(&topic, &ids, from_beginning) {
+            Ok(list) => Some(list),
+            Err(err) => {
+                return Ok(error_envelope(
+                    "subscribe",
+                    "KAFKA_SUBSCRIBE_FAILED",
+                    &err,
+                    Some(true),
+                ));
+            }
+        }
+    } else {
+        None
+    };
 
     let mut consumer_cfg = rdkafka_config;
+    super::config::prepare_consumer_config(&mut consumer_cfg);
     consumer_cfg.set("group.id", &group_id);
-    consumer_cfg.set("enable.auto.commit", "true");
-    consumer_cfg.set(
-        "auto.offset.reset",
-        if from_beginning { "earliest" } else { "latest" },
-    );
+    if oauth {
+        consumer_cfg.set("enable.auto.commit", "false");
+        consumer_cfg.set("enable.auto.offset.store", "false");
+        consumer_cfg.set("enable.partition.eof", "false");
+    } else {
+        consumer_cfg.set("enable.auto.commit", "true");
+        consumer_cfg.set(
+            "auto.offset.reset",
+            if from_beginning { "earliest" } else { "latest" },
+        );
+    }
 
-    let consumer: StreamConsumer = match consumer_cfg.create() {
+    let consumer: StreamConsumer<AzureEventHubContext> = match create_rdkafka_client(&consumer_cfg)
+    {
         Ok(c) => c,
         Err(e) => {
             return Ok(error_envelope(
@@ -333,7 +375,12 @@ pub async fn kafka_subscribe(
             ));
         }
     };
-    if let Err(e) = consumer.subscribe(&[topic.as_str()]) {
+    let attached = if let Some(partitions) = &assignment {
+        consumer.assign(partitions)
+    } else {
+        consumer.subscribe(&[topic.as_str()])
+    };
+    if let Err(e) = attached {
         return Ok(error_envelope(
             "subscribe",
             "KAFKA_SUBSCRIBE_FAILED",
@@ -378,6 +425,8 @@ pub async fn kafka_subscribe(
     tokio::spawn(async move {
         let stream = consumer.stream();
         tokio::pin!(stream);
+        let mut sent: usize = 0;
+        let mut hit_max = false;
         let cancelled = loop {
             tokio::select! {
                 biased;
@@ -386,22 +435,48 @@ pub async fn kafka_subscribe(
                     match msg_opt {
                         Some(Ok(msg)) => {
                             let record = consume_record_from_message(&msg);
-                            if matches_filter(&record, filter.as_ref()) {
-                                let payload = KafkaSubscriptionEventPayload {
-                                    subscription_id: sub_id_bg.clone(),
-                                    record,
-                                };
-                                let _ = app_bg.emit("kafka-subscription-message", payload);
+                            if !matches_filter(&record, filter.as_ref()) {
+                                continue;
+                            }
+                            let payload = KafkaSubscriptionEventPayload {
+                                subscription_id: sub_id_bg.clone(),
+                                record,
+                            };
+                            let _ = app_bg.emit("kafka-subscription-message", payload);
+                            sent += 1;
+                            if sent >= max_messages {
+                                hit_max = true;
+                                break false;
                             }
                         }
-                        Some(Err(_)) | None => break false,
+                        Some(Err(KafkaError::PartitionEOF(_))) => {}
+                        Some(Err(err)) => {
+                            let _ = app_bg.emit(
+                                "kafka-subscription-error",
+                                KafkaSubscriptionErrorPayload {
+                                    subscription_id: sub_id_bg.clone(),
+                                    message: err.to_string(),
+                                },
+                            );
+                            break false;
+                        }
+                        None => break false,
                     }
                 }
             }
         };
 
-        // Self-clean stale entry when the stream ends without an explicit cancel.
-        if !cancelled {
+        if hit_max {
+            let _ = app_bg.emit(
+                "kafka-subscription-ended",
+                KafkaSubscriptionEndedPayload {
+                    subscription_id: sub_id_bg.clone(),
+                    reason: "max-reached".to_string(),
+                },
+            );
+            // Stay registered until the UI unsubscribes, so Stop can still find it.
+            cancel_token_bg.cancelled().await;
+        } else if !cancelled {
             if let Ok(mut map) = app_bg.state::<KafkaState>().inner.lock() {
                 if let Some(handle) = map.get_mut(&cluster_id_bg) {
                     handle.subscriptions.remove(&sub_id_bg);
@@ -460,10 +535,7 @@ pub async fn kafka_unsubscribe(
         None => Ok(error_envelope(
             "unsubscribe",
             "KAFKA_SUBSCRIPTION_NOT_FOUND",
-            &format!(
-                "Subscription '{}' does not exist",
-                request.subscription_id
-            ),
+            &format!("Subscription '{}' does not exist", request.subscription_id),
             Some(false),
         )),
     }

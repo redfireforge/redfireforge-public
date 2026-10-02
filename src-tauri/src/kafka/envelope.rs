@@ -11,8 +11,7 @@ use serde_json::Value;
 
 use super::state::ClientHandle;
 use super::types::{
-    KafkaEnvelopeMeta, KafkaErrorBody, KafkaErrorEnvelope, KafkaServiceStatus,
-    KafkaSuccessEnvelope,
+    KafkaEnvelopeMeta, KafkaErrorBody, KafkaErrorEnvelope, KafkaServiceStatus, KafkaSuccessEnvelope,
 };
 
 // ─── Time helpers ─────────────────────────────────────────────────────────────
@@ -125,7 +124,12 @@ mod tests {
 
     #[test]
     fn error_envelope_shape() {
-        let env = error_envelope("connect", "KAFKA_CONNECT_FAILED", "broker unreachable", Some(true));
+        let env = error_envelope(
+            "connect",
+            "KAFKA_CONNECT_FAILED",
+            "broker unreachable",
+            Some(true),
+        );
         assert_eq!(env["ok"], false);
         assert_eq!(env["error"]["code"], "KAFKA_CONNECT_FAILED");
         assert_eq!(env["error"]["retryable"], true);

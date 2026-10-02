@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { KafkaClusterConfig } from '@shared/kafka/kafkaConfig';
 import {
+  authConfigFromDraft,
   clusterIdFromName,
   defaultClusterDraft,
   draftFromCluster,
@@ -146,6 +147,40 @@ describe('kafkaClusterForm helpers', () => {
 
     expect(errors).toEqual({});
     expect(hasDraftErrors(errors)).toBe(false);
+  });
+
+  it('accepts Azure OAUTHBEARER without a username or password', () => {
+    const errors = validateKafkaClusterDraft({
+      ...defaultClusterDraft(1),
+      clusterId: 'a218876-t01-musea2-evhns',
+      name: 'a218876-t01-musea2-evhns',
+      brokers: ['a218876-t01-musea2-evhns.servicebus.windows.net:9093'],
+      authMode: 'oauthbearer',
+      authUsername: '',
+      authPassword: '',
+      tlsEnabled: true,
+    }, [], null);
+
+    expect(errors).toEqual({});
+    expect(authConfigFromDraft({
+      ...defaultClusterDraft(1),
+      authMode: 'oauthbearer',
+      authUsername: 'leftover',
+      authPassword: 'leftover',
+    })).toEqual({ mode: 'oauthbearer' });
+  });
+
+  it('requires an Event Hubs broker and TLS for Azure OAUTHBEARER', () => {
+    const errors = validateKafkaClusterDraft({
+      ...defaultClusterDraft(1),
+      authMode: 'oauthbearer',
+      tlsEnabled: false,
+      brokers: ['127.0.0.1:19092'],
+    }, [], null);
+
+    expect(errors.tlsEnabled).toContain('TLS');
+    expect(errors.brokers).toContain('servicebus.windows.net');
+    expect(errors.authUsername).toBeUndefined();
   });
 
   it('rejects duplicate cluster ID when creating a new cluster with existing id', () => {
