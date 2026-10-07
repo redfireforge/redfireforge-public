@@ -42,10 +42,12 @@
 
 /* ── Shared studio modal chrome (simulate, pattern toolbox) ──
    The overlay is inset by the sidebar, so size against it (100%) not 100vw.
-   Journal `th` is `position: sticky; z-index: 1`. `.modal-overlay` has no
-   z-index unless `.sidebar-visible` (then 100), so TIME/METHOD/PATH paints
-   through the dialog. Stay below portaled `.cs-menu` (20000) and the
-   text-expand overlay (1400). */
+   Journal `th` is `position: sticky; z-index: 1`. `.sidebar-visible
+   .modal-overlay` is z-index 100, and the sidebar collapse control is 101,
+   so that 1px edge paints through Import & Promotion. Beat both. Stay below
+   portaled `.cs-menu` (20000) and the text-expand overlay (1400). */
+.sidebar-visible .modal-overlay.am-studio-modal-overlay,
+.sidebar-visible .modal-overlay:has(.am-studio-modal),
 .modal-overlay.am-studio-modal-overlay,
 .modal-overlay:has(.am-studio-modal) {
   z-index: 1200;

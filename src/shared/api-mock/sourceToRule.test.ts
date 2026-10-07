@@ -47,10 +47,19 @@ describe('convertSourceToRule', () => {
     expect(preds).toHaveLength(1);
   });
 
-  it('warns about authorization secrets', () => {
+  it('keeps the authorization header as an exact match', () => {
     const input: SourceRequest = { method: 'GET', path: '/', headers: { Authorization: 'Bearer tok' }, authScheme: 'Bearer' };
     const result = convertSourceToRule(input, opts);
-    expect(result.diagnostics.some(d => d.message.includes('secret'))).toBe(true);
+    const auth = result.route.predicates.children.find(p => 'selector' in p && p.selector === 'authorization');
+    expect(auth && 'expected' in auth && auth.expected).toBe('Bearer tok');
+    expect(result.sample.request.headers.authorization).toEqual(['Bearer tok']);
+  });
+
+  it('adds exact query predicates', () => {
+    const input: SourceRequest = { method: 'GET', path: '/orders', query: { vin: 'VIN123', dataSync: 'false' } };
+    const result = convertSourceToRule(input, opts);
+    const query = result.route.predicates.children.filter(p => 'source' in p && p.source === 'query');
+    expect(query.map(p => ('selector' in p ? p.selector : ''))).toEqual(['vin', 'dataSync']);
   });
 
   it('creates json_subset predicate for JSON body', () => {

@@ -158,6 +158,22 @@ describe('useApiMockStudioJournal', () => {
     expect(screen.getByTestId('routes')).toHaveTextContent('1');
   });
 
+  it('fills headers on an existing draft and acknowledges the capture', async () => {
+    recordedDrafts.mockResolvedValue({
+      ok: true,
+      data: { drafts: [{ id: 'd-headers' }] },
+    });
+    mergeRecordedDraftsIntoRoutes.mockReturnValue({
+      added: 0,
+      updated: 1,
+      routes: [{ id: 'draft-headers' }],
+    });
+    render(<Probe />);
+    await waitFor(() => expect(screen.getByTestId('live')).toHaveTextContent(/Filled response headers on 1 recorded draft/));
+    expect(ackRecordedDrafts).toHaveBeenCalledWith('srv-1', ['d-headers']);
+    expect(screen.getByTestId('routes')).toHaveTextContent('1');
+  });
+
   it('acks drafts even when none were added and ignores a cancelled poll', async () => {
     recordedDrafts.mockResolvedValue({ ok: true, data: { drafts: [{ id: 'd2' }] } });
     mergeRecordedDraftsIntoRoutes.mockReturnValue({ added: 0, routes: [] });

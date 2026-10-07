@@ -175,15 +175,7 @@ function buildPredicates(input: SourceRequest, diagnostics: ApiMockDiagnosticV1[
   if (input.headers) {
     for (const [key, value] of Object.entries(input.headers)) {
       const lk = key.toLowerCase();
-      if (lk === 'authorization' || lk === 'cookie' || lk === 'host' || lk === 'user-agent' || lk === 'content-length') {
-        if (lk === 'authorization' && input.authScheme) {
-          diagnostics.push({
-            code: 'AMS-IMPORT-UNSUPPORTED-FIELD',
-            severity: 'warning',
-            path: `/headers/${key}`,
-            message: `Authorization header contains a secret. Stored as variable reference, not raw value.`,
-          });
-        }
+      if (lk === 'cookie' || lk === 'host' || lk === 'user-agent' || lk === 'content-length') {
         continue;
       }
       children.push({

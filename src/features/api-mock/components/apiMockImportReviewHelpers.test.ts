@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import * as curlParser from '@shared/utils/curlParser';
+import { convertSourceToRule } from '@shared/api-mock/sourceToRule';
 import {
   IMPORT_SOURCES,
   parseCurlToSource,
@@ -22,6 +24,59 @@ describe('apiMockImportReviewHelpers', () => {
     expect(src.headers['X-Tenant']).toBe('acme');
     expect(src.body).toBe('hello');
     expect(src.contentType).toBe('application/json');
+    expect(src.query).toEqual({ x: '1' });
+  });
+
+  it('keeps query parameters and long-form headers from a multiline curl', () => {
+    const src = parseCurlToSource(`curl --request GET \\
+  --url 'https://sales-order.example.com/sales/order/v3/accounts/VIN123/orders?vin=VIN123&dataSync=false' \\
+  --header 'Accept-Language: en-US' \\
+  --header 'Authorization: Bearer test-token' \\
+  --header 'Content-Type: application/json'`);
+    expect(src.method).toBe('GET');
+    expect(src.path).toBe('/sales/order/v3/accounts/VIN123/orders');
+    expect(src.query).toEqual({ vin: 'VIN123', dataSync: 'false' });
+    expect(src.headers['Accept-Language']).toBe('en-US');
+    expect(src.headers.Authorization).toBe('Bearer test-token');
+    expect(src.headers['Content-Type']).toBe('application/json');
+
+    const rule = convertSourceToRule(src, { sourceKind: 'curl', sourceLabel: 'cURL import' });
+    const matched = rule.route.predicates.children.filter(p => 'selector' in p);
+    expect(matched.map(p => `${'source' in p ? p.source : ''}:${'selector' in p ? p.selector : ''}`)).toEqual([
+      'header:accept-language',
+      'header:authorization',
+      'header:content-type',
+      'query:vin',
+      'query:dataSync',
+    ]);
+  });
+
+  it('uses root path defaults when the parser omits method, url, and headers', () => {
+    const spy = vi.spyOn(curlParser, 'parseCurl').mockReturnValue({
+      method: undefined,
+      url: undefined,
+      headers: undefined,
+      body: '',
+    } as unknown as ReturnType<typeof curlParser.parseCurl>);
+    const src = parseCurlToSource('curl');
+    expect(src.method).toBe('GET');
+    expect(src.path).toBe('/');
+    expect(src.headers).toEqual({});
+    expect(src.body).toBeUndefined();
+    spy.mockRestore();
+  });
+
+  it('uses a root path for a schemeless url and skips query pairs without a name', () => {
+    expect(parseCurlToSource('curl custom:').path).toBe('/');
+    const src = parseCurlToSource("curl '?vin=1&orphan&='");
+    expect(src.path).toBe('/');
+    expect(src.query).toEqual({ vin: '1' });
+  });
+
+  it('reads a query string from a relative url', () => {
+    const src = parseCurlToSource("curl '/orders?vin=VIN123&dataSync=false'");
+    expect(src.path).toBe('/orders');
+    expect(src.query).toEqual({ vin: 'VIN123', dataSync: 'false' });
   });
 
   it('defaults method to GET and falls back for relative paths', () => {
