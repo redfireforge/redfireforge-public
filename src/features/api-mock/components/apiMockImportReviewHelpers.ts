@@ -1,5 +1,6 @@
 import type { ApiMockDiagnosticV1, ApiMockRouteV1 } from '@shared/api-mock/contracts';
 import type { SourceRequest } from '@shared/api-mock/sourceToRule';
+import { parseCurl } from '@shared/utils/curlParser';
 
 export type ApiMockImportSourceId = 'curl' | 'catalog' | 'requests' | 'openapi' | 'wiremock' | 'native' | 'har';
 export type ImportMode = 'merge' | 'replace' | 'copy';
@@ -43,21 +44,40 @@ export const IMPORT_SOURCES: Array<{ id: ImportSource; label: string; hint: stri
 ];
 
 export function parseCurlToSource(curl: string): SourceRequest {
-  const method = curl.match(/-X\s+(\w+)/i)?.[1] ?? 'GET';
-  const urlMatch = curl.match(/(?:curl\s+)?(?:-[^\s]+\s+)*['"]?(https?:\/\/[^\s'"]+)/i) ?? curl.match(/['"]?(\/[^\s'"]*)/);
-  const rawUrl = urlMatch?.[1] ?? '/';
-  let path: string;
-  try { path = new URL(rawUrl).pathname; } catch { path = rawUrl.split('?')[0]; }
+  const parsed = parseCurl(curl);
+  const requested = curl.match(/(?:-X|--request)\s+['"]?([A-Za-z]+)/i)?.[1];
+  const method = requested ?? parsed.method ?? 'GET';
+  const rawUrl = parsed.url?.trim() || '/';
+  const { path, query } = splitCurlUrl(rawUrl);
   const headers: Record<string, string> = {};
-  for (const m of curl.matchAll(/-H\s+['"]([^'"]+)['"]/gi)) {
-    const [key, ...rest] = m[1].split(':');
-    if (key) headers[key.trim()] = rest.join(':').trim();
+  for (const header of parsed.headers ?? []) {
+    if (!header.key) continue;
+    headers[header.key] = header.value;
   }
-  const bodyMatch = curl.match(/-d\s+['"]([^'"]*)['"]/i) ?? curl.match(/--data(?:-raw)?\s+['"]([^'"]*)['"]/i);
-  const body = bodyMatch?.[1];
+  const body = parsed.body || undefined;
   const ct = headers['Content-Type'] || headers['content-type'];
+  return { method, path, query, headers, body, contentType: ct };
+}
 
-  return { method, path, headers, body, contentType: ct };
+function splitCurlUrl(rawUrl: string): { path: string; query: Record<string, string> } {
+  const query: Record<string, string> = {};
+  try {
+    const url = new URL(rawUrl);
+    url.searchParams.forEach((value, key) => {
+      query[key] = value;
+    });
+    return { path: url.pathname || '/', query };
+  } catch {
+    const [pathPart, search = ''] = rawUrl.split('?');
+    if (search) {
+      for (const pair of search.split('&')) {
+        const eq = pair.indexOf('=');
+        if (eq <= 0) continue;
+        query[decodeURIComponent(pair.slice(0, eq))] = decodeURIComponent(pair.slice(eq + 1));
+      }
+    }
+    return { path: pathPart || '/', query };
+  }
 }
 
 export function responseStatusMeta(status: number): { statusClass: string; statusText: string } {
