@@ -75,13 +75,21 @@ export function useApiMockStudioJournal(opts: {
         const current = latestRef.current.servers.find(s => s.id === activeServerId);
         if (current) {
           const merged = mergeRecordedDraftsIntoRoutes(current.routes, drafts);
-          if (merged.added > 0) {
+          const updated = merged.updated ?? 0;
+          if (merged.added > 0 || updated > 0) {
             setServers(prev => prev.map(s => (
               s.id === activeServerId
                 ? { ...s, routes: merged.routes, updatedAt: new Date().toISOString() }
                 : s
             )));
-            setLiveMessage(`Recorded ${merged.added} proxied exchange(s) as inactive draft routes.`);
+            const notes: string[] = [];
+            if (merged.added > 0) {
+              notes.push(`Recorded ${merged.added} proxied exchange(s) as inactive draft routes.`);
+            }
+            if (updated > 0) {
+              notes.push(`Filled response headers on ${updated} recorded draft(s).`);
+            }
+            setLiveMessage(notes.join(' '));
           }
         }
         void apiMockControlClient.ackRecordedDrafts(activeServerId, drafts.map(d => d.id));

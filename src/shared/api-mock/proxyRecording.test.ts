@@ -65,7 +65,42 @@ describe('proxyRecording', () => {
     expect(conversion.route.enabled).toBe(false);
     expect(conversion.route.responses[0]?.status).toBe(200);
     expect(conversion.route.responses[0]?.body.content).toContain('id');
+    expect(conversion.route.responses[0]?.headers).toEqual([]);
     expect(conversion.diagnostics.some(d => d.code === 'AMS-REDACTION-SECRET-DETECTED')).toBe(true);
+  });
+
+  it('copies upstream response headers onto the recorded draft', () => {
+    const conversion = proxiedExchangeToDraft(
+      makeRequest({ headers: { accept: ['application/json'] } }),
+      {
+        status: 200,
+        headers: {
+          'content-type': 'application/json',
+          'content-length': '1132',
+          'content-encoding': 'gzip',
+          connection: 'keep-alive',
+          'set-cookie': 'sid=1',
+          'x-redfireforge-mock': 'true',
+          'gccx-transactionid': '7d6b',
+          'cache-control': 'no-cache',
+          '': 'skip-me',
+          'x-empty': '',
+          authorization: 'Bearer secret',
+        },
+        body: '{"ok":true}',
+      },
+      DEFAULT_SETTINGS,
+    );
+    const headers = conversion.route.responses[0]?.headers ?? [];
+    expect(headers.map(h => h.key)).toEqual([
+      'gccx-transactionid',
+      'cache-control',
+      'x-empty',
+      'authorization',
+    ]);
+    expect(headers.find(h => h.key === 'gccx-transactionid')?.value).toBe('7d6b');
+    expect(headers.find(h => h.key === 'authorization')?.value).toBe('Bearer [REDACTED]');
+    expect(headers.every(h => h.enabled && h.id.startsWith('hdr-'))).toBe(true);
   });
 
   it('maps query params and resolves content-type from response headers', () => {
@@ -142,7 +177,58 @@ describe('proxyRecording', () => {
 
     const empty = mergeRecordedDraftsIntoRoutes([], [draft]);
     expect(empty.added).toBe(1);
+    expect(empty.updated).toBe(0);
     expect(empty.routes[0].enabled).toBe(false);
+  });
+
+  it('fills response headers on an existing draft that was recorded without them', () => {
+    const conversion = proxiedExchangeToDraft(
+      makeRequest({ headers: { accept: ['application/json'] } }),
+      {
+        status: 200,
+        headers: { 'x-request-id': 'abc', 'content-type': 'application/json' },
+        body: '{"ok":true}',
+      },
+      DEFAULT_SETTINGS,
+    );
+    const fp = draftFingerprint('GET', '/users/1', 200);
+    const draft = toRecordedDraft(conversion, fp, ts);
+    const existing: ApiMockRouteV1[] = [{
+      ...conversion.route,
+      id: 'existing',
+      responses: [{ ...conversion.route.responses[0], headers: [] }],
+    }];
+    const merged = mergeRecordedDraftsIntoRoutes(existing, [draft]);
+    expect(merged.added).toBe(0);
+    expect(merged.updated).toBe(1);
+    expect(merged.routes[0].responses[0].headers.map(h => h.key)).toEqual(['x-request-id']);
+
+    const already = mergeRecordedDraftsIntoRoutes(merged.routes, [draft]);
+    expect(already.updated).toBe(0);
+    expect(already.skipped).toBe(1);
+
+    const disabled: ApiMockRouteV1 = {
+      ...conversion.route,
+      id: 'disabled',
+      responses: [{ ...conversion.route.responses[0], enabled: false, headers: [] }],
+    };
+    const filledDisabled = mergeRecordedDraftsIntoRoutes([disabled], [draft]);
+    expect(filledDisabled.updated).toBe(1);
+    expect(filledDisabled.routes[0].responses[0].headers.map(h => h.key)).toEqual(['x-request-id']);
+
+    const noResponses: ApiMockRouteV1 = { ...conversion.route, id: 'empty', responses: [] };
+    const skippedEmpty = mergeRecordedDraftsIntoRoutes([noResponses], [draft]);
+    expect(skippedEmpty.updated).toBe(0);
+    expect(skippedEmpty.skipped).toBe(1);
+
+    const headerlessCapture = toRecordedDraft(
+      { ...conversion, route: { ...conversion.route, responses: [] } },
+      fp,
+      ts,
+    );
+    const skippedCapture = mergeRecordedDraftsIntoRoutes([disabled], [headerlessCapture]);
+    expect(skippedCapture.updated).toBe(0);
+    expect(skippedCapture.skipped).toBe(1);
   });
 
   it('builds route fingerprints and default recorded draft timestamps', () => {

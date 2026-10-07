@@ -29,6 +29,43 @@ export interface ApiMockRecordedDraftV1 {
 
 const DEFAULT_SECRET_HEADERS = DEFAULT_SETTINGS.redaction.headerNames.map(h => h.toLowerCase());
 
+/** Transport and body metadata. Content-Type stays on the response body. */
+const RESPONSE_HEADER_SKIP = new Set([
+  'content-type',
+  'content-length',
+  'content-encoding',
+  'set-cookie',
+  'connection',
+  'keep-alive',
+  'proxy-authenticate',
+  'proxy-authorization',
+  'proxy-connection',
+  'te',
+  'trailer',
+  'transfer-encoding',
+  'upgrade',
+  'x-redfireforge-mock',
+]);
+
+function responseHeadersToVariant(
+  headers: Record<string, string | string[]>,
+  headerNames: string[],
+  preserveScheme: boolean,
+): Array<{ id: string; key: string; value: string; enabled: boolean }> {
+  const redacted = redactHeaderMap(headers, headerNames, preserveScheme);
+  const rows: Array<{ id: string; key: string; value: string; enabled: boolean }> = [];
+  for (const [key, value] of Object.entries(redacted)) {
+    if (!key || RESPONSE_HEADER_SKIP.has(key.toLowerCase())) continue;
+    rows.push({
+      id: `hdr-${crypto.randomUUID().slice(0, 8)}`,
+      key,
+      value,
+      enabled: true,
+    });
+  }
+  return rows;
+}
+
 export function draftFingerprint(method: string, path: string, status: number): string {
   return `${method.toUpperCase()} ${path} → ${status}`;
 }
@@ -110,9 +147,21 @@ export function proxiedExchangeToDraft(
     });
   }
 
+  const recordedHeaders = responseHeadersToVariant(
+    response.headers,
+    redaction.headerNames,
+    redaction.preserveScheme,
+  );
   return {
     ...result,
-    route: { ...result.route, enabled: false, name: `Recorded ${request.method} ${request.path}` },
+    route: {
+      ...result.route,
+      enabled: false,
+      name: `Recorded ${request.method} ${request.path}`,
+      responses: result.route.responses.map((variant, index) => (
+        index === 0 ? { ...variant, headers: recordedHeaders } : variant
+      )),
+    },
     diagnostics,
   };
 }
@@ -169,24 +218,47 @@ export function nativeCaptureToDraft(capture: NativeProxyCaptureV1): ApiMockReco
 }
 
 /** Merge recorded drafts into workspace routes — skips fingerprints already present. */
+function fillMissingResponseHeaders(existing: ApiMockRouteV1, incoming: ApiMockRouteV1): ApiMockRouteV1 | null {
+  const source = incoming.responses[0];
+  if (!source || source.headers.length === 0 || existing.responses.length === 0) return null;
+  const enabled = existing.responses.findIndex(variant => variant.enabled);
+  const target = enabled >= 0 ? enabled : 0;
+  if (existing.responses[target].headers.length > 0) return null;
+  return {
+    ...existing,
+    updatedAt: new Date().toISOString(),
+    responses: existing.responses.map((variant, index) => (
+      index === target ? { ...variant, headers: source.headers } : variant
+    )),
+  };
+}
+
 export function mergeRecordedDraftsIntoRoutes(
   existing: ApiMockRouteV1[],
   drafts: ApiMockRecordedDraftV1[],
-): { routes: ApiMockRouteV1[]; added: number; skipped: number } {
+): { routes: ApiMockRouteV1[]; added: number; skipped: number; updated: number } {
   const seen = new Set(existing.map(routeFingerprintFromRoute));
   const next = [...existing];
   let added = 0;
   let skipped = 0;
+  let updated = 0;
   for (const draft of drafts) {
     if (seen.has(draft.fingerprint)) {
-      skipped += 1;
+      const index = next.findIndex(route => routeFingerprintFromRoute(route) === draft.fingerprint);
+      const filled = index >= 0 ? fillMissingResponseHeaders(next[index], draft.route) : null;
+      if (filled) {
+        next[index] = filled;
+        updated += 1;
+      } else {
+        skipped += 1;
+      }
       continue;
     }
     seen.add(draft.fingerprint);
     next.push({ ...draft.route, enabled: false });
     added += 1;
   }
-  return { routes: next, added, skipped };
+  return { routes: next, added, skipped, updated };
 }
 
 export function routeFingerprintFromRoute(route: ApiMockRouteV1): string {
