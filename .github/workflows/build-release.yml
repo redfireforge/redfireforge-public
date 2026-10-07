@@ -281,7 +281,7 @@ jobs:
             **Linux:** `sudo dpkg -i *.deb` or `chmod +x *.AppImage && ./*.AppImage`
 
             SHA256 checksums are in `SHA256SUMS.txt` above.
-          releaseDraft: true
+          releaseDraft: false
           prerelease: ${{ contains(needs.prepare.outputs.publish_tag, '-') }}
           updaterJsonPreferNsis: true
           args: --target ${{ matrix.target }}
@@ -314,7 +314,7 @@ jobs:
             **Linux:** `sudo dpkg -i *.deb` or `chmod +x *.AppImage && ./*.AppImage`
 
             SHA256 checksums are in `SHA256SUMS.txt` above.
-          releaseDraft: true
+          releaseDraft: false
           prerelease: ${{ contains(needs.prepare.outputs.publish_tag, '-') }}
           updaterJsonPreferNsis: true
           uploadUpdaterJson: false
