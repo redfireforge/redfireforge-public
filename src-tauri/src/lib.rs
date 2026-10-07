@@ -5,6 +5,7 @@ mod companion;
 mod graphql;
 mod grpc;
 mod kafka;
+mod app_menu;
 mod linux_webview;
 mod websocket;
 mod api_mock;
@@ -184,6 +185,8 @@ pub fn run() {
   }
 
   builder
+    .menu(|app| app_menu::install(app))
+    .on_menu_event(|app, event| app_menu::handle_menu_event(app, &event))
     .manage(companion::CompanionState::default())
     .setup(|app| {
       let grpc_state = app.state::<GrpcState>();

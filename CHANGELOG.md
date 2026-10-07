@@ -8,12 +8,17 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Fixed
+- **Mock Server cURL import** — Import keeps the query string and long-form `--header` values, including `Authorization`, as exact match conditions. Import & Promotion sits above the sidebar edge so that line no longer cuts through the dialog.
+
+## [0.8.16] — 2026-10-01
+
 ### Added
 - **Kafka Azure OAUTHBEARER** — Cluster profiles can sign in to Azure Event Hubs with the Azure CLI session. Install the Azure CLI, run `az login`, choose mechanism Azure OAUTHBEARER, set the `*.servicebus.windows.net:9093` broker, and enable TLS. See [Azure Event Hubs](docs/guides/kafka-azure-event-hubs.md).
 - **Kafka message body search** — Message Detail has a search field under Message Body. It highlights matches, shows the match count, and moves with the arrows or Enter. Ignore case and Match case choose whether letter case matters, including the stream message search.
 
 ### Fixed
-- **Mock Server cURL import** — Import keeps the query string and long-form `--header` values, including `Authorization`, as exact match conditions. Import & Promotion sits above the sidebar edge so that line no longer cuts through the dialog.
+- **Desktop Copy** — Command+C copies selected message text, including Kafka header values. Edit → Copy uses that selection instead of staying disabled outside a text field.
 - **Kafka topic browse on desktop** — Opening a topic and consuming messages uses the connected desktop client. Latest reads the newest records already on the topic. Event Hubs reads through the existing `$Default` group instead of failing with `Local: Unknown group`. The topic page shows partitions and settings without waiting for the consumer-group scan. Groups assigned to that topic fill in afterward. Message times are epoch milliseconds, so the topic table shows the real local time instead of 1969. The Config tab shows the topic settings returned by the cluster. Message Detail opens wide enough to read the body, and can shrink Details, Key, and Headers so the body uses the freed space. Desktop consumers no longer log a warning for the producer-only request timeout. Consume results show each message time as a local date and time. Desktop Stream reads messages from the desktop consumer. On Event Hubs it assigns partitions instead of joining a consumer group the namespace does not have. Stream stops at Max Messages and drops records that do not match the filter. The Consume message list fills the space left when Configuration and Filters are hidden. Sort Order stays visible while both sections are open, and the Consume form is kept when you leave the page and come back. Consume Once on Event Hubs no longer needs a 100 second timeout: sign-in and offset lookup get enough time, and Latest returns records already on the topic. A Consume filter on Latest searches the same newer window as the topic page, instead of only the first 50 records. The Topics page keeps the selected topic, filters, and messages when you switch to another Kafka tab and come back. Last 1 Hour and Last 24 Hours read the newest records and keep the ones inside that window, instead of starting at the oldest records and returning nothing.
 
 ## [0.8.15] — 2026-09-28
