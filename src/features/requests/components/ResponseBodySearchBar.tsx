@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useCopyToClipboard } from '@shared/hooks/useCopyToClipboard';
 import { SearchMatchBar } from '@shared/components/SearchMatchBar';
 
@@ -13,6 +14,12 @@ interface Props {
   onCollapseAll: () => void;
   /** Raw response text to copy. Omitted or empty hides the copy button. */
   copyText?: string;
+  placeholder?: string;
+  copyAriaLabel?: string;
+  copiedAriaLabel?: string;
+  copyTitle?: string;
+  copiedTitle?: string;
+  trailing?: ReactNode;
 }
 
 const COPIED_RESET_MS = 1500;
@@ -27,6 +34,12 @@ export default function ResponseBodySearchBar({
   onPrev, onNext, onClear,
   onExpandAll, onCollapseAll,
   copyText,
+  placeholder = 'Search response...',
+  copyAriaLabel = 'Copy response body',
+  copiedAriaLabel = 'Response body copied',
+  copyTitle = 'Copy response',
+  copiedTitle = 'Copied!',
+  trailing,
 }: Props) {
   const [copied, copyToClipboard] = useCopyToClipboard(COPIED_RESET_MS);
 
@@ -40,7 +53,7 @@ export default function ResponseBodySearchBar({
         onPrev={onPrev}
         onNext={onNext}
         onClear={onClear}
-        placeholder="Search response..."
+        placeholder={placeholder}
         inputClassName="req-resp-search-input"
         countClassName="req-resp-search-count"
         navClassName="req-resp-search-nav"
@@ -56,8 +69,8 @@ export default function ResponseBodySearchBar({
           data-testid="response-copy-btn"
           // The label changes with the state, so a screen reader hears the
           // confirmation the sighted flash gives.
-          aria-label={copied ? 'Response body copied' : 'Copy response body'}
-          title={copied ? 'Copied!' : 'Copy response'}
+          aria-label={copied ? copiedAriaLabel : copyAriaLabel}
+          title={copied ? copiedTitle : copyTitle}
         >
           {copied ? (
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
@@ -67,6 +80,7 @@ export default function ResponseBodySearchBar({
           <span className="req-resp-copy-label">{copied ? 'Copied!' : 'Copy'}</span>
         </button>
       ) : null}
+      {trailing}
     </div>
   );
 }
