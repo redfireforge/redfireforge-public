@@ -4,12 +4,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { KafkaClusterConfig } from './kafkaConfig';
 import {
+  KAFKA_AUTO_CONNECT_ON_STARTUP_KEY,
   KAFKA_CLUSTERS_KEY,
+  KAFKA_CONSUME_TEMPLATES_KEY,
+  KAFKA_CONSUME_TOPICS_KEY,
+  KAFKA_PUBLISH_TEMPLATES_KEY,
   KAFKA_SELECTED_CLUSTER_KEY,
+  loadKafkaAutoConnectOnStartup,
   loadKafkaClusters,
+  loadKafkaConsumeTemplates,
+  loadKafkaConsumeTopic,
+  loadKafkaPublishTemplates,
   loadSelectedKafkaClusterId,
   TAURI_DEMO_APP_ID,
   TAURI_STANDARD_APP_ID,
+  type KafkaConsumeTemplate,
+  type KafkaPublishTemplate,
 } from './kafkaStorage';
 
 const isTauriMock = vi.hoisted(() => vi.fn(() => true));
@@ -97,5 +107,168 @@ describe('kafkaStorage — desktop migration', () => {
 
     expect(selected).toBe('prod');
     expect(writeKeyMock).toHaveBeenCalledWith(KAFKA_SELECTED_CLUSTER_KEY, 'prod');
+  });
+
+  it('imports clusters from the sibling Learning Hub folder on Standard builds', async () => {
+    appDataDirMock.mockResolvedValue(
+      `/Users/me/Library/Application Support/${TAURI_STANDARD_APP_ID}/`,
+    );
+    const siblingPath = `/Users/me/Library/Application Support/${TAURI_DEMO_APP_ID}/perf-test-kafka-clusters-v1.json`;
+    readTextFileMock.mockImplementation(async (path: string) => {
+      if (path === siblingPath) return JSON.stringify([sampleCluster]);
+      return null;
+    });
+
+    const loaded = await loadKafkaClusters();
+
+    expect(loaded).toHaveLength(1);
+    expect(readTextFileMock).toHaveBeenCalledWith(siblingPath);
+  });
+
+  it('ignores sibling reads when app data path is unrecognized', async () => {
+    appDataDirMock.mockResolvedValue('/tmp/unknown-app-id/');
+    localStorage.setItem(KAFKA_CLUSTERS_KEY, JSON.stringify([sampleCluster]));
+
+    const loaded = await loadKafkaClusters();
+
+    expect(loaded).toHaveLength(1);
+    expect(readTextFileMock).not.toHaveBeenCalled();
+  });
+
+  it('treats sibling read failures as missing data', async () => {
+    readTextFileMock.mockRejectedValue(new Error('ENOENT'));
+    localStorage.setItem(KAFKA_CLUSTERS_KEY, JSON.stringify([sampleCluster]));
+
+    const loaded = await loadKafkaClusters();
+
+    expect(loaded).toHaveLength(1);
+  });
+
+  it('imports auto-connect preference from webview localStorage', async () => {
+    localStorage.setItem(KAFKA_AUTO_CONNECT_ON_STARTUP_KEY, 'true');
+
+    expect(await loadKafkaAutoConnectOnStartup()).toBe(true);
+    expect(writeKeyMock).toHaveBeenCalledWith(KAFKA_AUTO_CONNECT_ON_STARTUP_KEY, 'true');
+    expect(localStorage.getItem(KAFKA_AUTO_CONNECT_ON_STARTUP_KEY)).toBeNull();
+  });
+
+  it('imports auto-connect false from webview localStorage', async () => {
+    localStorage.setItem(KAFKA_AUTO_CONNECT_ON_STARTUP_KEY, 'false');
+
+    expect(await loadKafkaAutoConnectOnStartup()).toBe(false);
+    expect(writeKeyMock).toHaveBeenCalledWith(KAFKA_AUTO_CONNECT_ON_STARTUP_KEY, 'false');
+  });
+
+  it('returns false for malformed auto-connect values in webview localStorage', async () => {
+    localStorage.setItem(KAFKA_AUTO_CONNECT_ON_STARTUP_KEY, 'maybe');
+
+    expect(await loadKafkaAutoConnectOnStartup()).toBe(false);
+  });
+
+  it('imports publish templates from webview localStorage', async () => {
+    const template: KafkaPublishTemplate = {
+      id: 'tpl-1',
+      name: 'Orders',
+      createdAt: '2026-10-20T00:00:00.000Z',
+      draft: {
+        topic: 'orders',
+        key: '',
+        partition: '',
+        acks: -1,
+        timeoutMs: '5000',
+        headers: [],
+        body: '{}',
+      },
+    };
+    localStorage.setItem(KAFKA_PUBLISH_TEMPLATES_KEY, JSON.stringify([template]));
+
+    const loaded = await loadKafkaPublishTemplates();
+
+    expect(loaded).toHaveLength(1);
+    expect(writeKeyMock).toHaveBeenCalledWith(
+      KAFKA_PUBLISH_TEMPLATES_KEY,
+      expect.any(String),
+    );
+    expect(localStorage.getItem(KAFKA_PUBLISH_TEMPLATES_KEY)).toBeNull();
+  });
+
+  it('imports consume templates from webview localStorage', async () => {
+    const template: KafkaConsumeTemplate = {
+      id: 'tpl-c-1',
+      name: 'Watch',
+      createdAt: '2026-10-20T00:00:00.000Z',
+      draft: {
+        topic: 'orders',
+        groupId: 'g1',
+        startPosition: 'latest',
+        timeoutMs: '5000',
+        maxMessages: '10',
+        keyEquals: '',
+        headerMatch: '',
+        jsonPath: '',
+        jsonPathEquals: '',
+        bodyContains: '',
+      },
+    };
+    localStorage.setItem(KAFKA_CONSUME_TEMPLATES_KEY, JSON.stringify([template]));
+
+    const loaded = await loadKafkaConsumeTemplates();
+
+    expect(loaded).toHaveLength(1);
+    expect(writeKeyMock).toHaveBeenCalledWith(
+      KAFKA_CONSUME_TEMPLATES_KEY,
+      expect.any(String),
+    );
+  });
+
+  it('imports consume topics from webview localStorage', async () => {
+    localStorage.setItem(
+      KAFKA_CONSUME_TOPICS_KEY,
+      JSON.stringify({ prod: '  sales-offer  ', other: '   ' }),
+    );
+
+    expect(await loadKafkaConsumeTopic('prod')).toBe('sales-offer');
+    expect(writeKeyMock).toHaveBeenCalledWith(
+      KAFKA_CONSUME_TOPICS_KEY,
+      JSON.stringify({ prod: 'sales-offer' }),
+    );
+    expect(localStorage.getItem(KAFKA_CONSUME_TOPICS_KEY)).toBeNull();
+  });
+
+  it('skips rewriting consume topics when imported map is empty', async () => {
+    localStorage.setItem(KAFKA_CONSUME_TOPICS_KEY, JSON.stringify({ empty: '   ' }));
+
+    expect(await loadKafkaConsumeTopic('empty')).toBe('');
+    expect(writeKeyMock).not.toHaveBeenCalledWith(
+      KAFKA_CONSUME_TOPICS_KEY,
+      expect.any(String),
+    );
+  });
+
+  it('removes legacy primary cluster key after migration', async () => {
+    const legacyKey = 'perf-test-kafka-clusters';
+    readKeyMock.mockImplementation(async (key: string) => {
+      if (key === KAFKA_CLUSTERS_KEY) return null;
+      if (key === legacyKey) return JSON.stringify([sampleCluster]);
+      return null;
+    });
+
+    const loaded = await loadKafkaClusters();
+
+    expect(loaded).toHaveLength(1);
+    expect(removeKeyMock).toHaveBeenCalledWith(legacyKey);
+  });
+
+  it('returns canonical clusters without re-save when primary payload is already normalized', async () => {
+    const canonical = JSON.stringify([sampleCluster]);
+    readKeyMock.mockImplementation(async (key: string) => {
+      if (key === KAFKA_CLUSTERS_KEY) return canonical;
+      return null;
+    });
+
+    const loaded = await loadKafkaClusters();
+
+    expect(loaded).toHaveLength(1);
+    expect(writeKeyMock).not.toHaveBeenCalled();
   });
 });
