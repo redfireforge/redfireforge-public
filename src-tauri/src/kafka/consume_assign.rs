@@ -42,19 +42,66 @@ pub(super) fn consume_assigned(
     timeout_ms: u64,
     filter: Option<KafkaMessageFilter>,
 ) -> Result<KafkaConsumeResult, String> {
-    // Partition metadata uses a client with no group.id. A group id redirects
-    // librdkafka's main queue, and the Azure token refresh can miss that queue,
-    // which surfaces as Broker transport failure before any message is read.
-    let mut probe_cfg = rdkafka_config.clone();
-    super::config::prepare_consumer_config(&mut probe_cfg);
-    let probe: BaseConsumer<AzureEventHubContext> = create_rdkafka_client(&probe_cfg)?;
-    let refresh_oauth = probe_cfg
+    let refresh_oauth = rdkafka_config
         .get("sasl.mechanism")
         .is_some_and(|mechanism| mechanism.eq_ignore_ascii_case("OAUTHBEARER"));
     // Azure sign-in plus Event Hubs offset lookup often takes longer than the
     // message-read timeout. Keep the user's timeout for the read, and give
     // setup at least 30s on OAUTHBEARER so the default 10s field still works.
     let setup_budget = consume_setup_budget(timeout_ms, refresh_oauth);
+    let brokers = rdkafka_config
+        .get("bootstrap.servers")
+        .unwrap_or("")
+        .to_string();
+    let filtering = filter.as_ref().is_some_and(filter_narrows);
+    // Latest normally reads only Max Messages. A body filter has to look further
+    // back, or a match just outside that page never shows up. Topics always
+    // asks for that wider scan; Consume must do the same for Oldest First.
+    let wide_filter = wide_filter_scan(filtering, from_beginning, sort_desc);
+    let read_limit = if wide_filter {
+        max_messages.max(FILTER_READ_LIMIT)
+    } else {
+        max_messages
+    };
+    // librdkafka 2.12 ListOffsets includes a leader epoch, and a group id sends
+    // the Azure token to the group coordinator, which then fails the handshake.
+    // KafkaJS reads the page without joining that coordinator.
+    if brokers.to_ascii_lowercase().contains(".servicebus.windows.net") {
+        let page = super::event_hub_offsets::read_event_hub_page(
+            &brokers,
+            topic,
+            from_beginning,
+            read_limit,
+            timeout_ms,
+            partition_filter,
+            seek_offsets.as_deref(),
+        )?;
+        let windows = page
+            .windows
+            .iter()
+            .map(|(partition, low, high)| format!("{partition}:{low}-{high}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        log::info!(
+            "Event Hubs page for {topic}: {} messages ({windows})",
+            page.messages.len()
+        );
+        return Ok(finish_page(
+            page.windows,
+            page.messages,
+            page.timed_out,
+            filter.as_ref(),
+            sort_desc,
+            max_messages,
+        ));
+    }
+
+    // Partition metadata uses a client with no group.id. A group id redirects
+    // librdkafka's main queue, and the Azure token refresh can miss that queue,
+    // which surfaces as Broker transport failure before any message is read.
+    let mut probe_cfg = rdkafka_config.clone();
+    super::config::prepare_consumer_config(&mut probe_cfg);
+    let probe: BaseConsumer<AzureEventHubContext> = create_rdkafka_client(&probe_cfg)?;
     let metadata = fetch_cluster_metadata(&probe, setup_budget, refresh_oauth)?;
 
     let topic_meta = metadata
@@ -66,42 +113,27 @@ pub(super) fn consume_assigned(
         return Err(format!("Topic '{topic}' is not readable: {err:?}"));
     }
 
-    let mut windows = Vec::new();
-    let watermark_deadline = Instant::now() + setup_budget;
-    for partition in topic_meta.partitions() {
-        let id = partition.id();
-        if partition_filter.is_some_and(|wanted| wanted != id) {
-            continue;
+    let partition_ids: Vec<i32> = topic_meta
+        .partitions()
+        .iter()
+        .map(|partition| partition.id())
+        .filter(|id| partition_filter.is_none_or(|wanted| wanted == *id))
+        .collect();
+    let mut windows = match read_watermarks(&probe, topic, &partition_ids, setup_budget) {
+        Ok(measured) => measured,
+        Err(err) => {
+            log::warn!("{err}");
+            partition_ids.iter().copied().map(unknown_window).collect()
         }
-        let remaining = watermark_deadline.saturating_duration_since(Instant::now());
-        if remaining < Duration::from_secs(1) {
-            return Err(format!(
-                "Could not read offsets for {topic} partition {id}: timed out waiting for the broker"
-            ));
-        }
-        let (low, high) = probe
-            .fetch_watermarks(topic, id, remaining)
-            .map_err(|err| format!("Could not read offsets for {topic} partition {id}: {err}"))?;
-        windows.push(PartitionWindow {
-            partition: id,
-            low,
-            high,
-            start: low,
-        });
-    }
-
-    let filtering = filter.as_ref().is_some_and(filter_narrows);
-    // Latest normally reads only Max Messages. A body filter has to look further
-    // back, or a match just outside that page never shows up. Topics always
-    // asks for that wider scan; Consume must do the same for Oldest First.
-    let wide_filter = wide_filter_scan(filtering, from_beginning, sort_desc);
-    let read_limit = if wide_filter {
-        max_messages.max(FILTER_READ_LIMIT)
-    } else {
-        max_messages
     };
-    apply_starts(&mut windows, from_beginning, sort_desc, seek_offsets, read_limit)?;
     drop(probe);
+
+    let explicit_seek = seek_offsets.is_some();
+    apply_starts(&mut windows, from_beginning, sort_desc, seek_offsets, read_limit)?;
+    // Event Hubs often reports 0,0 watermarks for a topic that has records.
+    // Assigning Beginning / the tail still reads those records. A real empty
+    // topic reaches partition EOF and returns nothing.
+    let mut logical_read = !explicit_seek && !watermarks_have_records(&windows);
 
     let mut consumer_cfg = rdkafka_config;
     super::config::prepare_consumer_config(&mut consumer_cfg);
@@ -115,29 +147,65 @@ pub(super) fn consume_assigned(
     if let Err(err) = fetch_cluster_metadata(&consumer, setup_budget, refresh_oauth) {
         log::warn!("Kafka consume reader is still connecting: {err}");
     }
+    if logical_read {
+        // OffsetTail asks for the same watermark query Event Hubs just reset,
+        // and that failure shows up as "Message consumption error". Measure
+        // offsets on this signed-in connection instead.
+        match read_watermarks(&consumer, topic, &partition_ids, setup_budget) {
+            Ok(measured) => {
+                windows = measured;
+                apply_starts(&mut windows, from_beginning, sort_desc, None, read_limit)?;
+                logical_read = !watermarks_have_records(&windows);
+            }
+            Err(err) => log::warn!("{err}"),
+        }
+    }
 
     let readable: Vec<&PartitionWindow> = windows.iter().filter(|window| window.start < window.high).collect();
-    if readable.is_empty() {
+    if readable.is_empty() && !logical_read {
         return Ok(empty_result(false));
     }
 
     let mut assignment = TopicPartitionList::new();
     let mut expected_left: HashMap<i32, i64> = HashMap::new();
-    for window in &readable {
-        assignment
-            .add_partition_offset(topic, window.partition, Offset::Offset(window.start))
-            .map_err(|err| err.to_string())?;
-        expected_left.insert(window.partition, window.high - window.start);
+    if logical_read && !from_beginning {
+        return Err(format!(
+            "Could not read offsets for {topic}: the broker disconnected before sending them"
+        ));
+    }
+
+    if logical_read {
+        let offset = Offset::Beginning;
+        for window in &windows {
+            assignment
+                .add_partition_offset(topic, window.partition, offset)
+                .map_err(|err| err.to_string())?;
+            // Unknown length. EOF, the read cap, or the timeout ends the read.
+            expected_left.insert(window.partition, i64::MAX / 4);
+        }
+    } else {
+        for window in &readable {
+            assignment
+                .add_partition_offset(topic, window.partition, Offset::Offset(window.start))
+                .map_err(|err| err.to_string())?;
+            expected_left.insert(window.partition, window.high - window.start);
+        }
     }
     consumer.assign(&assignment).map_err(|err| err.to_string())?;
 
     let deadline = Instant::now() + Duration::from_millis(timeout_ms.max(1));
     let mut messages = Vec::new();
+    let mut seen = 0usize;
     let mut timed_out = false;
+    let mut last_disconnect: Option<String> = None;
     // Newest-first with a filter must read the whole window, then keep the
     // newest matches. Stopping at Max Messages would keep the oldest hits.
     let gather_window = wide_filter;
-    while (gather_window || messages.len() < max_messages) && expected_left.values().any(|left| *left > 0) {
+    let examine_limit = if logical_read { read_limit.max(1) } else { usize::MAX };
+    while seen < examine_limit
+        && (gather_window || messages.len() < max_messages)
+        && expected_left.values().any(|left| *left > 0)
+    {
         let remaining = deadline.saturating_duration_since(Instant::now());
         if remaining.is_zero() {
             timed_out = true;
@@ -146,6 +214,7 @@ pub(super) fn consume_assigned(
         match consumer.poll(remaining.min(Duration::from_millis(250))) {
             None => continue,
             Some(Ok(message)) => {
+                seen += 1;
                 if let Some(left) = expected_left.get_mut(&message.partition()) {
                     *left = (*left - 1).max(0);
                 }
@@ -157,7 +226,15 @@ pub(super) fn consume_assigned(
             Some(Err(KafkaError::PartitionEOF(id))) => {
                 expected_left.insert(id, 0);
             }
-            Some(Err(err)) => return Err(err.to_string()),
+            Some(Err(err)) => {
+                let text = err.to_string();
+                if is_retryable_broker_error(&text) {
+                    log::warn!("Kafka consume is retrying after a broker disconnect: {text}");
+                    last_disconnect = Some(text);
+                    continue;
+                }
+                return Err(text);
+            }
         }
     }
 
@@ -175,6 +252,12 @@ pub(super) fn consume_assigned(
         messages.reverse();
     }
 
+    if messages.is_empty() {
+        if let Some(err) = last_disconnect {
+            return Err(err);
+        }
+    }
+
     let (has_more, next_cursor) = desc_page(&messages, &windows, sort_desc);
     let count = messages.len();
     Ok(KafkaConsumeResult {
@@ -189,7 +272,7 @@ pub(super) fn consume_assigned(
 fn apply_starts(
     windows: &mut Vec<PartitionWindow>,
     from_beginning: bool,
-    sort_desc: bool,
+    _sort_desc: bool,
     seek_offsets: Option<Vec<KafkaSeekOffset>>,
     max_messages: usize,
 ) -> Result<(), String> {
@@ -211,10 +294,10 @@ fn apply_starts(
         return Ok(());
     }
 
-    // Latest reads records already on the topic. Sort order only changes the
-    // display order. Waiting at the high watermark returns nothing unless a
-    // new record arrives during the timeout.
-    if sort_desc || !from_beginning {
+    // Latest reads records already on the topic. Newest First only changes
+    // display order, including when Start Position is Earliest. Waiting at
+    // the high watermark returns nothing unless a new record arrives.
+    if !from_beginning {
         let total = windows.iter().map(|window| (window.high - window.low).max(0)).sum::<i64>();
         for window in windows.iter_mut() {
             let available = (window.high - window.low).max(0);
@@ -232,6 +315,123 @@ fn apply_starts(
         window.start = window.low;
     }
     Ok(())
+}
+
+fn read_watermarks(
+    consumer: &BaseConsumer<AzureEventHubContext>,
+    topic: &str,
+    partition_ids: &[i32],
+    budget: Duration,
+) -> Result<Vec<PartitionWindow>, String> {
+    let deadline = Instant::now() + budget;
+    let mut windows = Vec::with_capacity(partition_ids.len());
+    for id in partition_ids {
+        let mut last_error = format!("Could not read offsets for {topic} partition {id}");
+        let mut read = None;
+        while Instant::now() < deadline {
+            // Pump the queue so an OAUTHBEARER refresh is applied before the
+            // offset request. A blocking watermark call alone misses that queue.
+            let _ = consumer.poll(Duration::from_millis(100));
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining < Duration::from_millis(400) {
+                break;
+            }
+            match consumer.fetch_watermarks(topic, *id, remaining.min(Duration::from_secs(8))) {
+                Ok((low, high)) => {
+                    read = Some(PartitionWindow {
+                        partition: *id,
+                        low,
+                        high,
+                        start: low,
+                    });
+                    break;
+                }
+                Err(err) => {
+                    last_error = format!("Could not read offsets for {topic} partition {id}: {err}");
+                    log::warn!("{last_error}");
+                }
+            }
+        }
+        match read {
+            Some(window) => windows.push(window),
+            None => return Err(last_error),
+        }
+    }
+    Ok(windows)
+}
+
+fn is_retryable_broker_error(message: &str) -> bool {
+    let msg = message.to_lowercase();
+    msg.contains("disconnected before response")
+        || msg.contains("broker transport failure")
+        || msg.contains("all broker connections are down")
+        || msg.contains("connection refused")
+}
+
+fn finish_page(
+    measured: Vec<(i32, i64, i64)>,
+    messages: Vec<KafkaConsumeRecord>,
+    timed_out: bool,
+    filter: Option<&KafkaMessageFilter>,
+    sort_desc: bool,
+    max_messages: usize,
+) -> KafkaConsumeResult {
+    let (_, windows) = windows_from_offsets(measured, None);
+    let mut messages: Vec<_> = messages
+        .into_iter()
+        .filter(|record| matches_filter(record, filter))
+        .collect();
+    if sort_desc {
+        messages.sort_by(|left, right| {
+            offset_number(&right.offset)
+                .cmp(&offset_number(&left.offset))
+                .then(left.partition.cmp(&right.partition))
+        });
+    }
+    if messages.len() > max_messages {
+        messages.truncate(max_messages);
+    }
+    let (has_more, next_cursor) = desc_page(&messages, &windows, sort_desc);
+    let count = messages.len();
+    KafkaConsumeResult {
+        message_count: count,
+        messages,
+        timed_out: timed_out && count < max_messages,
+        has_more: Some(has_more),
+        next_cursor,
+    }
+}
+
+fn windows_from_offsets(
+    measured: Vec<(i32, i64, i64)>,
+    partition_filter: Option<i32>,
+) -> (Vec<i32>, Vec<PartitionWindow>) {
+    let windows: Vec<PartitionWindow> = measured
+        .into_iter()
+        .filter(|(partition, _, _)| partition_filter.is_none_or(|wanted| wanted == *partition))
+        .map(|(partition, low, high)| PartitionWindow {
+            partition,
+            low,
+            high,
+            start: low,
+        })
+        .collect();
+    let partition_ids = windows.iter().map(|window| window.partition).collect();
+    (partition_ids, windows)
+}
+
+fn unknown_window(partition: i32) -> PartitionWindow {
+    PartitionWindow {
+        partition,
+        low: -1001,
+        high: -1001,
+        start: -1001,
+    }
+}
+
+/// True when every partition looked empty or reported an invalid watermark.
+fn watermarks_have_records(windows: &[PartitionWindow]) -> bool {
+    windows.iter().any(|window| window.low >= 0 && window.high > window.start)
 }
 
 fn wide_filter_scan(filtering: bool, from_beginning: bool, sort_desc: bool) -> bool {
@@ -364,6 +564,37 @@ mod tests {
         let mut windows = vec![window(0, 4, 4)];
         apply_starts(&mut windows, false, true, None, 50).unwrap();
         assert_eq!(windows[0].start, 4);
+        assert!(!watermarks_have_records(&windows));
+    }
+
+    #[test]
+    fn earliest_reads_from_the_low_watermark_even_when_newest_first() {
+        let mut windows = vec![window(0, 5, 100)];
+        apply_starts(&mut windows, true, true, None, 10).unwrap();
+        assert_eq!(windows[0].start, 5);
+        assert!(watermarks_have_records(&windows));
+    }
+
+    #[test]
+    fn invalid_watermarks_still_need_a_read() {
+        assert!(!watermarks_have_records(&[window(0, -1001, -1001)]));
+    }
+
+    #[test]
+    fn event_hub_offsets_keep_the_requested_partition() {
+        let (ids, windows) = windows_from_offsets(vec![(0, 10, 40), (1, 2, 9)], Some(1));
+        assert_eq!(ids, vec![1]);
+        assert_eq!(windows.len(), 1);
+        assert_eq!(windows[0].low, 2);
+        assert_eq!(windows[0].high, 9);
+    }
+
+    #[test]
+    fn broker_disconnect_during_consume_is_retried() {
+        assert!(is_retryable_broker_error(
+            "Message consumption error: NetworkException (Broker: Broker disconnected before response received)"
+        ));
+        assert!(!is_retryable_broker_error("SASL authentication failed"));
     }
 
     #[test]

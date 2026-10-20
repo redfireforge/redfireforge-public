@@ -12,6 +12,7 @@ Format follows Keep a Changelog and Semantic Versioning.
 - **Catalog request body** — The endpoint request body is a JSON tree with search, Expand All, Collapse All, and Copy. Try it out can still edit the text, and the panel resizes from the bottom-right corner.
 
 ### Fixed
+- **Kafka Consume on Event Hubs** — Consume reads the latest records through KafkaJS when the desktop client’s offset request is reset, including the message body. The last Consume topic is restored after the app restarts.
 - **Mock Server cURL import** — Import keeps the query string and long-form `--header` values, including `Authorization`, as exact match conditions. Import & Promotion sits above the sidebar edge so that line no longer cuts through the dialog.
 - **Mock Server proxy recording** — A proxied response now saves its headers on the draft. Content-Type stays on the body. Sending the same request again fills headers on a draft that was recorded without them.
 

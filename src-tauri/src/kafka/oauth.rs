@@ -199,6 +199,10 @@ fn chrono_fallback_lifetime() -> i64 {
     now_ms.saturating_add(3_600_000)
 }
 
+pub(crate) fn event_hub_access_token(resource: &str) -> Result<String, String> {
+    Ok(fetch_event_hub_token(resource)?.token)
+}
+
 fn fetch_event_hub_token(resource: &str) -> Result<OAuthToken, String> {
     let output = Command::new(az_program())
         .args([
