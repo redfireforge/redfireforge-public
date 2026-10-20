@@ -6,16 +6,19 @@ import {
   KAFKA_AUTO_CONNECT_ON_STARTUP_KEY,
   KAFKA_CLUSTERS_KEY,
   KAFKA_CONSUME_TEMPLATES_KEY,
+  KAFKA_CONSUME_TOPICS_KEY,
   KAFKA_PUBLISH_TEMPLATES_KEY,
   KAFKA_SELECTED_CLUSTER_KEY,
   loadKafkaAutoConnectOnStartup,
   loadKafkaClusters,
   loadKafkaConsumeTemplates,
+  loadKafkaConsumeTopic,
   loadKafkaPublishTemplates,
   loadSelectedKafkaClusterId,
   saveKafkaAutoConnectOnStartup,
   saveKafkaClusters,
   saveKafkaConsumeTemplates,
+  saveKafkaConsumeTopic,
   saveKafkaPublishTemplates,
   saveSelectedKafkaClusterId,
   type KafkaConsumeTemplate,
@@ -358,5 +361,43 @@ describe('kafkaStorage – consume templates', () => {
     await saveKafkaConsumeTemplates([sampleConsumeTemplate]);
     await saveKafkaConsumeTemplates([]);
     expect(await loadKafkaConsumeTemplates()).toEqual([]);
+  });
+});
+
+describe('kafkaStorage – consume topic', () => {
+  beforeEach(() => { localStorage.clear(); });
+
+  it('returns an empty topic when nothing is stored', async () => {
+    expect(await loadKafkaConsumeTopic('cluster-a')).toBe('');
+  });
+
+  it('saves and loads the topic for one cluster', async () => {
+    await saveKafkaConsumeTopic('cluster-a', '  222043-sales-offer  ');
+    expect(await loadKafkaConsumeTopic('cluster-a')).toBe('222043-sales-offer');
+    expect(await loadKafkaConsumeTopic('cluster-b')).toBe('');
+  });
+
+  it('keeps other clusters when one topic is cleared', async () => {
+    await saveKafkaConsumeTopic('cluster-a', 'orders');
+    await saveKafkaConsumeTopic('cluster-b', 'payments');
+    await saveKafkaConsumeTopic('cluster-a', '   ');
+    expect(await loadKafkaConsumeTopic('cluster-a')).toBe('');
+    expect(await loadKafkaConsumeTopic('cluster-b')).toBe('payments');
+  });
+
+  it('removes the key when the last topic is cleared', async () => {
+    await saveKafkaConsumeTopic('cluster-a', 'orders');
+    await saveKafkaConsumeTopic('cluster-a', '');
+    expect(localStorage.getItem(KAFKA_CONSUME_TOPICS_KEY)).toBeNull();
+  });
+
+  it('ignores malformed stored topics', async () => {
+    localStorage.setItem(KAFKA_CONSUME_TOPICS_KEY, 'not-json');
+    expect(await loadKafkaConsumeTopic('cluster-a')).toBe('');
+    localStorage.setItem(KAFKA_CONSUME_TOPICS_KEY, '["orders"]');
+    expect(await loadKafkaConsumeTopic('cluster-a')).toBe('');
+    localStorage.setItem(KAFKA_CONSUME_TOPICS_KEY, JSON.stringify({ 'cluster-a': '  ', 'cluster-b': 4 }));
+    expect(await loadKafkaConsumeTopic('cluster-a')).toBe('');
+    expect(await loadKafkaConsumeTopic('cluster-b')).toBe('');
   });
 });

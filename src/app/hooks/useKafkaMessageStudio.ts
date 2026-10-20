@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { v4 as uuid } from 'uuid';
 import {
   dispatchKafkaOperation,
@@ -19,6 +19,7 @@ import {
   buildPublishRequest,
   validateAndFormatJson,
 } from '../../features/kafka/kafkaMessageStudioUtils';
+import { loadKafkaConsumeTopic, saveKafkaConsumeTopic } from '@shared/kafka/kafkaStorage';
 
 // ── Public interface ───────────────────────────────────────────────────────
 
@@ -108,6 +109,39 @@ export function useKafkaMessageStudio(
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<KafkaConsumeCursor[] | null>(null);
   const [loadMoreLoading, setLoadMoreLoading] = useState(false);
+  const seenConsumeCluster = useRef<string | null>(null);
+  const [consumeTopicReady, setConsumeTopicReady] = useState<string | null>(null);
+
+  const selectedClusterId = kafkaState.selectedClusterId ?? '';
+
+  useEffect(() => {
+    let cancelled = false;
+    const switching = seenConsumeCluster.current !== null
+      && seenConsumeCluster.current !== selectedClusterId;
+    setConsumeTopicReady(null);
+    void loadKafkaConsumeTopic(selectedClusterId).then((topic) => {
+      if (cancelled) return;
+      setConsumeDraftState((prev) => {
+        if (!switching && prev.topic.trim()) return prev;
+        if (!topic) return switching ? { ...prev, topic: '' } : prev;
+        return { ...prev, topic };
+      });
+      seenConsumeCluster.current = selectedClusterId;
+      setConsumeTopicReady(selectedClusterId);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedClusterId]);
+
+  useEffect(() => {
+    if (consumeTopicReady !== selectedClusterId) return;
+    const topic = consumeDraftState.topic;
+    const handle = window.setTimeout(() => {
+      void saveKafkaConsumeTopic(selectedClusterId, topic);
+    }, 250);
+    return () => window.clearTimeout(handle);
+  }, [consumeDraftState.topic, selectedClusterId, consumeTopicReady]);
 
   // ── Setters ──────────────────────────────────────────────────────────────
   const setPublishDraft = useCallback((patch: Partial<KafkaPublishDraft>) => {
