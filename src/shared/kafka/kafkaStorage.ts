@@ -1,6 +1,11 @@
 import { readKey, removeKey, writeKey } from '../utils/storage';
+import { isTauri } from '../utils/platform';
 import { normalizeKafkaClusterConfig, type KafkaClusterConfig } from './kafkaConfig';
 import type { KafkaConsumeDraft, KafkaPublishDraft } from '../../features/kafka/types';
+
+/** Tauri bundle IDs — each build keeps its own Application Support folder. */
+export const TAURI_STANDARD_APP_ID = 'com.redfireforge.desktop';
+export const TAURI_DEMO_APP_ID = 'com.redfireforge.desktop.demo';
 
 export const KAFKA_CLUSTERS_KEY = 'perf-test-kafka-clusters-v1';
 export const KAFKA_SELECTED_CLUSTER_KEY = 'perf-test-kafka-selected-cluster-id';
@@ -16,19 +21,86 @@ const LEGACY_KAFKA_SELECTED_CLUSTER_KEYS = [
   'kafka-selected-cluster',
 ];
 
+type StorageHitSource = 'primary' | 'localStorage' | 'sibling';
+
 interface KeyValueHit {
   key: string;
   value: string;
+  source: StorageHitSource;
 }
 
+function readWebLocalStorageKey(key: string): string | null {
+  try {
+    if (typeof localStorage === 'undefined') return null;
+    const value = localStorage.getItem(key);
+    return value && value.length > 0 ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearWebLocalStorageKey(key: string): void {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+}
+
+async function readSiblingAppDataValue(key: string): Promise<string | null> {
+  if (!isTauri()) return null;
+  try {
+    const { appDataDir } = await import('@tauri-apps/api/path');
+    const { readTextFile } = await import('@tauri-apps/plugin-fs');
+    const currentDir = (await appDataDir()).replace(/\\/g, '/');
+    let siblingDir: string | null = null;
+    if (currentDir.includes(TAURI_DEMO_APP_ID)) {
+      siblingDir = currentDir.replace(TAURI_DEMO_APP_ID, TAURI_STANDARD_APP_ID);
+    } else if (currentDir.includes(TAURI_STANDARD_APP_ID)) {
+      siblingDir = currentDir.replace(TAURI_STANDARD_APP_ID, TAURI_DEMO_APP_ID);
+    }
+    if (!siblingDir || siblingDir === currentDir) return null;
+    const sep = siblingDir.endsWith('/') ? '' : '/';
+    return await readTextFile(`${siblingDir}${sep}${key}.json`);
+  } catch {
+    return null;
+  }
+}
+
+/** Primary store first, then webview localStorage and sibling Tauri app data (desktop upgrades). */
 async function firstKeyHit(keys: readonly string[]): Promise<KeyValueHit | null> {
   for (const key of keys) {
     const value = await readKey(key);
     if (value) {
-      return { key, value };
+      return { key, value, source: 'primary' };
+    }
+  }
+  if (!isTauri()) {
+    return null;
+  }
+  for (const key of keys) {
+    const value = readWebLocalStorageKey(key);
+    if (value) {
+      return { key, value, source: 'localStorage' };
+    }
+  }
+  for (const key of keys) {
+    const value = await readSiblingAppDataValue(key);
+    if (value) {
+      return { key, value, source: 'sibling' };
     }
   }
   return null;
+}
+
+async function finalizeImportedKey(hit: KeyValueHit, canonicalKey: string): Promise<void> {
+  if (hit.source === 'localStorage') {
+    clearWebLocalStorageKey(hit.key);
+    return;
+  }
+  if (hit.source === 'primary' && hit.key !== canonicalKey) {
+    await removeKey(hit.key);
+  }
 }
 
 function dedupeClusters(clusters: KafkaClusterConfig[]): KafkaClusterConfig[] {
@@ -74,23 +146,21 @@ export async function saveKafkaClusters(clusters: KafkaClusterConfig[]): Promise
 }
 
 export async function loadKafkaClusters(): Promise<KafkaClusterConfig[]> {
-  const canonical = await readKey(KAFKA_CLUSTERS_KEY);
-  if (canonical) {
-    const parsed = parseClusters(canonical);
-    if (JSON.stringify(parsed) !== canonical) {
+  const hit = await firstKeyHit([KAFKA_CLUSTERS_KEY, ...LEGACY_KAFKA_CLUSTER_KEYS]);
+  if (!hit) {
+    return [];
+  }
+
+  const parsed = parseClusters(hit.value);
+  if (hit.key === KAFKA_CLUSTERS_KEY && hit.source === 'primary') {
+    if (JSON.stringify(parsed) !== hit.value) {
       await saveKafkaClusters(parsed);
     }
     return parsed;
   }
 
-  const legacy = await firstKeyHit(LEGACY_KAFKA_CLUSTER_KEYS);
-  if (!legacy) {
-    return [];
-  }
-
-  const parsed = parseClusters(legacy.value);
   await saveKafkaClusters(parsed);
-  await removeKey(legacy.key);
+  await finalizeImportedKey(hit, KAFKA_CLUSTERS_KEY);
   return parsed;
 }
 
@@ -103,27 +173,25 @@ export async function saveSelectedKafkaClusterId(clusterId: string | null): Prom
 }
 
 export async function loadSelectedKafkaClusterId(): Promise<string | null> {
-  const selected = await readKey(KAFKA_SELECTED_CLUSTER_KEY);
-  if (selected && selected.trim().length > 0) {
-    return selected.trim();
-  }
-  if (selected != null) {
-    await removeKey(KAFKA_SELECTED_CLUSTER_KEY);
-  }
-
-  const legacy = await firstKeyHit(LEGACY_KAFKA_SELECTED_CLUSTER_KEYS);
-  if (!legacy) {
+  const hit = await firstKeyHit([KAFKA_SELECTED_CLUSTER_KEY, ...LEGACY_KAFKA_SELECTED_CLUSTER_KEYS]);
+  if (!hit) {
     return null;
   }
 
-  const trimmed = legacy.value.trim();
+  const trimmed = hit.value.trim();
   if (trimmed.length === 0) {
-    await removeKey(legacy.key);
+    if (hit.source === 'primary') {
+      await removeKey(hit.key);
+    }
     return null;
+  }
+
+  if (hit.key === KAFKA_SELECTED_CLUSTER_KEY && hit.source === 'primary') {
+    return trimmed;
   }
 
   await writeKey(KAFKA_SELECTED_CLUSTER_KEY, trimmed);
-  await removeKey(legacy.key);
+  await finalizeImportedKey(hit, KAFKA_SELECTED_CLUSTER_KEY);
   return trimmed;
 }
 
@@ -132,20 +200,30 @@ export async function saveKafkaAutoConnectOnStartup(enabled: boolean): Promise<v
 }
 
 export async function loadKafkaAutoConnectOnStartup(): Promise<boolean> {
-  const stored = await readKey(KAFKA_AUTO_CONNECT_ON_STARTUP_KEY);
-  if (stored == null) {
+  const hit = await firstKeyHit([KAFKA_AUTO_CONNECT_ON_STARTUP_KEY]);
+  if (!hit) {
     return false;
   }
 
-  const normalized = stored.trim().toLowerCase();
+  const normalized = hit.value.trim().toLowerCase();
   if (normalized === 'true') {
+    if (hit.key !== KAFKA_AUTO_CONNECT_ON_STARTUP_KEY || hit.source !== 'primary') {
+      await saveKafkaAutoConnectOnStartup(true);
+      await finalizeImportedKey(hit, KAFKA_AUTO_CONNECT_ON_STARTUP_KEY);
+    }
     return true;
   }
   if (normalized === 'false') {
+    if (hit.key !== KAFKA_AUTO_CONNECT_ON_STARTUP_KEY || hit.source !== 'primary') {
+      await saveKafkaAutoConnectOnStartup(false);
+      await finalizeImportedKey(hit, KAFKA_AUTO_CONNECT_ON_STARTUP_KEY);
+    }
     return false;
   }
 
-  await removeKey(KAFKA_AUTO_CONNECT_ON_STARTUP_KEY);
+  if (hit.source === 'primary') {
+    await removeKey(hit.key);
+  }
   return false;
 }
 
@@ -199,9 +277,15 @@ function parseTemplates<T>(raw: string): T[] {
 }
 
 export async function loadKafkaPublishTemplates(): Promise<KafkaPublishTemplate[]> {
-  const raw = await readKey(KAFKA_PUBLISH_TEMPLATES_KEY);
-  if (!raw) return [];
-  return parseTemplates<KafkaPublishTemplate>(raw);
+  const hit = await firstKeyHit([KAFKA_PUBLISH_TEMPLATES_KEY]);
+  if (!hit) return [];
+  if (hit.key !== KAFKA_PUBLISH_TEMPLATES_KEY || hit.source !== 'primary') {
+    const templates = parseTemplates<KafkaPublishTemplate>(hit.value);
+    await saveKafkaPublishTemplates(templates);
+    await finalizeImportedKey(hit, KAFKA_PUBLISH_TEMPLATES_KEY);
+    return templates;
+  }
+  return parseTemplates<KafkaPublishTemplate>(hit.value);
 }
 
 export async function saveKafkaPublishTemplates(
@@ -211,9 +295,15 @@ export async function saveKafkaPublishTemplates(
 }
 
 export async function loadKafkaConsumeTemplates(): Promise<KafkaConsumeTemplate[]> {
-  const raw = await readKey(KAFKA_CONSUME_TEMPLATES_KEY);
-  if (!raw) return [];
-  return parseTemplates<KafkaConsumeTemplate>(raw);
+  const hit = await firstKeyHit([KAFKA_CONSUME_TEMPLATES_KEY]);
+  if (!hit) return [];
+  if (hit.key !== KAFKA_CONSUME_TEMPLATES_KEY || hit.source !== 'primary') {
+    const templates = parseTemplates<KafkaConsumeTemplate>(hit.value);
+    await saveKafkaConsumeTemplates(templates);
+    await finalizeImportedKey(hit, KAFKA_CONSUME_TEMPLATES_KEY);
+    return templates;
+  }
+  return parseTemplates<KafkaConsumeTemplate>(hit.value);
 }
 
 export async function saveKafkaConsumeTemplates(
@@ -240,7 +330,15 @@ function parseConsumeTopics(raw: string | null): Record<string, string> {
 }
 
 export async function loadKafkaConsumeTopic(clusterId: string): Promise<string> {
-  const topics = parseConsumeTopics(await readKey(KAFKA_CONSUME_TOPICS_KEY));
+  const hit = await firstKeyHit([KAFKA_CONSUME_TOPICS_KEY]);
+  if (!hit) return '';
+  const topics = parseConsumeTopics(hit.value);
+  if (hit.key !== KAFKA_CONSUME_TOPICS_KEY || hit.source !== 'primary') {
+    if (Object.keys(topics).length > 0) {
+      await writeKey(KAFKA_CONSUME_TOPICS_KEY, JSON.stringify(topics));
+    }
+    await finalizeImportedKey(hit, KAFKA_CONSUME_TOPICS_KEY);
+  }
   return topics[clusterId] ?? '';
 }
 
