@@ -8,6 +8,8 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.8.17] — 2026-10-20
+
 ### Added
 - **Catalog request body** — The endpoint request body is a JSON tree with search, Expand All, Collapse All, and Copy. Try it out can still edit the text, and the panel resizes from the bottom-right corner.
 
