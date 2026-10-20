@@ -8,6 +8,12 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.8.18] — 2026-10-20
+
+### Fixed
+- **Kafka cluster persistence on desktop upgrade** — After installing a new desktop build, Kafka cluster profiles load from the prior Standard or Learning Hub app data folder or from the embedded webview store when the primary Tauri file is empty.
+- **Azure Event Hubs saved auth** — Cluster profiles on `*.servicebus.windows.net:9093` saved with auth **None** are repaired to **Azure OAUTHBEARER** with TLS on load so reconnect works without re-entering settings.
+
 ## [0.8.17] — 2026-10-20
 
 ### Added
