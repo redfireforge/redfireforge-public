@@ -14,6 +14,7 @@ pub mod commands;
 pub mod config;
 pub mod consume_assign;
 pub mod envelope;
+pub mod event_hub_offsets;
 pub mod lifecycle;
 pub mod message;
 pub mod oauth;

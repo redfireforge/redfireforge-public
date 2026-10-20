@@ -196,6 +196,9 @@ describe('CatalogEndpointCard', () => {
     expect(screen.getByText('application/json')).toBeInTheDocument();
     expect(screen.getByText('required')).toBeInTheDocument();
     await userEvent.click(screen.getByText('Try it out'));
+    expect(screen.getByTestId('catalog-request-body-json')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Search request body...')).toBeInTheDocument();
+    await userEvent.click(screen.getByTestId('catalog-body-edit'));
     const ta = document.querySelector('textarea.sw-body-editor') as HTMLTextAreaElement;
     expect(ta).toBeTruthy();
     fireEvent.change(ta, { target: { value: '{"x":1}' } });
@@ -554,6 +557,8 @@ describe('CatalogEndpointCard', () => {
     expect(screen.getByText('uuid', { exact: false })).toBeInTheDocument();
     await userEvent.click(screen.getByText('Try it out'));
     expect((screen.getByPlaceholderText('id') as HTMLInputElement).value).toBe('saved-id');
+    expect(screen.getByText('"saved"')).toBeInTheDocument();
+    await userEvent.click(screen.getByTestId('catalog-body-edit'));
     expect((document.querySelector('textarea.sw-body-editor') as HTMLTextAreaElement).value).toBe('{"saved":true}');
     await userEvent.type(screen.getByPlaceholderText('id'), 'x');
     await waitFor(() => expect(onValuesChange).toHaveBeenCalled());

@@ -12,6 +12,7 @@ import { buildCatalogCurlCommand, buildCatalogCurlSingleLine, buildDefaultCurlCo
 import { httpFetch } from '@shared/utils/httpClient';
 import { applyAuthHeaders } from '@shared/utils/applyAuthHeaders';
 import { highlightJson } from '@shared/utils/jsonHighlighter';
+import CatalogRequestBodyView from './CatalogRequestBodyView';
 
 interface Props {
   endpoint: CatalogEndpoint;
@@ -321,10 +322,9 @@ export default function CatalogEndpointCard({ endpoint, servers, hostConfig, aut
                 )}
               </div>
               {tryItOpen ? (
-                <textarea className="sw-body-editor" data-testid="catalog-body-editor" rows={12} value={bodyText}
-                  onChange={e => updateBody(e.target.value)} spellCheck={false} />
+                <CatalogRequestBodyView json={bodyText} editable onChange={updateBody} />
               ) : (
-                <JsonBlock json={generateStubJson(jsonCT!.schema)} label="Example Value" />
+                <CatalogRequestBodyView json={generateStubJson(jsonCT!.schema)} />
               )}
             </div>
           )}

@@ -1168,6 +1168,75 @@
   font-family: 'SF Mono','Consolas','Menlo',monospace;
 }
 
+/* ── Request body JSON tree ────────────────────── */
+.sw-request-json-frame {
+  position: relative;
+  height: 280px;
+  min-height: 160px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  overflow: hidden;
+}
+.sw-request-json-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: ns-resize;
+}
+.sw-request-json-resize::before {
+  content: '';
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--text-muted);
+  border-bottom: 2px solid var(--text-muted);
+}
+.sw-request-json-resize:hover::before {
+  border-color: var(--primary);
+}
+.sw-request-json {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--bg);
+  overflow: hidden;
+}
+.sw-request-json .req-json-preview-wrapper {
+  flex: 1;
+  min-height: 0;
+}
+.sw-request-json .jt-tree {
+  max-height: none;
+  min-height: 0;
+}
+.sw-request-json .req-resp-search { flex-wrap: wrap; flex-shrink: 0; }
+.sw-request-json-editbar {
+  display: flex;
+  justify-content: flex-end;
+  flex-shrink: 0;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+.sw-request-json .sw-body-editor {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+  border: none;
+  border-radius: 0;
+  resize: none;
+}
+
 /* ── Body editor ───────────────────────────────── */
 .sw-body-editor {
   width: 100%; padding: 12px 14px; font-size: 0.82rem; box-sizing: border-box;
