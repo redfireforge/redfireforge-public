@@ -153,6 +153,8 @@ export async function loadKafkaAutoConnectOnStartup(): Promise<boolean> {
 
 export const KAFKA_PUBLISH_TEMPLATES_KEY = 'perf-test-kafka-publish-templates-v1';
 export const KAFKA_CONSUME_TEMPLATES_KEY = 'perf-test-kafka-consume-templates-v1';
+/** Last Consume topic per cluster id. Survives an app restart. */
+export const KAFKA_CONSUME_TOPICS_KEY = 'perf-test-kafka-consume-topics-v1';
 
 export interface KafkaPublishTemplate {
   id: string;
@@ -218,4 +220,41 @@ export async function saveKafkaConsumeTemplates(
   templates: KafkaConsumeTemplate[],
 ): Promise<void> {
   await writeKey(KAFKA_CONSUME_TEMPLATES_KEY, JSON.stringify(templates));
+}
+
+function parseConsumeTopics(raw: string | null): Record<string, string> {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const topics: Record<string, string> = {};
+    for (const [clusterId, topic] of Object.entries(parsed)) {
+      if (typeof topic === 'string' && topic.trim()) {
+        topics[clusterId] = topic.trim();
+      }
+    }
+    return topics;
+  } catch {
+    return {};
+  }
+}
+
+export async function loadKafkaConsumeTopic(clusterId: string): Promise<string> {
+  const topics = parseConsumeTopics(await readKey(KAFKA_CONSUME_TOPICS_KEY));
+  return topics[clusterId] ?? '';
+}
+
+export async function saveKafkaConsumeTopic(clusterId: string, topic: string): Promise<void> {
+  const topics = parseConsumeTopics(await readKey(KAFKA_CONSUME_TOPICS_KEY));
+  const trimmed = topic.trim();
+  if (trimmed) {
+    topics[clusterId] = trimmed;
+  } else {
+    delete topics[clusterId];
+  }
+  if (Object.keys(topics).length === 0) {
+    await removeKey(KAFKA_CONSUME_TOPICS_KEY);
+    return;
+  }
+  await writeKey(KAFKA_CONSUME_TOPICS_KEY, JSON.stringify(topics));
 }

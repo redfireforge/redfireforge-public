@@ -2,8 +2,9 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
+import { renderHook, act, waitFor } from '@testing-library/react';
 import { useKafkaMessageStudio } from './useKafkaMessageStudio';
+import { loadKafkaConsumeTopic, saveKafkaConsumeTopic } from '@shared/kafka/kafkaStorage';
 import type { UseKafkaStateReturn } from './useKafkaState';
 import type { KafkaEnvelope } from '@shared/kafka/kafkaClient';
 
@@ -43,6 +44,10 @@ function okEnvelope<T>(data: T): KafkaEnvelope<T> {
 function errEnvelope(message: string, code = 'ERR'): KafkaEnvelope<never> {
   return { ok: false, error: { message, code, retryable: true } } as unknown as KafkaEnvelope<never>;
 }
+
+beforeEach(() => {
+  localStorage.clear();
+});
 
 // ── Initial state ──────────────────────────────────────────────────────────
 
@@ -89,6 +94,8 @@ describe('setPublishDraft', () => {
 // ── setConsumeDraft ────────────────────────────────────────────────────────
 
 describe('setConsumeDraft', () => {
+  beforeEach(() => { localStorage.clear(); });
+
   it('patches individual fields', () => {
     const { result } = renderHook(() =>
       useKafkaMessageStudio(makeKafkaState()),
@@ -96,6 +103,72 @@ describe('setConsumeDraft', () => {
     act(() => { result.current.setConsumeDraft({ topic: 'events.created' }); });
     expect(result.current.consumeDraft.topic).toBe('events.created');
     expect(result.current.consumeDraft.startPosition).toBe('latest'); // unchanged
+  });
+
+  it('restores the consume topic after a restart', async () => {
+    await saveKafkaConsumeTopic('cluster-a', '222043-sales-offer');
+    const { result } = renderHook(() =>
+      useKafkaMessageStudio(makeKafkaState()),
+    );
+    await waitFor(() => {
+      expect(result.current.consumeDraft.topic).toBe('222043-sales-offer');
+    });
+  });
+
+  it('saves the consume topic for the selected cluster', async () => {
+    const { result } = renderHook(() =>
+      useKafkaMessageStudio(makeKafkaState()),
+    );
+    await waitFor(() => expect(result.current.consumeDraft.topic).toBe(''));
+    act(() => { result.current.setConsumeDraft({ topic: 'orders.events' }); });
+    await waitFor(async () => {
+      expect(await loadKafkaConsumeTopic('cluster-a')).toBe('orders.events');
+    });
+  });
+
+  it('keeps a topic typed before the saved value loads', async () => {
+    let release: (topic: string) => void = () => {};
+    const pending = new Promise<string>((resolve) => { release = resolve; });
+    const storage = await import('@shared/kafka/kafkaStorage');
+    const load = vi.spyOn(storage, 'loadKafkaConsumeTopic').mockReturnValue(pending);
+    const { result } = renderHook(() =>
+      useKafkaMessageStudio(makeKafkaState()),
+    );
+    act(() => { result.current.setConsumeDraft({ topic: 'typed-first' }); });
+    await act(async () => {
+      release('saved-topic');
+    });
+    await waitFor(() => {
+      expect(result.current.consumeDraft.topic).toBe('typed-first');
+    });
+    load.mockRestore();
+  });
+
+  it('loads the topic for a newly selected cluster', async () => {
+    await saveKafkaConsumeTopic('cluster-a', 'orders');
+    await saveKafkaConsumeTopic('cluster-b', 'payments');
+    const { result, rerender } = renderHook(
+      ({ clusterId }: { clusterId: string }) => useKafkaMessageStudio(makeKafkaState({ selectedClusterId: clusterId })),
+      { initialProps: { clusterId: 'cluster-a' } },
+    );
+    await waitFor(() => expect(result.current.consumeDraft.topic).toBe('orders'));
+    rerender({ clusterId: 'cluster-b' });
+    await waitFor(() => {
+      expect(result.current.consumeDraft.topic).toBe('payments');
+    });
+  });
+
+  it('clears the topic when the next cluster has none saved', async () => {
+    await saveKafkaConsumeTopic('cluster-a', 'orders');
+    const { result, rerender } = renderHook(
+      ({ clusterId }: { clusterId: string }) => useKafkaMessageStudio(makeKafkaState({ selectedClusterId: clusterId })),
+      { initialProps: { clusterId: 'cluster-a' } },
+    );
+    await waitFor(() => expect(result.current.consumeDraft.topic).toBe('orders'));
+    rerender({ clusterId: 'cluster-b' });
+    await waitFor(() => {
+      expect(result.current.consumeDraft.topic).toBe('');
+    });
   });
 });
 

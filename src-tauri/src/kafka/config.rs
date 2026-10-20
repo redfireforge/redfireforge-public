@@ -73,6 +73,17 @@ pub(crate) fn build_rdkafka_config(conn: &KafkaConnectionConfig) -> ClientConfig
     apply_sasl_config(&mut cfg, conn.auth.as_ref(), &conn.brokers);
     apply_tls_config(&mut cfg, conn.tls.as_ref());
 
+    if event_hub_resource(&conn.brokers).is_some() {
+        // Event Hubs often resets an IPv6 connection while a response is in
+        // flight ("Broker disconnected before response received").
+        cfg.set("broker.address.family", "v4");
+        cfg.set("socket.keepalive.enable", "true");
+        // librdkafka defaults to read_committed. Event Hubs has no
+        // transactions and closes the socket when ListOffsets includes that
+        // isolation level, so offset queries never return.
+        cfg.set("isolation.level", "read_uncommitted");
+    }
+
     cfg
 }
 
@@ -251,7 +262,12 @@ mod tests {
             key_pem: None,
             passphrase: None,
         });
-        let _cfg = build_rdkafka_config(&conn);
+        let cfg = build_rdkafka_config(&conn);
+        assert_eq!(cfg.get("broker.address.family"), Some("v4"));
+        assert_eq!(cfg.get("socket.keepalive.enable"), Some("true"));
+        assert_eq!(cfg.get("isolation.level"), Some("read_uncommitted"));
+        assert_eq!(cfg.get("security.protocol"), Some("SASL_SSL"));
+        assert_eq!(cfg.get("api.version.request"), None);
     }
 
     #[test]
