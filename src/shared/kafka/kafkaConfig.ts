@@ -1,3 +1,5 @@
+import { eventHubResourceFromBrokers } from './azureEventHubResource';
+
 export type KafkaAuthMode = 'none' | 'plain' | 'scram-sha-256' | 'scram-sha-512' | 'oauthbearer';
 
 export interface KafkaAuthConfig {
@@ -148,6 +150,15 @@ export function normalizeKafkaClusterConfig(candidate: unknown, now = Date.now()
     auth.password = auth.password ?? asTrimmedString(source.password) ?? undefined;
   }
 
+  let tls = parseTls(source.tls);
+  const isEventHubBootstrap = eventHubResourceFromBrokers(brokers) != null;
+  if (isEventHubBootstrap && auth.mode === 'none') {
+    auth.mode = 'oauthbearer';
+  }
+  if (isEventHubBootstrap && !tls.enabled) {
+    tls = { ...tls, enabled: true };
+  }
+
   return {
     clusterId,
     name: asTrimmedString(source.name) ?? clusterId,
@@ -156,7 +167,7 @@ export function normalizeKafkaClusterConfig(candidate: unknown, now = Date.now()
     connectionTimeoutMs: asOptionalNumber(source.connectionTimeoutMs),
     requestTimeoutMs: asOptionalNumber(source.requestTimeoutMs),
     auth,
-    tls: parseTls(source.tls),
+    tls,
     createdAt,
     updatedAt: updatedAt < createdAt ? createdAt : updatedAt,
   };

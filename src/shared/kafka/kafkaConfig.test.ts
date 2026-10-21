@@ -126,6 +126,17 @@ describe('normalizeKafkaClusterConfig', () => {
     expect(result?.auth).toEqual({ mode: 'oauthbearer' });
   });
 
+  it('repairs Event Hubs bootstrap saved with auth none and TLS off', () => {
+    const result = normalizeKafkaClusterConfig({
+      ...base(),
+      brokers: ['my-namespace.servicebus.windows.net:9093'],
+      auth: { mode: 'none' },
+      tls: { enabled: false },
+    });
+    expect(result?.auth.mode).toBe('oauthbearer');
+    expect(result?.tls.enabled).toBe(true);
+  });
+
   it('falls back to auth.mode=none when auth is null', () => {
     const result = normalizeKafkaClusterConfig({ ...base(), auth: null });
     expect(result?.auth.mode).toBe('none');
