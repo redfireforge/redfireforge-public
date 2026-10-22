@@ -8,6 +8,9 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Added
+- **Kafka body query and result search** — Body Contains accepts AND, OR, parentheses, and quoted phrases. Consume and Topics → Messages can search the rows already returned, and clearing that search shows the full result again. Consume keeps the filter form for the selected cluster. Topics → Messages can hide the filter form so the result list can grow.
+
 ## [0.8.18] — 2026-10-20
 
 ### Fixed

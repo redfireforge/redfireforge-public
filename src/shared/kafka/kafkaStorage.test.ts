@@ -5,18 +5,21 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   KAFKA_AUTO_CONNECT_ON_STARTUP_KEY,
   KAFKA_CLUSTERS_KEY,
+  KAFKA_CONSUME_FORMS_KEY,
   KAFKA_CONSUME_TEMPLATES_KEY,
   KAFKA_CONSUME_TOPICS_KEY,
   KAFKA_PUBLISH_TEMPLATES_KEY,
   KAFKA_SELECTED_CLUSTER_KEY,
   loadKafkaAutoConnectOnStartup,
   loadKafkaClusters,
+  loadKafkaConsumeForm,
   loadKafkaConsumeTemplates,
   loadKafkaConsumeTopic,
   loadKafkaPublishTemplates,
   loadSelectedKafkaClusterId,
   saveKafkaAutoConnectOnStartup,
   saveKafkaClusters,
+  saveKafkaConsumeForm,
   saveKafkaConsumeTemplates,
   saveKafkaConsumeTopic,
   saveKafkaPublishTemplates,
@@ -389,6 +392,90 @@ describe('kafkaStorage – consume topic', () => {
     await saveKafkaConsumeTopic('cluster-a', 'orders');
     await saveKafkaConsumeTopic('cluster-a', '');
     expect(localStorage.getItem(KAFKA_CONSUME_TOPICS_KEY)).toBeNull();
+  });
+
+  it('saves and loads the consume form, including filters', async () => {
+    await saveKafkaConsumeForm('cluster-a', {
+      topic: 'orders',
+      groupId: 'group-1',
+      startPosition: 'earliest',
+      timeoutMs: '100000',
+      maxMessages: '500',
+      keyEquals: 'k',
+      headerMatch: 'h=v',
+      jsonPath: '$.event.header.name',
+      jsonPathEquals: 'OrderCreated',
+      bodyContains: 'status',
+      sortOrder: 'desc',
+      schemaConfig: { registryUrl: 'http://schema', format: 'json-schema', auth: { username: 'u', password: 'p' } },
+    });
+    const saved = await loadKafkaConsumeForm('cluster-a');
+    expect(saved?.jsonPathEquals).toBe('OrderCreated');
+    expect(saved?.bodyContains).toBe('status');
+    expect(saved?.sortOrder).toBe('desc');
+    expect(saved?.schemaConfig?.auth?.username).toBe('u');
+    expect(await loadKafkaConsumeTopic('cluster-a')).toBe('orders');
+    expect(await loadKafkaConsumeForm('cluster-b')).toBeNull();
+  });
+
+  it('drops optional schema fields that are blank or the wrong type', async () => {
+    await saveKafkaConsumeForm('cluster-a', {
+      topic: 'orders',
+      groupId: 'group-1',
+      startPosition: 'latest',
+      timeoutMs: '1000',
+      maxMessages: '10',
+      keyEquals: '',
+      headerMatch: '',
+      jsonPath: '',
+      jsonPathEquals: '',
+      bodyContains: '',
+      sortOrder: 'asc',
+      schemaConfig: {
+        registryUrl: 'http://schema',
+        format: 'protobuf',
+        subject: '   ',
+        version: Number.NaN,
+        auth: { username: 'user' },
+      } as never,
+    });
+    const saved = await loadKafkaConsumeForm('cluster-a');
+    expect(saved?.startPosition).toBe('latest');
+    expect(saved?.sortOrder).toBe('asc');
+    expect(saved?.schemaConfig).toEqual({ registryUrl: 'http://schema', format: 'protobuf' });
+
+    localStorage.setItem(KAFKA_CONSUME_FORMS_KEY, JSON.stringify({
+      'cluster-a': {
+        topic: 'orders',
+        schemaConfig: { format: 'avro', registryUrl: 4, version: Number.POSITIVE_INFINITY, auth: ['user'] },
+      },
+    }));
+    expect((await loadKafkaConsumeForm('cluster-a'))?.schemaConfig).toBeUndefined();
+    localStorage.setItem(KAFKA_CONSUME_FORMS_KEY, 'null');
+    localStorage.removeItem(KAFKA_CONSUME_TOPICS_KEY);
+    expect(await loadKafkaConsumeForm('cluster-a')).toBeNull();
+  });
+
+  it('falls back to a previously saved topic when no form exists', async () => {
+    await saveKafkaConsumeTopic('cluster-a', 'legacy-topic');
+    const saved = await loadKafkaConsumeForm('cluster-a');
+    expect(saved?.topic).toBe('legacy-topic');
+    expect(saved?.jsonPath).toBe('');
+  });
+
+  it('ignores a malformed consume form and keeps a valid sibling', async () => {
+    localStorage.setItem(KAFKA_CONSUME_FORMS_KEY, 'not-json');
+    expect(await loadKafkaConsumeForm('cluster-a')).toBeNull();
+    localStorage.setItem(KAFKA_CONSUME_FORMS_KEY, JSON.stringify({
+      'cluster-a': { topic: 'orders', jsonPath: 4, startPosition: 'nope', schemaConfig: { format: 'xml' } },
+      'cluster-b': 'bad',
+    }));
+    const saved = await loadKafkaConsumeForm('cluster-a');
+    expect(saved?.topic).toBe('orders');
+    expect(saved?.jsonPath).toBe('');
+    expect(saved?.startPosition).toBe('latest');
+    expect(saved?.schemaConfig).toBeUndefined();
+    expect(await loadKafkaConsumeForm('cluster-b')).toBeNull();
   });
 
   it('ignores malformed stored topics', async () => {

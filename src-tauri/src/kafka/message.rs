@@ -160,22 +160,174 @@ pub(super) fn matches_filter(
     true
 }
 
-/// True when `needle` appears in the raw record or in the text after JSON
-/// string escapes are decoded. `event.body` is stored as one escaped string,
-/// so the payload contains `\"accountType\":\"PN\"` while the message view
-/// shows `"accountType":"PN"`.
+/// Body Contains query. A value with no AND/OR is one substring.
+/// AND binds tighter than OR. Parentheses group. Quote a phrase that
+/// contains spaces or the words AND/OR. Mirrors `kafkaBodyHasText` in
+/// `src/shared/kafka/bodyContainsQuery.ts`.
 pub(super) fn body_has_text(value: &str, needle: &str) -> bool {
-    let needle = normalize_quotes(needle).to_lowercase();
+    let needle = normalize_quotes(needle);
+    let needle = needle.trim();
     if needle.is_empty() {
         return true;
     }
-    let value = value.to_lowercase();
-    let value_text = json_unescape(&value);
-    let needle_text = json_unescape(&needle);
-    value.contains(&needle)
-        || value.contains(&needle_text)
-        || value_text.contains(&needle)
-        || value_text.contains(&needle_text)
+    let raw = value.to_lowercase();
+    let text = json_unescape(&raw);
+    match parse_body_query(needle) {
+        Some(query) => eval_body_query(&query, &raw, &text),
+        None => term_matches(&raw, &text, &needle.to_lowercase()),
+    }
+}
+
+enum BodyQuery {
+    Term(String),
+    And(Vec<BodyQuery>),
+    Or(Vec<BodyQuery>),
+}
+
+enum BodyToken {
+    Term(String),
+    And,
+    Or,
+    LeftParen,
+    RightParen,
+}
+
+fn term_matches(raw: &str, text: &str, needle: &str) -> bool {
+    if needle.is_empty() {
+        return true;
+    }
+    let needle_text = json_unescape(needle);
+    raw.contains(needle)
+        || raw.contains(&needle_text)
+        || text.contains(needle)
+        || text.contains(&needle_text)
+}
+
+fn tokenize_body_query(input: &str) -> Option<Vec<BodyToken>> {
+    let chars: Vec<char> = input.chars().collect();
+    let mut tokens = Vec::new();
+    let mut i = 0;
+    while i < chars.len() {
+        let ch = chars[i];
+        if ch.is_whitespace() {
+            i += 1;
+            continue;
+        }
+        if ch == '(' {
+            tokens.push(BodyToken::LeftParen);
+            i += 1;
+            continue;
+        }
+        if ch == ')' {
+            tokens.push(BodyToken::RightParen);
+            i += 1;
+            continue;
+        }
+        if ch == '"' {
+            let mut value = String::new();
+            i += 1;
+            let mut closed = false;
+            while i < chars.len() {
+                if chars[i] == '\\' && i + 1 < chars.len() {
+                    value.push(chars[i + 1]);
+                    i += 2;
+                    continue;
+                }
+                if chars[i] == '"' {
+                    closed = true;
+                    i += 1;
+                    break;
+                }
+                value.push(chars[i]);
+                i += 1;
+            }
+            if !closed {
+                return None;
+            }
+            tokens.push(BodyToken::Term(value));
+            continue;
+        }
+        let mut value = String::new();
+        while i < chars.len() && !chars[i].is_whitespace() && chars[i] != '(' && chars[i] != ')' && chars[i] != '"' {
+            value.push(chars[i]);
+            i += 1;
+        }
+        if value.eq_ignore_ascii_case("AND") {
+            tokens.push(BodyToken::And);
+        } else if value.eq_ignore_ascii_case("OR") {
+            tokens.push(BodyToken::Or);
+        } else {
+            tokens.push(BodyToken::Term(value));
+        }
+    }
+    Some(tokens)
+}
+
+fn parse_factor(tokens: &[BodyToken], pos: usize) -> Option<(BodyQuery, usize)> {
+    match tokens.get(pos)? {
+        BodyToken::Term(value) => Some((BodyQuery::Term(value.to_lowercase()), pos + 1)),
+        BodyToken::LeftParen => {
+            let (node, next) = parse_or(tokens, pos + 1)?;
+            match tokens.get(next) {
+                Some(BodyToken::RightParen) => Some((node, next + 1)),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+fn parse_and(tokens: &[BodyToken], pos: usize) -> Option<(BodyQuery, usize)> {
+    let (first, mut cursor) = parse_factor(tokens, pos)?;
+    let mut items = vec![first];
+    while matches!(tokens.get(cursor), Some(BodyToken::And)) {
+        let (next, next_pos) = parse_factor(tokens, cursor + 1)?;
+        items.push(next);
+        cursor = next_pos;
+    }
+    if items.len() == 1 {
+        Some((items.remove(0), cursor))
+    } else {
+        Some((BodyQuery::And(items), cursor))
+    }
+}
+
+fn parse_or(tokens: &[BodyToken], pos: usize) -> Option<(BodyQuery, usize)> {
+    let (first, mut cursor) = parse_and(tokens, pos)?;
+    let mut items = vec![first];
+    while matches!(tokens.get(cursor), Some(BodyToken::Or)) {
+        let (next, next_pos) = parse_and(tokens, cursor + 1)?;
+        items.push(next);
+        cursor = next_pos;
+    }
+    if items.len() == 1 {
+        Some((items.remove(0), cursor))
+    } else {
+        Some((BodyQuery::Or(items), cursor))
+    }
+}
+
+fn parse_body_query(input: &str) -> Option<BodyQuery> {
+    let tokens = tokenize_body_query(input)?;
+    // One quoted phrase has no operator, but the quotes are not part of the text.
+    if !tokens.iter().any(|token| matches!(token, BodyToken::And | BodyToken::Or)) {
+        if let [BodyToken::Term(value)] = tokens.as_slice() {
+            if value != input {
+                return Some(BodyQuery::Term(value.to_lowercase()));
+            }
+        }
+        return None;
+    }
+    let (node, pos) = parse_or(&tokens, 0)?;
+    if pos == tokens.len() { Some(node) } else { None }
+}
+
+fn eval_body_query(node: &BodyQuery, raw: &str, text: &str) -> bool {
+    match node {
+        BodyQuery::Term(needle) => term_matches(raw, text, needle),
+        BodyQuery::And(items) => items.iter().all(|item| eval_body_query(item, raw, text)),
+        BodyQuery::Or(items) => items.iter().any(|item| eval_body_query(item, raw, text)),
+    }
 }
 
 fn normalize_quotes(value: &str) -> String {
@@ -445,6 +597,31 @@ mod tests {
             body_contains: None,
         };
         assert!(matches_filter(&r, Some(&f)));
+    }
+
+    #[test]
+    fn filter_body_contains_supports_and_or() {
+        let value = r#"{"orderId":"ORD-100","type":"SHIPPED","status":"open"}"#;
+        let row = record(None, value, None);
+        assert!(matches_filter(&row, Some(&filter_with_body("status AND SHIPPED"))));
+        assert!(!matches_filter(&row, Some(&filter_with_body("status AND missing-word"))));
+        assert!(matches_filter(&row, Some(&filter_with_body("missing-word OR SHIPPED"))));
+        assert!(matches_filter(
+            &row,
+            Some(&filter_with_body("(ORD-100 OR other-id) AND SHIPPED"))
+        ));
+        assert!(body_has_text("status is ready", "status is ready"));
+        assert!(body_has_text("status is AND ready", "\"is AND ready\""));
+    }
+
+    fn filter_with_body(body: &str) -> KafkaMessageFilter {
+        KafkaMessageFilter {
+            key_equals: None,
+            headers_match: None,
+            json_path: None,
+            json_equals: None,
+            body_contains: Some(body.to_string()),
+        }
     }
 
     #[test]

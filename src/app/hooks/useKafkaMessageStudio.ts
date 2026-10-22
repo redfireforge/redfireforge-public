@@ -19,7 +19,7 @@ import {
   buildPublishRequest,
   validateAndFormatJson,
 } from '../../features/kafka/kafkaMessageStudioUtils';
-import { loadKafkaConsumeTopic, saveKafkaConsumeTopic } from '@shared/kafka/kafkaStorage';
+import { loadKafkaConsumeForm, saveKafkaConsumeForm } from '@shared/kafka/kafkaStorage';
 
 // ── Public interface ───────────────────────────────────────────────────────
 
@@ -110,6 +110,7 @@ export function useKafkaMessageStudio(
   const [nextCursor, setNextCursor] = useState<KafkaConsumeCursor[] | null>(null);
   const [loadMoreLoading, setLoadMoreLoading] = useState(false);
   const seenConsumeCluster = useRef<string | null>(null);
+  const consumeDraftEdited = useRef(false);
   const [consumeTopicReady, setConsumeTopicReady] = useState<string | null>(null);
 
   const selectedClusterId = kafkaState.selectedClusterId ?? '';
@@ -119,12 +120,43 @@ export function useKafkaMessageStudio(
     const switching = seenConsumeCluster.current !== null
       && seenConsumeCluster.current !== selectedClusterId;
     setConsumeTopicReady(null);
-    void loadKafkaConsumeTopic(selectedClusterId).then((topic) => {
+    void loadKafkaConsumeForm(selectedClusterId).then((saved) => {
       if (cancelled) return;
       setConsumeDraftState((prev) => {
-        if (!switching && prev.topic.trim()) return prev;
-        if (!topic) return switching ? { ...prev, topic: '' } : prev;
-        return { ...prev, topic };
+        if (!switching && consumeDraftEdited.current) return prev;
+        consumeDraftEdited.current = false;
+        if (!saved) {
+          if (!switching) return prev;
+          return {
+            ...prev,
+            topic: '',
+            startPosition: 'latest',
+            timeoutMs: '10000',
+            maxMessages: '50',
+            keyEquals: '',
+            headerMatch: '',
+            jsonPath: '',
+            jsonPathEquals: '',
+            bodyContains: '',
+            sortOrder: 'asc',
+            schemaConfig: undefined,
+          };
+        }
+        return {
+          ...prev,
+          topic: saved.topic,
+          groupId: saved.groupId || prev.groupId,
+          startPosition: saved.startPosition,
+          timeoutMs: saved.timeoutMs || prev.timeoutMs,
+          maxMessages: saved.maxMessages || prev.maxMessages,
+          keyEquals: saved.keyEquals,
+          headerMatch: saved.headerMatch,
+          jsonPath: saved.jsonPath,
+          jsonPathEquals: saved.jsonPathEquals,
+          bodyContains: saved.bodyContains,
+          sortOrder: saved.sortOrder,
+          schemaConfig: saved.schemaConfig,
+        };
       });
       seenConsumeCluster.current = selectedClusterId;
       setConsumeTopicReady(selectedClusterId);
@@ -136,12 +168,12 @@ export function useKafkaMessageStudio(
 
   useEffect(() => {
     if (consumeTopicReady !== selectedClusterId) return;
-    const topic = consumeDraftState.topic;
+    const draft = consumeDraftState;
     const handle = window.setTimeout(() => {
-      void saveKafkaConsumeTopic(selectedClusterId, topic);
+      void saveKafkaConsumeForm(selectedClusterId, draft);
     }, 250);
     return () => window.clearTimeout(handle);
-  }, [consumeDraftState.topic, selectedClusterId, consumeTopicReady]);
+  }, [consumeDraftState, selectedClusterId, consumeTopicReady]);
 
   // ── Setters ──────────────────────────────────────────────────────────────
   const setPublishDraft = useCallback((patch: Partial<KafkaPublishDraft>) => {
@@ -149,6 +181,7 @@ export function useKafkaMessageStudio(
   }, []);
 
   const setConsumeDraft = useCallback((patch: Partial<KafkaConsumeDraft>) => {
+    consumeDraftEdited.current = true;
     setConsumeDraftState((prev) => ({ ...prev, ...patch }));
   }, []);
 

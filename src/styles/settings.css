@@ -3054,6 +3054,7 @@ select.kafka-ms-form-select--fmt:focus,
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 .kafka-ms-results-count {
   font-size: 0.78rem;
@@ -3374,7 +3375,36 @@ select.kafka-ms-form-select--fmt:focus,
 
 /* Topic detail Messages filters — one label|control row per field (stacked) */
 .kafka-ms-detail-message-form {
-  margin: 10px 0 12px;
+  margin: 0 0 12px;
+}
+
+/* Topics → Messages: Hide collapses the filter form so the result table can grow. */
+.kafka-explorer-detail-body:has(.kafka-explorer-messages--filters-hidden) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.kafka-explorer-messages--filters-hidden {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.kafka-explorer-messages--filters-hidden .kafka-ms-results-zone {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.kafka-explorer-messages--filters-hidden .kafka-ms-results-table-wrap {
+  flex: 1;
+  min-height: 12rem;
+  max-height: none;
+}
+.kafka-explorer-messages--filters-hidden .kafka-ms-results-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
 }
 .kafka-ms-detail-message-form .kafka-ms-form-label {
   flex-basis: 148px;
