@@ -115,14 +115,18 @@ describe('CustomSelect', () => {
     const { container } = render(
       <CustomSelect value="GET" onChange={vi.fn()} options={methodOptions} />,
     );
-    expect(container.querySelector('.cs-trigger .cs-swatch')).toHaveStyle({ background: '#22c55e' });
-    expect(container.querySelector('.cs-trigger .cs-text')).toHaveStyle({ color: '#22c55e' });
+    const triggerSwatch = container.querySelector('.cs-trigger .cs-swatch') as HTMLElement;
+    const triggerText = container.querySelector('.cs-trigger .cs-text') as HTMLElement;
+    expect(triggerSwatch.style.backgroundColor).toBe('rgb(34, 197, 94)');
+    expect(triggerText.style.color).toBe('rgb(34, 197, 94)');
 
     fireEvent.click(screen.getByRole('button'));
     const post = screen.getByRole('option', { name: /POST/ });
     expect(post).toHaveClass('cs-item--swatch');
-    expect(post.querySelector('.cs-swatch')).toHaveStyle({ background: '#f59e0b' });
-    expect(post.querySelector('.cs-item-label')).toHaveStyle({ color: '#f59e0b' });
+    const postSwatch = post.querySelector('.cs-swatch') as HTMLElement;
+    const postLabel = post.querySelector('.cs-item-label') as HTMLElement;
+    expect(postSwatch.style.backgroundColor).toBe('rgb(245, 158, 11)');
+    expect(postLabel.style.color).toBe('rgb(245, 158, 11)');
     expect(screen.getByText('Create resource')).toBeInTheDocument();
   });
 
