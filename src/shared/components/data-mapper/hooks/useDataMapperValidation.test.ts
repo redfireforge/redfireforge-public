@@ -29,6 +29,7 @@ function makeDeps(overrides: Partial<DataMapperValidationDeps> = {}): DataMapper
     flushRef: undefined,
     showRulesView: false,
     handleFetchTargetSchema: vi.fn().mockResolvedValue(undefined),
+    setSourceSample: vi.fn(),
     setToast: vi.fn(),
     ...overrides,
   };
@@ -287,6 +288,16 @@ describe('useDataMapperValidation', () => {
     expect(serialize).not.toHaveBeenCalled();
   });
 
+  it('returns empty validationFields when serialize output lacks expectedFields', () => {
+    const adapter = {
+      ...makeDeps().adapter,
+      serialize: vi.fn().mockReturnValue({ other: true }),
+    } as DataMapperValidationDeps['adapter'];
+    const deps = makeDeps({ adapter });
+    const { result } = renderHook(() => useDataMapperValidation(deps));
+    expect(result.current.validationFields).toEqual([]);
+  });
+
   it('returns empty validationFields when serialize throws', () => {
     const adapter = {
       ...makeDeps().adapter,
@@ -484,6 +495,132 @@ describe('useDataMapperValidation', () => {
     const { result } = renderHook(() => useDataMapperValidation(deps));
     expect(adapter.serialize).toHaveBeenCalled();
     expect(result.current.validationFields).toEqual([]);
+  });
+
+  it('handleFetchAndVerify mirrors fetchSampleData into the source when available', async () => {
+    const fetchSampleData = vi.fn().mockResolvedValue({ ok: true });
+    const adapter = {
+      label: 'test',
+      contextId: 'ctx',
+      sources: [{ id: 'src1', label: 'Source 1' }],
+      target: { label: 'Target', allowCustomFields: false },
+      serialize: vi.fn().mockReturnValue({}),
+      deserialize: vi.fn().mockReturnValue([]),
+      fetchTargetSchema: vi.fn(),
+      fetchSampleData,
+    } as unknown as DataMapperValidationDeps['adapter'];
+    const deps = makeDeps({
+      adapter,
+      handleFetchTargetSchema: vi.fn().mockResolvedValue(undefined),
+    });
+    const { result } = renderHook(() => useDataMapperValidation(deps));
+
+    await act(async () => {
+      await result.current.handleFetchAndVerify();
+    });
+
+    expect(fetchSampleData).toHaveBeenCalled();
+    expect(result.current.verifyEnabled).toBe(true);
+    expect(result.current.autoVerifyEnabled).toBe(true);
+  });
+
+  it('handleFetchAndVerify ignores fetchSampleData failures', async () => {
+    const adapter = {
+      label: 'test',
+      contextId: 'ctx',
+      sources: [{ id: 'src1', label: 'Source 1' }],
+      target: { label: 'Target', allowCustomFields: false },
+      serialize: vi.fn().mockReturnValue({}),
+      deserialize: vi.fn().mockReturnValue([]),
+      fetchTargetSchema: vi.fn(),
+      fetchSampleData: vi.fn().mockRejectedValue(new Error('source down')),
+    } as unknown as DataMapperValidationDeps['adapter'];
+    const deps = makeDeps({
+      adapter,
+      handleFetchTargetSchema: vi.fn().mockResolvedValue(undefined),
+    });
+    const { result } = renderHook(() => useDataMapperValidation(deps));
+
+    await act(async () => {
+      await result.current.handleFetchAndVerify();
+    });
+
+    expect(result.current.verifyEnabled).toBe(true);
+  });
+
+  it('treats null expectedFields from serialize as an empty list', () => {
+    const adapter = {
+      ...makeDeps().adapter,
+      serialize: vi.fn().mockReturnValue({ expectedFields: null }),
+    } as DataMapperValidationDeps['adapter'];
+    const deps = makeDeps({ adapter });
+    const { result } = renderHook(() => useDataMapperValidation(deps));
+    expect(result.current.validationFields).toEqual([]);
+  });
+
+  it('syncs empty assertions array when initialData omits assertions', () => {
+    const onAssertionsChange = vi.fn();
+    const deps = makeDeps({
+      initialData: { other: true } as unknown,
+      onAssertionsChange,
+    });
+    renderHook(() => useDataMapperValidation(deps));
+    expect(onAssertionsChange).not.toHaveBeenCalled();
+  });
+
+  it('handleUpdateValidationFields skips mappings whose operator or negate no longer match', () => {
+    const setMappings = vi.fn();
+    const mapping: Mapping = {
+      id: 'm1',
+      sourcePath: 'status',
+      targetPath: 'status',
+      sourceId: 'src1',
+      operator: 'equals',
+      negate: true,
+    };
+    const deps = makeDeps({ mappings: [mapping], setMappings });
+    const { result } = renderHook(() => useDataMapperValidation(deps));
+
+    act(() => {
+      result.current.handleUpdateValidationFields([
+        { jsonPath: 'status', operator: 'equals', negate: false },
+      ]);
+    });
+
+    expect(setMappings).toHaveBeenCalledWith([
+      expect.objectContaining({ id: expect.any(String), sourcePath: 'status' }),
+    ]);
+  });
+
+  it('handleUpdateValidationFields matches mappings by sourcePath when targetPath differs', () => {
+    const setMappings = vi.fn();
+    const mapping: Mapping = {
+      id: 'm1',
+      sourcePath: '$.status',
+      targetPath: 'statusAlias',
+      sourceId: 'src1',
+      operator: 'equals',
+      operatorValue: 'old',
+    };
+    const deps = makeDeps({ mappings: [mapping], setMappings });
+    const { result } = renderHook(() => useDataMapperValidation(deps));
+
+    act(() => {
+      result.current.handleUpdateValidationFields([
+        {
+          jsonPath: '$.status',
+          operator: 'equals',
+          expectedValue: 'new',
+        },
+      ]);
+    });
+
+    expect(setMappings).toHaveBeenCalledWith([
+      expect.objectContaining({
+        id: 'm1',
+        operatorValue: 'new',
+      }),
+    ]);
   });
 
   it('handleFetchAndVerify reports unknown error detail when rejection is not Error', async () => {

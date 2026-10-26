@@ -107,4 +107,34 @@ describe('grpcMockPredicateSandbox coverage gaps', () => {
       makeContext(),
     )).toBe(false);
   });
+
+  it('parses service equality and inequality', () => {
+    expect(parseGrpcMockPredicateExpression('service == "echo.EchoService"')).toEqual({
+      kind: 'service_equals',
+      service: 'echo.EchoService',
+    });
+    expect(evaluateGrpcMockPredicate(
+      parseGrpcMockPredicateExpression('service != "other.Service"'),
+      makeContext(),
+    )).toBe(true);
+  });
+
+  it('parses OR and AND combinations and parenthesized groups', () => {
+    const expr = '(method == "Echo" OR method == "Other") AND request.flag == true';
+    const predicate = parseGrpcMockPredicateExpression(expr);
+    expect(evaluateGrpcMockPredicate(predicate, makeContext())).toBe(true);
+    expect(evaluateGrpcMockPredicate(predicate, makeContext({ requestBody: { flag: false } }))).toBe(false);
+  });
+
+  it('rejects unsafe service and request path segments', () => {
+    expect(() => parseGrpcMockPredicateExpression('request.constructor == "x"'))
+      .toThrow(GrpcMockPredicateSecurityError);
+    expect(() => parseGrpcMockPredicateExpression('request.prototype == "x"'))
+      .toThrow(GrpcMockPredicateSecurityError);
+  });
+
+  it('rejects trailing tokens after a complete expression', () => {
+    expect(() => parseGrpcMockPredicateExpression('method == "Echo" extra'))
+      .toThrow(GrpcMockPredicateParseError);
+  });
 });

@@ -472,4 +472,59 @@ describe('useDataSourceSetupState coverage branches', () => {
     expect(downloadExcelMock).toHaveBeenCalled();
     expect(onClose).toHaveBeenCalled();
   });
+
+  it('disables url param columns that were not remembered when param columns already exist', () => {
+    const test = makeScenario({
+      url: 'https://api.example.com/users/{{id}}?q=1&page=2',
+      dataSource: {
+        id: 'ds-params',
+        source: { type: 'inline' },
+        urlTemplate: 'https://api.example.com/users/{{id}}?q={{q}}',
+        columns: [{ id: 'c-q', name: 'q', type: 'param', mapping: 'q' }],
+        rows: [{ id: 'r1', enabled: true, values: { 'c-q': 'hello' } }],
+      },
+    });
+
+    const { result } = renderHook(() => useDataSourceSetupState(makeProps({ test })));
+
+    expect(result.current.paramSelections.q?.enabled).toBe(true);
+    expect(result.current.paramSelections.page?.enabled).toBe(false);
+  });
+
+  it('handleApply seeds first-row path values from literal URL segments when stored values are templates', () => {
+    const onApply = vi.fn();
+    const test = makeScenario({
+      url: 'https://api.example.com/users/123',
+      dataSource: {
+        id: 'ds-path',
+        source: { type: 'inline' },
+        urlTemplate: 'https://api.example.com/users/{{id}}',
+        columns: [{ id: 'c-id', name: 'id', type: 'path', mapping: 'id' }],
+        rows: [{ id: 'r1', enabled: true, values: { 'c-id': '{{id}}' } }],
+      },
+    });
+
+    const { result } = renderHook(() => useDataSourceSetupState(makeProps({ test, onApply })));
+
+    act(() => {
+      result.current.setColumnDefs([
+        {
+          type: 'path',
+          fullKey: 'path:id',
+          mapping: 'id',
+          autoName: 'id',
+          customName: 'id',
+        },
+      ]);
+    });
+
+    act(() => {
+      result.current.handleApply();
+    });
+
+    expect(onApply).toHaveBeenCalled();
+    const applied = onApply.mock.calls[0]![0]!;
+    const colId = applied.columns.find((c) => c.mapping === 'id')!.id;
+    expect(applied.rows[0]!.values[colId]).toBe('123');
+  });
 });

@@ -62,6 +62,42 @@ describe('ProfileEditorModal', () => {
     expect((screen.getByTestId('profile-url-input') as HTMLInputElement).value).toBe('ws://draft');
   });
 
+  it('clones prefill headers and query params on mount', () => {
+    render(
+      <ProfileEditorModal
+        prefill={{
+          name: 'Draft',
+          url: 'wss://draft',
+          headers: [{ key: 'Pref-H', value: '1', enabled: true }],
+          queryParams: [{ key: 'Pref-Q', value: '2', enabled: true }],
+        }}
+        existingNames={[]}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    expect(screen.getByDisplayValue('Pref-H')).toBeTruthy();
+    expect(screen.getByDisplayValue('Pref-Q')).toBeTruthy();
+  });
+
+  it('falls back to prefill key-value lists when initial profile omits them', () => {
+    const base = makeProfile();
+    render(
+      <ProfileEditorModal
+        initial={{ ...base, headers: undefined, queryParams: undefined }}
+        prefill={{
+          headers: [{ key: 'Fallback-H', value: '1', enabled: true }],
+          queryParams: [{ key: 'Fallback-Q', value: '2', enabled: true }],
+        }}
+        existingNames={[]}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    expect(screen.getByDisplayValue('Fallback-H')).toBeTruthy();
+    expect(screen.getByDisplayValue('Fallback-Q')).toBeTruthy();
+  });
+
   it('shows a duplicate-name error and disables save', () => {
     render(<ProfileEditorModal existingNames={['Taken']} onSave={vi.fn()} onCancel={vi.fn()} />);
     fireEvent.change(screen.getByTestId('profile-name-input'), { target: { value: 'Taken' } });
@@ -225,6 +261,37 @@ describe('ProfileEditorModal', () => {
     );
     expect((screen.getByDisplayValue('X-A') as HTMLInputElement)).toBeTruthy();
     expect((screen.getByDisplayValue('q') as HTMLInputElement)).toBeTruthy();
+  });
+
+  it('disables save when the profile name exceeds 100 characters', () => {
+    render(<ProfileEditorModal existingNames={[]} onSave={vi.fn()} onCancel={vi.fn()} />);
+    fireEvent.change(screen.getByTestId('profile-name-input'), { target: { value: 'x'.repeat(101) } });
+    fireEvent.change(screen.getByTestId('profile-url-input'), { target: { value: 'wss://valid' } });
+    expect((screen.getByTestId('profile-save-btn') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('allows saving when editing the same initial profile name (not a duplicate)', () => {
+    const onSave = vi.fn();
+    render(
+      <ProfileEditorModal
+        initial={makeProfile({ name: 'Keep Me' })}
+        existingNames={['Keep Me', 'Other']}
+        onSave={onSave}
+        onCancel={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('profile-save-btn'));
+    expect(onSave).toHaveBeenCalledTimes(1);
+  });
+
+  it('omits notes from the saved payload when the notes field is blank', () => {
+    const onSave = vi.fn();
+    render(<ProfileEditorModal existingNames={[]} onSave={onSave} onCancel={vi.fn()} />);
+    fireEvent.change(screen.getByTestId('profile-name-input'), { target: { value: 'NoNotes' } });
+    fireEvent.change(screen.getByTestId('profile-url-input'), { target: { value: 'wss://x' } });
+    fireEvent.change(screen.getByPlaceholderText('Optional notes...'), { target: { value: '   ' } });
+    fireEvent.click(screen.getByTestId('profile-save-btn'));
+    expect(onSave.mock.calls[0][0].notes).toBeUndefined();
   });
 
   it('clears all headers and query params via the Delete all buttons', () => {
