@@ -7,7 +7,7 @@
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
     "beforeDevCommand": "npm run dev:demo",
-    "beforeBuildCommand": "npm run build:demo && npm run build:sidecar"
+    "beforeBuildCommand": "node scripts/stage-kafkajs-resource.mjs && npm run build:demo && npm run build:sidecar"
   },
   "app": {
     "withGlobalTauri": true,
@@ -48,6 +48,7 @@
     ],
     "resources": [
       "../cli/dist/redfireforge.mjs",
+      "resources/event-hubs/**/*",
       "../docker/**/docker-compose*.yml",
       "../docker/grpc/envoy/envoy.yaml",
       "../docker/kafka/tls/.bootstrap.yaml",
