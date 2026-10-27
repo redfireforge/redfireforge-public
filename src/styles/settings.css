@@ -2782,12 +2782,34 @@ select.kafka-ms-form-select--fmt:focus,
   align-items: center;
   justify-content: space-between;
 }
+.kafka-ms-section-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 .kafka-ms-section-title {
   font-size: 0.72rem;
   font-weight: 700;
   color: var(--text-muted, #7a8ea8);
   text-transform: uppercase;
   letter-spacing: 0.07em;
+}
+.kafka-ms-section-count {
+  margin-left: 8px;
+  font-weight: 650;
+  letter-spacing: 0;
+  color: var(--text);
+}
+.kafka-ms-headers-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.kafka-ms-headers-body.is-shrunk {
+  display: none;
+}
+.kafka-ms-section-actions .kafka-ms-collapse-btn {
+  margin-left: 0;
 }
 
 /* ── Configuration section header ──────────────────────────── */
@@ -4947,29 +4969,79 @@ select.kafka-ms-form-select--fmt:focus,
   overflow: hidden;
 }
 
+.kbe-line-numbers-inner {
+  will-change: transform;
+}
+
 .kbe-line-num {
   display: block;
   opacity: 0.75;
 }
 
-.kbe-textarea {
+.kbe-editor-pane {
+  position: relative;
   flex: 1 1 auto;
-  width: 100%;
   min-width: 0;
   height: 100%;
+  overflow: hidden;
+}
+
+.kbe-editor-text {
   margin: 0;
   padding: 12px 14px;
-  border: none;
+  border: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  letter-spacing: normal;
+  white-space: pre;
+  tab-size: 2;
+  word-wrap: normal;
+  overflow-wrap: normal;
+}
+
+.kbe-highlight {
+  position: absolute;
+  top: 0;
+  left: 0;
+  min-width: 100%;
+  pointer-events: none;
+  color: transparent;
+  background: transparent;
+  z-index: 0;
+}
+
+.kbe-editor-pane.is-searching .kbe-highlight {
+  color: var(--text);
+}
+
+.kbe-search-hit {
+  background: color-mix(in srgb, var(--primary) 28%, transparent);
+  color: inherit;
+  border-radius: 2px;
+}
+
+.kbe-search-hit.is-current {
+  background: color-mix(in srgb, var(--primary) 55%, var(--bg));
+  outline: 1px solid var(--primary);
+}
+
+.kbe-textarea {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
   outline: none;
   resize: none;
   background: transparent;
   color: var(--text);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.82rem;
-  line-height: 1.55;
-  white-space: pre;
   overflow: auto;
-  tab-size: 2;
+  caret-color: var(--text);
+}
+
+.kbe-editor-pane.is-searching .kbe-textarea {
+  color: transparent;
 }
 .kbe-textarea:focus {
   outline: none;
