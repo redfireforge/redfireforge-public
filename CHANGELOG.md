@@ -12,6 +12,7 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ### Fixed
 - **CI product tests** — CustomSelect method swatch tests assert inline colors via `element.style` so they pass with `@testing-library/jest-dom` 7.
+- **Event Hubs Consume Once** — The desktop app ships KafkaJS and uses it for Event Hubs offsets, including when the app is opened from Finder.
 
 ## [0.8.18] — 2026-10-20
 
