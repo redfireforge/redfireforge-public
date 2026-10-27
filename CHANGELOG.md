@@ -8,6 +8,11 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.8.19] — 2026-10-27
+
+### Fixed
+- **CI product tests** — CustomSelect method swatch tests assert inline colors via `element.style` so they pass with `@testing-library/jest-dom` 7.
+
 ## [0.8.18] — 2026-10-20
 
 ### Fixed
