@@ -16,6 +16,9 @@ interface Props {
 export default function KafkaBodyEditorModal({ value, onChange, onClose, format }: Props) {
   const [draft, setDraft] = useState(value);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const highlightRef = useRef<HTMLPreElement>(null);
+  const lineNumbersRef = useRef<HTMLDivElement>(null);
+  const currentHitRef = useRef<HTMLElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
 
   const isJson = format === 'json' || !format;
@@ -59,13 +62,28 @@ export default function KafkaBodyEditorModal({ value, onChange, onClose, format 
   // Search
   const [searchTerm, setSearchTermRaw] = useState('');
 
-  const matchCount = useMemo(() => {
-    if (!searchTerm.trim()) return 0;
+  const matches = useMemo(() => {
+    const term = searchTerm.trim();
+    if (!term) return [] as Array<{ start: number; end: number }>;
     try {
-      const re = new RegExp(searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-      return (draft.match(re) ?? []).length;
-    } catch { return 0; }
+      const re = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+      const found: Array<{ start: number; end: number }> = [];
+      let hit = re.exec(draft);
+      while (hit) {
+        if (hit[0].length === 0) {
+          re.lastIndex += 1;
+        } else {
+          found.push({ start: hit.index, end: hit.index + hit[0].length });
+        }
+        hit = re.exec(draft);
+      }
+      return found;
+    } catch {
+      return [];
+    }
   }, [draft, searchTerm]);
+
+  const matchCount = matches.length;
 
   const {
     currentMatchIndex,
@@ -77,8 +95,63 @@ export default function KafkaBodyEditorModal({ value, onChange, onClose, format 
 
   const setSearchTerm = useCallback((v: string) => {
     setSearchTermRaw(v);
-    if (!v.trim()) { clearSearch(); setCurrentMatchIndex(0); }
+    setCurrentMatchIndex(0);
+    if (!v.trim()) clearSearch();
   }, [clearSearch, setCurrentMatchIndex]);
+
+  const syncEditorScroll = useCallback(() => {
+    const area = textareaRef.current;
+    if (!area) return;
+    const top = area.scrollTop;
+    const left = area.scrollLeft;
+    if (highlightRef.current) {
+      highlightRef.current.style.transform = `translate(${-left}px, ${-top}px)`;
+    }
+    if (lineNumbersRef.current) {
+      lineNumbersRef.current.style.transform = `translateY(${-top}px)`;
+    }
+  }, []);
+
+  useEffect(() => {
+    const area = textareaRef.current;
+    const hit = currentHitRef.current;
+    const match = matches[currentMatchIndex];
+    if (!area || !hit || !match) return;
+    area.setSelectionRange(match.start, match.end);
+    const areaRect = area.getBoundingClientRect();
+    const hitRect = hit.getBoundingClientRect();
+    if (areaRect.height > 0) {
+      const deltaY = hitRect.top - areaRect.top - (areaRect.height - hitRect.height) / 2;
+      const deltaX = hitRect.left - areaRect.left - 48;
+      const pastRight = hitRect.right > areaRect.right - 16;
+      area.scrollTop += deltaY;
+      if (deltaX < 0 || pastRight) area.scrollLeft += deltaX;
+    }
+    syncEditorScroll();
+  }, [currentMatchIndex, matches, syncEditorScroll]);
+
+  const highlightedBody = useMemo(() => {
+    if (matches.length === 0) return draft;
+    const parts: React.ReactNode[] = [];
+    let cursor = 0;
+    matches.forEach((hit, index) => {
+      if (hit.start > cursor) parts.push(draft.slice(cursor, hit.start));
+      const current = index === currentMatchIndex;
+      parts.push(
+        <mark
+          key={`${hit.start}-${hit.end}`}
+          ref={current ? currentHitRef : undefined}
+          className={`kbe-search-hit${current ? ' is-current' : ''}`}
+          data-testid={current ? 'kbe-search-current' : undefined}
+        >
+          {draft.slice(hit.start, hit.end)}
+        </mark>,
+      );
+      cursor = hit.end;
+    });
+    if (cursor < draft.length) parts.push(draft.slice(cursor));
+    return parts;
+  }, [draft, matches, currentMatchIndex]);
 
   // Cmd+F to focus search
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -143,7 +216,7 @@ export default function KafkaBodyEditorModal({ value, onChange, onClose, format 
             <SearchMatchBar
               value={searchTerm}
               onChange={setSearchTerm}
-              currentMatch={currentMatchIndex}
+              currentMatch={matchCount > 0 ? currentMatchIndex + 1 : 0}
               totalMatches={matchCount}
               onPrev={goPrev}
               onNext={goNext}
@@ -152,6 +225,12 @@ export default function KafkaBodyEditorModal({ value, onChange, onClose, format 
               className="kbe-search"
               inputRef={searchInputRef}
               ariaLabel="Search body content"
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter' || matchCount === 0) return;
+                event.preventDefault();
+                if (event.shiftKey) goPrev();
+                else goNext();
+              }}
             />
           </div>
         </div>
@@ -185,19 +264,27 @@ export default function KafkaBodyEditorModal({ value, onChange, onClose, format 
         <div className="kbe-body">
           <div className="kbe-editor-wrap">
             <div className="kbe-line-numbers" aria-hidden="true">
-              {lineNumbers.map((n) => (
-                <span key={n} className="kbe-line-num">{n}</span>
-              ))}
+              <div ref={lineNumbersRef} className="kbe-line-numbers-inner">
+                {lineNumbers.map((n) => (
+                  <span key={n} className="kbe-line-num">{n}</span>
+                ))}
+              </div>
             </div>
-            <textarea
-              ref={textareaRef}
-              className="kbe-textarea"
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              spellCheck={false}
-              autoFocus
-              aria-label="Message body content"
-            />
+            <div className={`kbe-editor-pane${matchCount > 0 ? ' is-searching' : ''}`}>
+              <pre ref={highlightRef} className="kbe-highlight kbe-editor-text" aria-hidden="true">
+                {highlightedBody}
+              </pre>
+              <textarea
+                ref={textareaRef}
+                className="kbe-textarea kbe-editor-text"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onScroll={syncEditorScroll}
+                spellCheck={false}
+                autoFocus
+                aria-label="Message body content"
+              />
+            </div>
           </div>
         </div>
 

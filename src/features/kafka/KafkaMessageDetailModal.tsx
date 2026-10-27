@@ -5,6 +5,7 @@ import { useModalResize } from '@shared/hooks/useModalResize';
 import ModalResizeHandles from '@shared/components/ModalResizeHandles';
 import type { KafkaConsumeResultRow } from './types';
 import { parseKafkaTimestamp, formatKafkaDateTime, formatTimestampTooltip } from './kafkaTimestamp';
+import { formatKafkaHeadersForClipboard } from './kafkaHeaderClipboard';
 
 interface BodyMatch {
   start: number;
@@ -38,7 +39,7 @@ export default function KafkaMessageDetailModal({
   onClose,
   onUseAsWorkflowInput,
 }: KafkaMessageDetailModalProps) {
-  const [copied, setCopied] = useState<'key' | 'payload' | null>(null);
+  const [copied, setCopied] = useState<'key' | 'payload' | 'headers' | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(true);
   const [keyOpen, setKeyOpen] = useState(true);
   const [headersOpen, setHeadersOpen] = useState(true);
@@ -119,6 +120,13 @@ export default function KafkaMessageDetailModal({
     setCopied('payload');
     setTimeout(() => setCopied(null), 1500);
   }, [prettyValue]);
+
+  const handleCopyHeaders = useCallback(() => {
+    if (!headers) return;
+    void navigator.clipboard.writeText(formatKafkaHeadersForClipboard(headers));
+    setCopied('headers');
+    setTimeout(() => setCopied(null), 1500);
+  }, [headers]);
 
   const showBodyMatch = useCallback((delta: number) => {
     if (bodyMatches.length === 0) return;
@@ -275,6 +283,14 @@ export default function KafkaMessageDetailModal({
                   <span className="kmd-section-title">
                     Headers <span className="kmd-badge">{headers.length}</span>
                   </span>
+                </button>
+                <button
+                  type="button"
+                  className="kmd-copy-btn"
+                  onClick={handleCopyHeaders}
+                  data-testid="kmd-copy-headers"
+                >
+                  {copied === 'headers' ? '✓ Copied' : 'Copy'}
                 </button>
               </div>
               {headersOpen && (
