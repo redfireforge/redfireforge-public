@@ -8,6 +8,7 @@ import type { KafkaSerdeFormat } from './types';
 import { validateBase64, validateHex } from './kafkaMessageStudioUtils';
 import { parseKafkaHeadersClipboard } from './kafkaHeaderClipboard';
 import { KafkaTemplateControls } from './KafkaTemplateControls';
+import { KafkaPublishBodySearch, KafkaPublishBodySearchBar, KafkaPublishBodySearchEditor } from './KafkaPublishBodySearch';
 
 const KafkaBodyEditorModal = lazy(() => import('./KafkaBodyEditorModal'));
 
@@ -365,8 +366,10 @@ export function KafkaPublishStudio({
 
         {/* Body */}
         <div className="kafka-ms-field full">
+          <KafkaPublishBodySearch text={publishDraft.body}>
           <div className="kafka-ms-field-label-row">
             <label htmlFor="kms-pub-body">Message Body</label>
+            <KafkaPublishBodySearchBar />
             <div className="kafka-ms-field-label-actions">
               <button
                 type="button"
@@ -431,6 +434,7 @@ export function KafkaPublishStudio({
               )}
             </div>
           </div>
+          <KafkaPublishBodySearchEditor>
           <textarea
             id="kms-pub-body"
             className="kafka-ms-textarea"
@@ -444,6 +448,8 @@ export function KafkaPublishStudio({
             onChange={(e) => { setPublishDraft({ body: e.target.value }); setDecodePreview(null); }}
             onBlur={() => setTouched((p) => ({ ...p, body: true }))}
           />
+          </KafkaPublishBodySearchEditor>
+          </KafkaPublishBodySearch>
           {decodePreview && (
             <span
               className={`kafka-ms-decode-preview${decodePreview.ok ? '' : ' kafka-ms-decode-preview--error'}`}

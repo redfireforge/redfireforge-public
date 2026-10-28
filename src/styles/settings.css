@@ -2370,12 +2370,16 @@ label.kafka-editor-checkbox {
 .kafka-ms-field-label-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
+}
+.kafka-ms-field-label-row > label {
+  flex: 0 0 auto;
 }
 .kafka-ms-field-label-actions {
   display: flex;
   align-items: center;
   gap: 5px;
+  flex: 0 0 auto;
 }
 /* Compact inline serde selector (String / JSON / Base64 / Hex) */
 .kafka-ms-serde-select {
@@ -2452,6 +2456,129 @@ label.kafka-editor-checkbox {
   font-size: 0.8rem;
   resize: vertical;
   min-height: 90px;
+}
+.kafka-ms-body-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.kafka-ms-body-search-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 5px 8px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.75rem;
+}
+.kafka-ms-body-search-input:hover,
+.kafka-ms-body-search-input:focus {
+  border-color: var(--primary);
+  outline: none;
+}
+.kafka-ms-body-search-input:focus {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 20%, transparent);
+}
+.kafka-ms-body-search-input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.55;
+  font-style: italic;
+}
+.kafka-ms-body-search-count {
+  flex: 0 0 auto;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.kafka-ms-body-search-nav,
+.kafka-ms-body-search-clear {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.kafka-ms-body-search-nav:hover:not(:disabled),
+.kafka-ms-body-search-clear:hover {
+  border-color: var(--primary);
+  color: var(--text);
+}
+.kafka-ms-body-search-nav:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.kafka-ms-body-shell {
+  position: relative;
+  height: 220px;
+  min-height: 90px;
+  overflow: auto;
+  resize: vertical;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+.kafka-ms-body-content {
+  position: relative;
+  min-height: 100%;
+}
+.kafka-ms-body-highlight,
+.kafka-ms-body-shell .kafka-ms-textarea {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-family: monospace;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  letter-spacing: normal;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  tab-size: 2;
+}
+.kafka-ms-body-highlight {
+  min-height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+  color: transparent;
+}
+.kafka-ms-body-shell .kafka-ms-textarea {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  min-height: 0;
+  resize: none;
+  overflow: hidden;
+  color: var(--text);
+}
+.kafka-ms-body-shell.is-searching .kafka-ms-body-highlight {
+  color: var(--text);
+}
+.kafka-ms-body-shell.is-searching .kafka-ms-textarea {
+  color: transparent;
+  caret-color: var(--text);
+}
+.kafka-ms-search-hit {
+  background: color-mix(in srgb, var(--primary) 35%, transparent);
+  color: inherit;
+  border-radius: 2px;
+}
+.kafka-ms-search-hit.is-current {
+  background: color-mix(in srgb, var(--primary) 62%, var(--bg));
+  outline: 1px solid var(--primary);
 }
 
 /* ── Publish Studio redesign — field layout ───────────────────────────── */
