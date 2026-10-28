@@ -15,6 +15,7 @@ import {
   loadKafkaConsumeForm,
   loadKafkaConsumeTemplates,
   loadKafkaConsumeTopic,
+  loadKafkaPublishForm,
   loadKafkaPublishTemplates,
   loadSelectedKafkaClusterId,
   saveKafkaAutoConnectOnStartup,
@@ -22,6 +23,7 @@ import {
   saveKafkaConsumeForm,
   saveKafkaConsumeTemplates,
   saveKafkaConsumeTopic,
+  saveKafkaPublishForm,
   saveKafkaPublishTemplates,
   saveSelectedKafkaClusterId,
   type KafkaConsumeTemplate,
@@ -476,6 +478,57 @@ describe('kafkaStorage – consume topic', () => {
     expect(saved?.startPosition).toBe('latest');
     expect(saved?.schemaConfig).toBeUndefined();
     expect(await loadKafkaConsumeForm('cluster-b')).toBeNull();
+  });
+
+  it('saves and restores a publish form for one cluster', async () => {
+    await saveKafkaPublishForm('cluster-a', {
+      topic: 'orders.events',
+      key: 'order-1',
+      keyFormat: 'string',
+      partition: '2',
+      acks: 1,
+      timeoutMs: '30000',
+      headers: [
+        { id: 'h-1', key: 'application.name', value: 'ons-enrollment-core', enabled: true },
+        { id: '', key: '', value: '', enabled: true },
+      ],
+      body: '{"ok":true}',
+      bodyFormat: 'json',
+      schemaConfig: { registryUrl: 'http://schema', format: 'avro' },
+    });
+    const saved = await loadKafkaPublishForm('cluster-a');
+    expect(saved?.topic).toBe('orders.events');
+    expect(saved?.headers).toEqual([
+      { id: 'h-1', key: 'application.name', value: 'ons-enrollment-core', enabled: true },
+    ]);
+    expect(saved?.acks).toBe(1);
+    expect(saved?.schemaConfig?.format).toBe('avro');
+    expect(await loadKafkaPublishForm('cluster-b')).toBeNull();
+    expect(await loadKafkaPublishForm('')).toBeNull();
+  });
+
+  it('repairs a malformed publish form and keeps a valid sibling', async () => {
+    localStorage.setItem('perf-test-kafka-publish-forms-v1', JSON.stringify({
+      'cluster-a': {
+        topic: ' orders ',
+        acks: 9,
+        keyFormat: 'nope',
+        bodyFormat: 'hex',
+        headers: [{ key: 'trace', value: 12, enabled: false }, 'bad', { key: '', value: '' }],
+      },
+      'cluster-b': 'bad',
+    }));
+    const saved = await loadKafkaPublishForm('cluster-a');
+    expect(saved?.topic).toBe('orders');
+    expect(saved?.acks).toBe(-1);
+    expect(saved?.keyFormat).toBe('string');
+    expect(saved?.bodyFormat).toBe('hex');
+    expect(saved?.headers).toEqual([
+      { id: 'h-restored-0', key: 'trace', value: '12', enabled: false },
+    ]);
+    expect(await loadKafkaPublishForm('cluster-b')).toBeNull();
+    localStorage.setItem('perf-test-kafka-publish-forms-v1', 'not-json');
+    expect(await loadKafkaPublishForm('cluster-a')).toBeNull();
   });
 
   it('ignores malformed stored topics', async () => {

@@ -4,7 +4,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useKafkaMessageStudio } from './useKafkaMessageStudio';
-import { loadKafkaConsumeForm, loadKafkaConsumeTopic, saveKafkaConsumeForm, saveKafkaConsumeTopic } from '@shared/kafka/kafkaStorage';
+import { loadKafkaConsumeForm, loadKafkaConsumeTopic, loadKafkaPublishForm, saveKafkaConsumeForm, saveKafkaConsumeTopic, saveKafkaPublishForm } from '@shared/kafka/kafkaStorage';
 import type { UseKafkaStateReturn } from './useKafkaState';
 import type { KafkaEnvelope } from '@shared/kafka/kafkaClient';
 
@@ -103,6 +103,30 @@ describe('setConsumeDraft', () => {
     act(() => { result.current.setConsumeDraft({ topic: 'events.created' }); });
     expect(result.current.consumeDraft.topic).toBe('events.created');
     expect(result.current.consumeDraft.startPosition).toBe('latest'); // unchanged
+  });
+
+  it('restores the publish form after a restart and keeps later edits', async () => {
+    await saveKafkaPublishForm('cluster-a', {
+      topic: '221498-ons-retail-enrollment-event',
+      key: 'order-1',
+      keyFormat: 'string',
+      partition: '',
+      acks: -1,
+      timeoutMs: '30000',
+      headers: [{ id: 'h-1', key: 'application.name', value: 'ons-enrollment-core', enabled: true }],
+      body: '{"messagingMode":"PRODUCTION"}',
+      bodyFormat: 'json',
+    });
+    const { result } = renderHook(() => useKafkaMessageStudio(makeKafkaState()));
+    await waitFor(() => {
+      expect(result.current.publishDraft.topic).toBe('221498-ons-retail-enrollment-event');
+    });
+    expect(result.current.publishDraft.headers[0]?.key).toBe('application.name');
+    expect(result.current.publishDraft.body).toContain('PRODUCTION');
+    act(() => { result.current.setPublishDraft({ body: '{"messagingMode":"TEST"}' }); });
+    await waitFor(async () => {
+      expect((await loadKafkaPublishForm('cluster-a'))?.body).toBe('{"messagingMode":"TEST"}');
+    });
   });
 
   it('restores the consume topic after a restart', async () => {

@@ -19,7 +19,7 @@ import {
   buildPublishRequest,
   validateAndFormatJson,
 } from '../../features/kafka/kafkaMessageStudioUtils';
-import { loadKafkaConsumeForm, saveKafkaConsumeForm } from '@shared/kafka/kafkaStorage';
+import { loadKafkaConsumeForm, loadKafkaPublishForm, saveKafkaConsumeForm, saveKafkaPublishForm } from '@shared/kafka/kafkaStorage';
 
 // ── Public interface ───────────────────────────────────────────────────────
 
@@ -112,6 +112,9 @@ export function useKafkaMessageStudio(
   const seenConsumeCluster = useRef<string | null>(null);
   const consumeDraftEdited = useRef(false);
   const [consumeTopicReady, setConsumeTopicReady] = useState<string | null>(null);
+  const seenPublishCluster = useRef<string | null>(null);
+  const publishDraftEdited = useRef(false);
+  const [publishFormReady, setPublishFormReady] = useState<string | null>(null);
 
   const selectedClusterId = kafkaState.selectedClusterId ?? '';
 
@@ -175,8 +178,53 @@ export function useKafkaMessageStudio(
     return () => window.clearTimeout(handle);
   }, [consumeDraftState, selectedClusterId, consumeTopicReady]);
 
+  useEffect(() => {
+    if (!selectedClusterId) return;
+    let cancelled = false;
+    const switching = seenPublishCluster.current !== null
+      && seenPublishCluster.current !== selectedClusterId;
+    setPublishFormReady(null);
+    void loadKafkaPublishForm(selectedClusterId).then((saved) => {
+      if (cancelled) return;
+      setPublishDraftState((prev) => {
+        if (!switching && publishDraftEdited.current) return prev;
+        publishDraftEdited.current = false;
+        if (!saved) {
+          if (!switching) return prev;
+          return {
+            topic: '',
+            key: '',
+            keyFormat: 'string',
+            partition: '',
+            acks: -1,
+            timeoutMs: '',
+            headers: [],
+            body: '',
+            bodyFormat: 'json',
+          };
+        }
+        return saved;
+      });
+      seenPublishCluster.current = selectedClusterId;
+      setPublishFormReady(selectedClusterId);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedClusterId]);
+
+  useEffect(() => {
+    if (!selectedClusterId || publishFormReady !== selectedClusterId) return;
+    const draft = publishDraftState;
+    const handle = window.setTimeout(() => {
+      void saveKafkaPublishForm(selectedClusterId, draft);
+    }, 250);
+    return () => window.clearTimeout(handle);
+  }, [publishDraftState, selectedClusterId, publishFormReady]);
+
   // ── Setters ──────────────────────────────────────────────────────────────
   const setPublishDraft = useCallback((patch: Partial<KafkaPublishDraft>) => {
+    publishDraftEdited.current = true;
     setPublishDraftState((prev) => ({ ...prev, ...patch }));
   }, []);
 
