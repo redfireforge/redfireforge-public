@@ -61,6 +61,7 @@ export default function KafkaBodyEditorModal({ value, onChange, onClose, format 
 
   // Search
   const [searchTerm, setSearchTermRaw] = useState('');
+  const [revealToken, setRevealToken] = useState(0);
 
   const matches = useMemo(() => {
     const term = searchTerm.trim();
@@ -96,8 +97,15 @@ export default function KafkaBodyEditorModal({ value, onChange, onClose, format 
   const setSearchTerm = useCallback((v: string) => {
     setSearchTermRaw(v);
     setCurrentMatchIndex(0);
+    setRevealToken((token) => token + 1);
     if (!v.trim()) clearSearch();
   }, [clearSearch, setCurrentMatchIndex]);
+
+  const revealMatch = useCallback((delta: number) => {
+    if (delta < 0) goPrev();
+    else goNext();
+    setRevealToken((token) => token + 1);
+  }, [goNext, goPrev]);
 
   const syncEditorScroll = useCallback(() => {
     const area = textareaRef.current;
@@ -113,22 +121,20 @@ export default function KafkaBodyEditorModal({ value, onChange, onClose, format 
   }, []);
 
   useEffect(() => {
+    if (revealToken === 0) return;
     const area = textareaRef.current;
     const hit = currentHitRef.current;
-    const match = matches[currentMatchIndex];
-    if (!area || !hit || !match) return;
-    area.setSelectionRange(match.start, match.end);
+    if (!area || !hit) return;
     const areaRect = area.getBoundingClientRect();
     const hitRect = hit.getBoundingClientRect();
-    if (areaRect.height > 0) {
-      const deltaY = hitRect.top - areaRect.top - (areaRect.height - hitRect.height) / 2;
-      const deltaX = hitRect.left - areaRect.left - 48;
-      const pastRight = hitRect.right > areaRect.right - 16;
-      area.scrollTop += deltaY;
-      if (deltaX < 0 || pastRight) area.scrollLeft += deltaX;
-    }
+    if (areaRect.height <= 0) return;
+    const deltaY = hitRect.top - areaRect.top - (areaRect.height - hitRect.height) / 2;
+    const deltaX = hitRect.left - areaRect.left - 48;
+    const pastRight = hitRect.right > areaRect.right - 16;
+    area.scrollTop += deltaY;
+    if (deltaX < 0 || pastRight) area.scrollLeft += deltaX;
     syncEditorScroll();
-  }, [currentMatchIndex, matches, syncEditorScroll]);
+  }, [revealToken, syncEditorScroll]);
 
   const highlightedBody = useMemo(() => {
     if (matches.length === 0) return draft;
@@ -218,8 +224,8 @@ export default function KafkaBodyEditorModal({ value, onChange, onClose, format 
               onChange={setSearchTerm}
               currentMatch={matchCount > 0 ? currentMatchIndex + 1 : 0}
               totalMatches={matchCount}
-              onPrev={goPrev}
-              onNext={goNext}
+              onPrev={() => revealMatch(-1)}
+              onNext={() => revealMatch(1)}
               onClear={() => setSearchTerm('')}
               placeholder="Search body…"
               className="kbe-search"
@@ -228,8 +234,7 @@ export default function KafkaBodyEditorModal({ value, onChange, onClose, format 
               onKeyDown={(event) => {
                 if (event.key !== 'Enter' || matchCount === 0) return;
                 event.preventDefault();
-                if (event.shiftKey) goPrev();
-                else goNext();
+                revealMatch(event.shiftKey ? -1 : 1);
               }}
             />
           </div>
