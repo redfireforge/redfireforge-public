@@ -3,6 +3,7 @@
  * No React imports — all functions are unit-testable in isolation.
  */
 
+import { kafkaBodyHasText } from '@shared/kafka/bodyContainsQuery';
 import { saveJsonFile } from '@shared/utils/fileSaver';
 import type { KafkaConsumeCursor, KafkaConsumeDraft, KafkaConsumeResultRow, KafkaHeaderRow, KafkaPublishDraft } from './types';
 
@@ -103,24 +104,35 @@ export function headersToRecord(rows: KafkaHeaderRow[]): Record<string, string> 
 
 // ── Result search (client-side table filter) ───────────────────────────────
 
+const RESULT_QUERY_OPERATOR = /(?:^|[\s()])(?:AND|OR)(?=[\s()]|$)/i;
+
+function resultSearchHaystack(
+  row: Pick<KafkaConsumeResultRow, 'offset' | 'partition' | 'key' | 'value' | 'headers'>,
+): string {
+  const headers = row.headers
+    ? Object.entries(row.headers).flatMap(([key, value]) => [key, value]).join('\n')
+    : '';
+  return [String(row.offset), String(row.partition), row.key ?? '', headers, row.value ?? ''].join('\n');
+}
+
 /**
- * Substring match across offset, partition, key, and value.
- * Blank query matches every row. Case is ignored unless caseSensitive is set.
+ * Match a returned message without fetching again.
+ * Blank query matches every row. Ignore-case queries use Body Contains rules
+ * (AND, OR, parentheses, quotes). Match-case is a plain substring unless the
+ * query itself uses AND or OR.
  */
 export function matchesKafkaResultSearch(
-  row: Pick<KafkaConsumeResultRow, 'offset' | 'partition' | 'key' | 'value'>,
+  row: Pick<KafkaConsumeResultRow, 'offset' | 'partition' | 'key' | 'value' | 'headers'>,
   query: string,
   caseSensitive = false,
 ): boolean {
   const raw = query.trim();
   if (!raw) return true;
-  const q = caseSensitive ? raw : raw.toLowerCase();
-  const field = (value: string) => (caseSensitive ? value : value.toLowerCase());
-  if (field(String(row.offset)).includes(q)) return true;
-  if (field(String(row.partition)).includes(q)) return true;
-  if (field(row.key ?? '').includes(q)) return true;
-  if (field(row.value ?? '').includes(q)) return true;
-  return false;
+  const haystack = resultSearchHaystack(row);
+  if (!caseSensitive || RESULT_QUERY_OPERATOR.test(raw)) {
+    return kafkaBodyHasText(haystack, raw);
+  }
+  return haystack.includes(raw);
 }
 
 // ── Filter builder ─────────────────────────────────────────────────────────

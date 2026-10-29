@@ -7,6 +7,9 @@ import type {
   KafkaRouteEnvelope,
 } from './contracts.js';
 import { createKafkaErrorEnvelope } from './contracts.js';
+import { kafkaBodyHasText } from '../../src/shared/kafka/bodyContainsQuery.js';
+
+export { kafkaBodyHasText };
 
 // ── Cluster mismatch guard ────────────────────────────────────────────────────
 
@@ -142,28 +145,6 @@ export function readKafkaJsonPath(jsonText: string, path: string): string | null
     return current;
   }
   return JSON.stringify(current);
-}
-
-/** Match the raw record or the text after JSON string escapes are decoded. */
-export function kafkaBodyHasText(value: string, needle: string): boolean {
-  const normalized = needle.trim().replace(/[\u201c\u201d\u201e]/g, '"').toLowerCase();
-  if (!normalized) return true;
-  const raw = value.toLowerCase();
-  const text = jsonUnescape(raw);
-  const needleText = jsonUnescape(normalized);
-  return raw.includes(normalized)
-    || raw.includes(needleText)
-    || text.includes(normalized)
-    || text.includes(needleText);
-}
-
-function jsonUnescape(input: string): string {
-  return input.replace(/\\(["\\/nrt])/g, (_match, ch: string) => {
-    if (ch === 'n') return '\n';
-    if (ch === 't') return '\t';
-    if (ch === 'r') return '\r';
-    return ch;
-  });
 }
 
 export function matchesKafkaConsumeFilter(record: KafkaConsumeRecord, filter?: KafkaConsumeOnceRequest['filter']): boolean {

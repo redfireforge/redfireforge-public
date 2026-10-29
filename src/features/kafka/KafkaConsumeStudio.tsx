@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { CustomSelect } from '@shared/components/CustomSelect';
 import KafkaSchemaConfigSection from '../workflow/components/configs/KafkaSchemaConfigSection';
 import type { UseKafkaMessageStudioReturn } from '@app/hooks/useKafkaMessageStudio';
@@ -9,9 +9,11 @@ import { KafkaTemplateControls } from './KafkaTemplateControls';
 import KafkaMessageDetailModal from './KafkaMessageDetailModal';
 import { renderKafkaTimestampCell } from './kafkaConsumeStudioHelpers';
 import {
+  filterIndexedStreamRows,
   formatStreamCountLabel,
   getStreamEmptyStateText,
 } from './kafkaConsumeStreamHelpers';
+import { KafkaResultSearchBar } from './KafkaResultSearchBar';
 import { useKafkaConsumeE2eBridge, useKafkaConsumeStreamView, useRelativeTimestampTick } from './kafkaConsumeStudioHooks';
 type ConsumeMode = 'once' | 'stream';
 interface KafkaConsumeStudioProps {
@@ -92,6 +94,13 @@ export function KafkaConsumeStudio({
     clusterId,
     consumeDraft,
   });
+  const [resultSearch, setResultSearch] = useState('');
+  const [resultSearchCaseSensitive, setResultSearchCaseSensitive] = useState(false);
+  const resultSearchActive = resultSearch.trim().length > 0;
+  const filteredConsumeRows = useMemo(
+    () => filterIndexedStreamRows(consumeResult ?? [], resultSearch, resultSearchCaseSensitive),
+    [consumeResult, resultSearch, resultSearchCaseSensitive],
+  );
   const handleConsume = useCallback(() => {
     void consumeOnce();
   }, [consumeOnce]);
@@ -342,19 +351,20 @@ export function KafkaConsumeStudio({
               </div>
             </div>
 
-            <div className="kafka-ms-form-row">
+            <div className="kafka-ms-form-row kafka-ms-form-row--tall">
               <label className="kafka-ms-form-label" htmlFor="kms-con-body">Body Contains</label>
               <div className="kafka-ms-form-ctrl">
                 <input
                   id="kms-con-body"
                   className="kafka-ms-form-input"
                   type="text"
-                  placeholder="search text in body"
+                  placeholder='status AND id OR "priority"'
                   value={consumeDraft.bodyContains}
                   onChange={(e) => setConsumeDraft({ bodyContains: e.target.value })}
                   data-testid="con-body-contains-input"
                   aria-label="Body contains"
                 />
+                <span className="kafka-ms-form-hint-sub">AND and OR, with parentheses. Quote a phrase that contains spaces.</span>
               </div>
             </div>
 
@@ -435,7 +445,7 @@ export function KafkaConsumeStudio({
               <div className="kafka-ms-results-zone" data-testid="con-results-zone">
                 <div className="kafka-ms-results-header">
                   <span className="kafka-ms-results-count">
-                    {consumeMessageCount} message{consumeMessageCount !== 1 ? 's' : ''}
+                    {formatStreamCountLabel(consumeMessageCount, filteredConsumeRows.length, resultSearchActive)}
                     {consumeMessageCount > 0 &&
                       consumeMessageCount === parseInt(consumeDraft.maxMessages, 10) && (
                       <span className="kafka-ms-max-reached" data-testid="con-max-reached"> (max reached)</span>
@@ -446,9 +456,23 @@ export function KafkaConsumeStudio({
                       timed out
                     </span>
                   )}
+                  {consumeMessageCount > 0 && (
+                    <KafkaResultSearchBar
+                      value={resultSearch}
+                      onChange={setResultSearch}
+                      caseSensitive={resultSearchCaseSensitive}
+                      onCaseSensitiveChange={setResultSearchCaseSensitive}
+                      idPrefix="con-result"
+                      placeholder='id OR "priority"'
+                    />
+                  )}
                 </div>
                 {consumeMessageCount === 0 ? (
                   <p className="kafka-ms-empty-state">No messages received</p>
+                ) : filteredConsumeRows.length === 0 ? (
+                  <p className="kafka-ms-empty-state" data-testid="con-result-search-empty">
+                    No messages match “{resultSearch.trim()}”
+                  </p>
                 ) : (
                   <div className="kafka-ms-results-table-wrap">
                     <table className="kafka-ms-results-table">
@@ -463,15 +487,15 @@ export function KafkaConsumeStudio({
                         </tr>
                       </thead>
                       <tbody>
-                        {consumeResult.map((row, idx) => (
+                        {filteredConsumeRows.map(({ row, index }) => (
                           <tr
                             key={`${row.partition}-${row.offset}`}
-                            className={selectedMessageIndex === idx ? 'selected' : ''}
-                            onClick={() => selectMessage(selectedMessageIndex === idx ? null : idx)}
+                            className={selectedMessageIndex === index ? 'selected' : ''}
+                            onClick={() => selectMessage(selectedMessageIndex === index ? null : index)}
                             style={{ cursor: 'pointer' }}
-                            data-testid={`con-row-${idx}`}
+                            data-testid={`con-row-${index}`}
                           >
-                            <td>{idx + 1}</td>
+                            <td>{index + 1}</td>
                             <td>{row.offset}</td>
                             <td>{row.partition}</td>
                             {renderKafkaTimestampCell(row.timestamp)}
@@ -570,48 +594,14 @@ export function KafkaConsumeStudio({
                   </span>
                 )}
                 {(streamMode.streamMessages.length > 0 || streamSearchActive) && (
-                  <div className="kafka-ms-stream-search-wrap">
-                    <input
-                      type="search"
-                      className="kafka-ms-stream-search"
-                      placeholder="Search offset, key, value…"
-                      value={streamSearch}
-                      onChange={(e) => setStreamSearch(e.target.value)}
-                      data-testid="stream-search-input"
-                      aria-label="Filter stream messages"
-                    />
-                    <div className="kmd-search-case" role="group" aria-label="Case matching">
-                      <button
-                        type="button"
-                        className={streamSearchCaseSensitive ? '' : 'is-active'}
-                        aria-pressed={!streamSearchCaseSensitive}
-                        onClick={() => setStreamSearchCaseSensitive(false)}
-                        data-testid="stream-search-ignore-case"
-                      >
-                        Ignore case
-                      </button>
-                      <button
-                        type="button"
-                        className={streamSearchCaseSensitive ? 'is-active' : ''}
-                        aria-pressed={streamSearchCaseSensitive}
-                        onClick={() => setStreamSearchCaseSensitive(true)}
-                        data-testid="stream-search-match-case"
-                      >
-                        Match case
-                      </button>
-                    </div>
-                    {streamSearchActive && (
-                      <button
-                        type="button"
-                        className="kafka-ms-stream-search-clear"
-                        onClick={() => setStreamSearch('')}
-                        data-testid="stream-search-clear"
-                        aria-label="Clear search"
-                      >
-                        Clear
-                      </button>
-                    )}
-                  </div>
+                  <KafkaResultSearchBar
+                    value={streamSearch}
+                    onChange={setStreamSearch}
+                    caseSensitive={streamSearchCaseSensitive}
+                    onCaseSensitiveChange={setStreamSearchCaseSensitive}
+                    idPrefix="stream"
+                    ariaLabel="Filter stream messages"
+                  />
                 )}
                 {streamMode.cursorGap && (
                   <span className="kafka-ms-cursor-gap-badge" data-testid="stream-cursor-gap">
