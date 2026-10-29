@@ -5,6 +5,7 @@ import { useSearchMatchNavigation } from '@shared/hooks/useSearchMatchNavigation
 import { useModalDrag } from '@shared/hooks/useModalDrag';
 import { useModalResize } from '@shared/hooks/useModalResize';
 import ModalResizeHandles from '@shared/components/ModalResizeHandles';
+import { straightenJsonQuotes } from './kafkaMessageStudioUtils';
 
 interface Props {
   value: string;
@@ -283,7 +284,7 @@ export default function KafkaBodyEditorModal({ value, onChange, onClose, format 
                 ref={textareaRef}
                 className="kbe-textarea kbe-editor-text"
                 value={draft}
-                onChange={(e) => setDraft(e.target.value)}
+                onChange={(e) => setDraft(isJson ? straightenJsonQuotes(e.target.value) : e.target.value)}
                 onScroll={syncEditorScroll}
                 spellCheck={false}
                 autoFocus

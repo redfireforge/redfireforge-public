@@ -17,9 +17,15 @@ export interface ValidateJsonResult {
   error?: string;
 }
 
+/** macOS smart quotes are not valid JSON quotes. */
+export function straightenJsonQuotes(raw: string): string {
+  if (!/[\u2018\u2019\u201C\u201D]/.test(raw)) return raw;
+  return raw.replace(/[\u201C\u201D]/g, '"').replace(/[\u2018\u2019]/g, "'");
+}
+
 /** Try to parse and pretty-print a JSON string. Returns formatted value on success. */
 export function validateAndFormatJson(raw: string): ValidateJsonResult {
-  const trimmed = raw.trim();
+  const trimmed = straightenJsonQuotes(raw).trim();
   if (trimmed === '') return { ok: true, formatted: '' };
   try {
     const parsed: unknown = JSON.parse(trimmed);
