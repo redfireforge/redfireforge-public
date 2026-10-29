@@ -17,6 +17,7 @@ import type {
 import {
   buildConsumeRequest,
   buildPublishRequest,
+  straightenJsonQuotes,
   validateAndFormatJson,
 } from '../../features/kafka/kafkaMessageStudioUtils';
 import { loadKafkaConsumeForm, loadKafkaPublishForm, saveKafkaConsumeForm, saveKafkaPublishForm } from '@shared/kafka/kafkaStorage';
@@ -261,9 +262,18 @@ export function useKafkaMessageStudio(
     setPublishResult(null);
     setPublishError(null);
 
+    const jsonMode = (publishDraftState.bodyFormat ?? 'json') === 'json';
+    const bodyText = jsonMode ? straightenJsonQuotes(publishDraftState.body) : publishDraftState.body;
+    const draft = bodyText === publishDraftState.body
+      ? publishDraftState
+      : { ...publishDraftState, body: bodyText };
+    if (bodyText !== publishDraftState.body) {
+      setPublishDraftState((prev) => ({ ...prev, body: bodyText }));
+    }
+
     // Validate JSON body before sending — only applies when bodyFormat is 'json'
-    if (publishDraftState.bodyFormat === 'json' && publishDraftState.body.trim()) {
-      const jsonResult = validateAndFormatJson(publishDraftState.body);
+    if (jsonMode && bodyText.trim()) {
+      const jsonResult = validateAndFormatJson(bodyText);
       if (!jsonResult.ok) {
         setPublishError({
           kind: 'validation',
@@ -277,7 +287,7 @@ export function useKafkaMessageStudio(
 
     setPublishLoading(true);
     try {
-      const body = buildPublishRequest(publishDraftState, clusterId);
+      const body = buildPublishRequest(draft, clusterId);
       const envelope = await dispatch<KafkaPublishResult>('produce', body);
       if (!envelope.ok || !envelope.data) {
         setPublishError(envelopeErrorToUiError(envelope, 'Produce failed', 'PRODUCE_FAILED'));
