@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  straightenJsonQuotes,
   validateAndFormatJson,
   validateBase64,
   validateHex,
@@ -49,6 +50,17 @@ describe('matchesKafkaResultSearch', () => {
     expect(matchesKafkaResultSearch({ ...row, key: undefined }, 'order')).toBe(false);
     expect(matchesKafkaResultSearch({ ...row, key: undefined }, 'CREATED')).toBe(true);
   });
+
+  it('applies AND and OR across the returned message without another fetch', () => {
+    expect(matchesKafkaResultSearch(row, 'order-42 AND CREATED')).toBe(true);
+    expect(matchesKafkaResultSearch(row, 'missing AND CREATED')).toBe(false);
+    expect(matchesKafkaResultSearch(row, 'missing OR CREATED')).toBe(true);
+    expect(matchesKafkaResultSearch(row, '(missing OR order-42) AND CREATED')).toBe(true);
+  });
+
+  it('searches header names and values', () => {
+    expect(matchesKafkaResultSearch({ ...row, headers: { event: 'OrderCreated' } }, 'OrderCreated')).toBe(true);
+  });
 });
 
 // ── validateAndFormatJson ──────────────────────────────────────────────────
@@ -81,6 +93,13 @@ describe('validateAndFormatJson', () => {
   it('returns ok:false for partial JSON', () => {
     const result = validateAndFormatJson('{"a":');
     expect(result.ok).toBe(false);
+  });
+
+  it('accepts a smart quote that macOS inserted before a JSON value', () => {
+    expect(straightenJsonQuotes('{"dsMode":\u201dTEMPORAL"}')).toBe('{"dsMode":"TEMPORAL"}');
+    const result = validateAndFormatJson('{"dsMode":\u201dTEMPORAL"}');
+    expect(result.ok).toBe(true);
+    expect(result.formatted).toBe('{\n  "dsMode": "TEMPORAL"\n}');
   });
 });
 

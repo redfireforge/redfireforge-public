@@ -161,6 +161,29 @@ describe('KafkaConsumeStudio — Consume Once', () => {
     expect(screen.getByTestId('con-row-1')).toBeTruthy();
   });
 
+  it('narrows returned consume messages and restores them when search is cleared', () => {
+    const studio = makeStudio({ consumeResult: SAMPLE_MESSAGES, consumeMessageCount: 2 });
+    renderConsume({ studio });
+    fireEvent.change(screen.getByTestId('con-result-search-input'), { target: { value: 'order-1 AND id' } });
+    expect(screen.getByTestId('con-results-zone').textContent).toContain('1 of 2');
+    expect(screen.getByTestId('con-row-0')).toBeTruthy();
+    expect(screen.queryByTestId('con-row-1')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('con-row-0'));
+    expect(studio.selectMessage).toHaveBeenCalledWith(0);
+
+    fireEvent.click(screen.getByTestId('con-result-search-clear'));
+    expect(screen.getByTestId('con-row-0')).toBeTruthy();
+    expect(screen.getByTestId('con-row-1')).toBeTruthy();
+    expect(screen.getByTestId('con-results-zone').textContent).toContain('2 messages');
+  });
+
+  it('shows an empty state when the consume search matches nothing', () => {
+    renderConsume({ studio: { consumeResult: SAMPLE_MESSAGES, consumeMessageCount: 2 } });
+    fireEvent.change(screen.getByTestId('con-result-search-input'), { target: { value: 'missing-vin' } });
+    expect(screen.getByTestId('con-result-search-empty').textContent).toContain('No messages match');
+  });
+
   it('renders Timestamp column header', () => {
     renderConsume({ studio: { consumeResult: SAMPLE_MESSAGES, consumeMessageCount: 2 } });
     const headers = screen.getAllByRole('columnheader');
@@ -500,6 +523,9 @@ describe('KafkaConsumeStudio — Stream Mode', () => {
 
     fireEvent.click(screen.getByTestId('stream-search-match-case'));
     expect(screen.getByTestId('stream-search-empty').textContent).toContain('No messages match');
+
+    fireEvent.click(screen.getByTestId('stream-search-ignore-case'));
+    expect(screen.getByTestId('stream-count').textContent).toContain('3 of 3');
 
     fireEvent.change(screen.getByTestId('stream-search-input'), { target: { value: 'seq' } });
     expect(screen.getByTestId('stream-count').textContent).toContain('3 of 3');

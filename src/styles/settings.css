@@ -2370,12 +2370,16 @@ label.kafka-editor-checkbox {
 .kafka-ms-field-label-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
+}
+.kafka-ms-field-label-row > label {
+  flex: 0 0 auto;
 }
 .kafka-ms-field-label-actions {
   display: flex;
   align-items: center;
   gap: 5px;
+  flex: 0 0 auto;
 }
 /* Compact inline serde selector (String / JSON / Base64 / Hex) */
 .kafka-ms-serde-select {
@@ -2452,6 +2456,129 @@ label.kafka-editor-checkbox {
   font-size: 0.8rem;
   resize: vertical;
   min-height: 90px;
+}
+.kafka-ms-body-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.kafka-ms-body-search-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 5px 8px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.75rem;
+}
+.kafka-ms-body-search-input:hover,
+.kafka-ms-body-search-input:focus {
+  border-color: var(--primary);
+  outline: none;
+}
+.kafka-ms-body-search-input:focus {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 20%, transparent);
+}
+.kafka-ms-body-search-input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.55;
+  font-style: italic;
+}
+.kafka-ms-body-search-count {
+  flex: 0 0 auto;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.kafka-ms-body-search-nav,
+.kafka-ms-body-search-clear {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.kafka-ms-body-search-nav:hover:not(:disabled),
+.kafka-ms-body-search-clear:hover {
+  border-color: var(--primary);
+  color: var(--text);
+}
+.kafka-ms-body-search-nav:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.kafka-ms-body-shell {
+  position: relative;
+  height: 220px;
+  min-height: 90px;
+  overflow: auto;
+  resize: vertical;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+.kafka-ms-body-content {
+  position: relative;
+  min-height: 100%;
+}
+.kafka-ms-body-highlight,
+.kafka-ms-body-shell .kafka-ms-textarea {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-family: monospace;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  letter-spacing: normal;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  tab-size: 2;
+}
+.kafka-ms-body-highlight {
+  min-height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+  color: transparent;
+}
+.kafka-ms-body-shell .kafka-ms-textarea {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  min-height: 0;
+  resize: none;
+  overflow: hidden;
+  color: var(--text);
+}
+.kafka-ms-body-shell.is-searching .kafka-ms-body-highlight {
+  color: var(--text);
+}
+.kafka-ms-body-shell.is-searching .kafka-ms-textarea {
+  color: transparent;
+  caret-color: var(--text);
+}
+.kafka-ms-search-hit {
+  background: color-mix(in srgb, var(--primary) 35%, transparent);
+  color: inherit;
+  border-radius: 2px;
+}
+.kafka-ms-search-hit.is-current {
+  background: color-mix(in srgb, var(--primary) 62%, var(--bg));
+  outline: 1px solid var(--primary);
 }
 
 /* ── Publish Studio redesign — field layout ───────────────────────────── */
@@ -2782,12 +2909,34 @@ select.kafka-ms-form-select--fmt:focus,
   align-items: center;
   justify-content: space-between;
 }
+.kafka-ms-section-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 .kafka-ms-section-title {
   font-size: 0.72rem;
   font-weight: 700;
   color: var(--text-muted, #7a8ea8);
   text-transform: uppercase;
   letter-spacing: 0.07em;
+}
+.kafka-ms-section-count {
+  margin-left: 8px;
+  font-weight: 650;
+  letter-spacing: 0;
+  color: var(--text);
+}
+.kafka-ms-headers-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.kafka-ms-headers-body.is-shrunk {
+  display: none;
+}
+.kafka-ms-section-actions .kafka-ms-collapse-btn {
+  margin-left: 0;
 }
 
 /* ── Configuration section header ──────────────────────────── */
@@ -2858,6 +3007,19 @@ select.kafka-ms-form-select--fmt:focus,
   cursor: pointer;
 }
 .kafka-ms-add-btn:hover { background: rgba(255,255,255,0.07); }
+.kafka-ms-delete-headers-btn {
+  color: var(--danger, #f44336);
+  border-color: color-mix(in srgb, var(--danger, #f44336) 45%, var(--border));
+}
+.kafka-ms-delete-headers-btn:hover:not(:disabled) {
+  color: var(--danger, #f44336);
+  border-color: var(--danger, #f44336);
+  background: color-mix(in srgb, var(--danger, #f44336) 12%, transparent);
+}
+.kafka-ms-delete-headers-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 .kafka-ms-kv-list { display: flex; flex-direction: column; gap: 6px; }
 .kafka-ms-kv-row {
   display: grid;
@@ -3054,6 +3216,7 @@ select.kafka-ms-form-select--fmt:focus,
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 .kafka-ms-results-count {
   font-size: 0.78rem;
@@ -3374,7 +3537,36 @@ select.kafka-ms-form-select--fmt:focus,
 
 /* Topic detail Messages filters — one label|control row per field (stacked) */
 .kafka-ms-detail-message-form {
-  margin: 10px 0 12px;
+  margin: 0 0 12px;
+}
+
+/* Topics → Messages: Hide collapses the filter form so the result table can grow. */
+.kafka-explorer-detail-body:has(.kafka-explorer-messages--filters-hidden) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.kafka-explorer-messages--filters-hidden {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.kafka-explorer-messages--filters-hidden .kafka-ms-results-zone {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.kafka-explorer-messages--filters-hidden .kafka-ms-results-table-wrap {
+  flex: 1;
+  min-height: 12rem;
+  max-height: none;
+}
+.kafka-explorer-messages--filters-hidden .kafka-ms-results-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
 }
 .kafka-ms-detail-message-form .kafka-ms-form-label {
   flex-basis: 148px;
@@ -4768,7 +4960,7 @@ select.kafka-ms-form-select--fmt:focus,
 
 .kbe-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
   flex-shrink: 0;
@@ -4847,12 +5039,17 @@ select.kafka-ms-form-select--fmt:focus,
 .kbe-header-right {
   display: flex;
   align-items: center;
-  flex-shrink: 0;
+  justify-content: flex-end;
+  flex: 1 1 480px;
+  min-width: 280px;
   cursor: default;
 }
 
 .kbe-search {
-  min-width: 220px;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 420px;
+  max-width: 640px;
 }
 
 .kbe-toolbar {
@@ -4934,29 +5131,79 @@ select.kafka-ms-form-select--fmt:focus,
   overflow: hidden;
 }
 
+.kbe-line-numbers-inner {
+  will-change: transform;
+}
+
 .kbe-line-num {
   display: block;
   opacity: 0.75;
 }
 
-.kbe-textarea {
+.kbe-editor-pane {
+  position: relative;
   flex: 1 1 auto;
-  width: 100%;
   min-width: 0;
   height: 100%;
+  overflow: hidden;
+}
+
+.kbe-editor-text {
   margin: 0;
   padding: 12px 14px;
-  border: none;
+  border: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  letter-spacing: normal;
+  white-space: pre;
+  tab-size: 2;
+  word-wrap: normal;
+  overflow-wrap: normal;
+}
+
+.kbe-highlight {
+  position: absolute;
+  top: 0;
+  left: 0;
+  min-width: 100%;
+  pointer-events: none;
+  color: transparent;
+  background: transparent;
+  z-index: 0;
+}
+
+.kbe-editor-pane.is-searching .kbe-highlight {
+  color: var(--text);
+}
+
+.kbe-search-hit {
+  background: color-mix(in srgb, var(--primary) 28%, transparent);
+  color: inherit;
+  border-radius: 2px;
+}
+
+.kbe-search-hit.is-current {
+  background: color-mix(in srgb, var(--primary) 55%, var(--bg));
+  outline: 1px solid var(--primary);
+}
+
+.kbe-textarea {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
   outline: none;
   resize: none;
   background: transparent;
   color: var(--text);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.82rem;
-  line-height: 1.55;
-  white-space: pre;
   overflow: auto;
-  tab-size: 2;
+  caret-color: var(--text);
+}
+
+.kbe-editor-pane.is-searching .kbe-textarea {
+  color: transparent;
 }
 .kbe-textarea:focus {
   outline: none;

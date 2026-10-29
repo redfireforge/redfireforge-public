@@ -4,6 +4,8 @@ import type { KafkaTopicDetail } from './useTopicExplorer';
 import type { UseTopicMessageBrowserReturn } from './useTopicMessageBrowser';
 import type { TimeWindow } from './useTopicMessageBrowser';
 import { valuePreview, exportResultSet } from './kafkaMessageStudioUtils';
+import { filterIndexedStreamRows, formatStreamCountLabel } from './kafkaConsumeStreamHelpers';
+import { KafkaResultSearchBar } from './KafkaResultSearchBar';
 import type { KafkaUiSafeError } from '@shared/kafka/kafkaClient';
 import KafkaMessageDetailModal from './KafkaMessageDetailModal';
 
@@ -109,6 +111,14 @@ export function KafkaTopicDetailPanel({ detail, loading, error, browser }: Kafka
     () => countConsumerGroups(detail?.consumerGroups ?? []),
     [detail?.consumerGroups],
   );
+  const [filtersCollapsed, setFiltersCollapsed] = useState(false);
+  const [resultSearch, setResultSearch] = useState('');
+  const [resultSearchCaseSensitive, setResultSearchCaseSensitive] = useState(false);
+  const resultSearchActive = resultSearch.trim().length > 0;
+  const filteredRows = useMemo(
+    () => filterIndexedStreamRows(browser.result ?? [], resultSearch, resultSearchCaseSensitive),
+    [browser.result, resultSearch, resultSearchCaseSensitive],
+  );
 
   const selectedTimeWindow = useMemo(
     () => TIME_WINDOW_OPTIONS.find((option) => option.value === browser.draft.timeWindow)?.value ?? 'latest',
@@ -198,7 +208,10 @@ export function KafkaTopicDetailPanel({ detail, loading, error, browser }: Kafka
 
       <div className="kafka-explorer-detail-body">
         {tab === 'messages' && (
-          <div data-testid="detail-messages-tab">
+          <div
+            className={`kafka-explorer-messages${filtersCollapsed ? ' kafka-explorer-messages--filters-hidden' : ''}`}
+            data-testid="detail-messages-tab"
+          >
             <div className="kafka-explorer-metrics-row">
               <div className="kafka-explorer-metric-box">
                 <span className="kafka-explorer-metric-label">Partitions</span>
@@ -218,6 +231,24 @@ export function KafkaTopicDetailPanel({ detail, loading, error, browser }: Kafka
               </div>
             </div>
 
+            <div className="kafka-ms-section-header kafka-ms-form-section-header">
+              <span className="kafka-ms-section-title">Filters</span>
+              <button
+                type="button"
+                className="kafka-ms-collapse-btn"
+                onClick={() => setFiltersCollapsed((open) => !open)}
+                aria-expanded={!filtersCollapsed}
+                aria-controls="kafka-detail-filters-body"
+                data-testid="detail-filters-collapse-btn"
+              >
+                {filtersCollapsed ? 'Show' : 'Hide'}
+                <span className={`kafka-ms-collapse-chevron${filtersCollapsed ? ' collapsed' : ''}`} aria-hidden="true">▾</span>
+              </button>
+            </div>
+            <div
+              id="kafka-detail-filters-body"
+              className={`kafka-ms-collapsible${filtersCollapsed ? ' kafka-ms-collapsible--hidden' : ''}`}
+            >
             <div className="kafka-ms-form kafka-ms-detail-message-form" data-testid="detail-messages-filters">
               <div className="kafka-ms-form-row">
                 <label className="kafka-ms-form-label" htmlFor="detail-time-window">Time Window</label>
@@ -306,18 +337,19 @@ export function KafkaTopicDetailPanel({ detail, loading, error, browser }: Kafka
                 </div>
               </div>
 
-              <div className="kafka-ms-form-row">
+              <div className="kafka-ms-form-row kafka-ms-form-row--tall">
                 <label className="kafka-ms-form-label" htmlFor="detail-body-contains">Body Contains</label>
                 <div className="kafka-ms-form-ctrl">
                   <input
                     id="detail-body-contains"
                     className="kafka-ms-form-input"
                     type="text"
-                    placeholder="substring match"
+                    placeholder='status AND id OR "priority"'
                     value={browser.draft.bodyContains}
                     onChange={(e) => browser.setDraft({ bodyContains: e.target.value })}
                     data-testid="detail-body-contains"
                   />
+                  <span className="kafka-ms-form-hint-sub">AND and OR, with parentheses. Quote a phrase that contains spaces.</span>
                 </div>
               </div>
 
@@ -364,6 +396,7 @@ export function KafkaTopicDetailPanel({ detail, loading, error, browser }: Kafka
                 </div>
               </div>
             </div>
+            </div>
 
             <div className="kafka-ms-action-row">
               <button className="kafka-ms-primary-btn" disabled={browser.loading} onClick={handleConsume} data-testid="detail-consume-btn">
@@ -385,12 +418,26 @@ export function KafkaTopicDetailPanel({ detail, loading, error, browser }: Kafka
               <div className="kafka-ms-results-zone" data-testid="detail-results">
                 <div className="kafka-ms-results-header">
                   <span className="kafka-ms-results-count">
-                    {browser.messageCount} message{browser.messageCount !== 1 ? 's' : ''}
+                    {formatStreamCountLabel(browser.messageCount, filteredRows.length, resultSearchActive)}
                   </span>
                   {browser.timedOut && <span className="kafka-ms-timed-out-badge">timed out</span>}
+                  {browser.messageCount > 0 && (
+                    <KafkaResultSearchBar
+                      value={resultSearch}
+                      onChange={setResultSearch}
+                      caseSensitive={resultSearchCaseSensitive}
+                      onCaseSensitiveChange={setResultSearchCaseSensitive}
+                      idPrefix="detail-result"
+                      placeholder='id OR "priority"'
+                    />
+                  )}
                 </div>
                 {browser.messageCount === 0 ? (
                   <p className="kafka-ms-empty-state">No messages received</p>
+                ) : filteredRows.length === 0 ? (
+                  <p className="kafka-ms-empty-state" data-testid="detail-result-search-empty">
+                    No messages match “{resultSearch.trim()}”
+                  </p>
                 ) : (
                   <div className="kafka-ms-results-table-wrap">
                     <table className="kafka-ms-results-table">
@@ -398,15 +445,15 @@ export function KafkaTopicDetailPanel({ detail, loading, error, browser }: Kafka
                         <tr><th>#</th><th>Offset</th><th>Partition</th><th>Timestamp</th><th>Key</th><th>Value</th></tr>
                       </thead>
                       <tbody>
-                        {browser.result.map((row, idx) => (
+                        {filteredRows.map(({ row, index }) => (
                           <tr
                             key={`${row.partition}-${row.offset}`}
-                            className={browser.selectedIndex === idx ? 'selected' : ''}
-                            onClick={() => browser.selectMessage(browser.selectedIndex === idx ? null : idx)}
+                            className={browser.selectedIndex === index ? 'selected' : ''}
+                            onClick={() => browser.selectMessage(browser.selectedIndex === index ? null : index)}
                             style={{ cursor: 'pointer' }}
-                            data-testid={`detail-row-${idx}`}
+                            data-testid={`detail-row-${index}`}
                           >
-                            <td>{idx + 1}</td>
+                            <td>{index + 1}</td>
                             <td>{row.offset}</td>
                             <td>{row.partition}</td>
                             <td>{formatTimestamp(row.timestamp)}</td>

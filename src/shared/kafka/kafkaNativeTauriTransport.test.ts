@@ -88,11 +88,11 @@ describe('kafkaNativeTauriTransport — command name routing', () => {
   it('topic-detail invokes kafka_topic_detail with the topic from the path', async () => {
     invokeMock.mockResolvedValue(okEnvelope('topic-detail'));
     await kafkaNativeTauriTransport(makeRequest('topic-detail', 'GET', {
-      path: '/api/kafka/topics/221498-ons-retail-enrollment-event/detail',
+      path: '/api/kafka/topics/orders.events/detail',
       query: { clusterId: 'abc' },
     }));
     expect(invokeMock).toHaveBeenCalledWith('kafka_topic_detail', {
-      topicName: '221498-ons-retail-enrollment-event',
+      topicName: 'orders.events',
       clusterId: 'abc',
     });
   });
@@ -112,11 +112,11 @@ describe('kafkaNativeTauriTransport — command name routing', () => {
   it('topic-groups invokes kafka_topic_groups with the topic from the path', async () => {
     invokeMock.mockResolvedValue(okEnvelope('topic-groups'));
     await kafkaNativeTauriTransport(makeRequest('topic-groups', 'GET', {
-      path: '/api/kafka/topics/221498-ons-retail-enrollment-event/groups',
+      path: '/api/kafka/topics/orders.events/groups',
       query: { clusterId: 'abc' },
     }));
     expect(invokeMock).toHaveBeenCalledWith('kafka_topic_groups', {
-      topicName: '221498-ons-retail-enrollment-event',
+      topicName: 'orders.events',
       clusterId: 'abc',
     });
   });

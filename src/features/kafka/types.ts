@@ -32,6 +32,10 @@ export interface KafkaPublishDraft {
   acks: -1 | 0 | 1;
   timeoutMs: string;
   headers: KafkaHeaderRow[];
+  /** Headers removed by Delete headers, kept so Restore headers can put them back. */
+  deletedHeaders?: KafkaHeaderRow[];
+  /** False when the header list is shrunk. Missing means expanded. */
+  headersExpanded?: boolean;
   body: string;
   /** Encoding format for the message body. Default: 'json'. */
   bodyFormat: KafkaSerdeFormat;

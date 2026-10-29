@@ -6,12 +6,14 @@ import type { KafkaClusterConfig } from './kafkaConfig';
 import {
   KAFKA_AUTO_CONNECT_ON_STARTUP_KEY,
   KAFKA_CLUSTERS_KEY,
+  KAFKA_CONSUME_FORMS_KEY,
   KAFKA_CONSUME_TEMPLATES_KEY,
   KAFKA_CONSUME_TOPICS_KEY,
   KAFKA_PUBLISH_TEMPLATES_KEY,
   KAFKA_SELECTED_CLUSTER_KEY,
   loadKafkaAutoConnectOnStartup,
   loadKafkaClusters,
+  loadKafkaConsumeForm,
   loadKafkaConsumeTemplates,
   loadKafkaConsumeTopic,
   loadKafkaPublishTemplates,
@@ -219,6 +221,43 @@ describe('kafkaStorage — desktop migration', () => {
       KAFKA_CONSUME_TEMPLATES_KEY,
       expect.any(String),
     );
+  });
+
+  it('imports consume forms from webview localStorage', async () => {
+    localStorage.setItem(KAFKA_CONSUME_FORMS_KEY, JSON.stringify({
+      prod: {
+        topic: ' orders ',
+        groupId: ' g ',
+        startPosition: 'earliest',
+        timeoutMs: ' 10 ',
+        maxMessages: ' 5 ',
+        bodyContains: 'open',
+        sortOrder: 'desc',
+        schemaConfig: {
+          registryUrl: 'http://schema',
+          format: 'avro',
+          subject: 'orders-value',
+          version: 3,
+          auth: { username: 'user', password: 'secret' },
+        },
+      },
+    }));
+
+    const saved = await loadKafkaConsumeForm('prod');
+
+    expect(saved?.topic).toBe('orders');
+    expect(saved?.schemaConfig?.subject).toBe('orders-value');
+    expect(saved?.schemaConfig?.version).toBe(3);
+    expect(saved?.schemaConfig?.auth?.username).toBe('user');
+    expect(writeKeyMock).toHaveBeenCalledWith(KAFKA_CONSUME_FORMS_KEY, expect.any(String));
+    expect(localStorage.getItem(KAFKA_CONSUME_FORMS_KEY)).toBeNull();
+  });
+
+  it('does not rewrite consume forms when the imported payload has none', async () => {
+    localStorage.setItem(KAFKA_CONSUME_FORMS_KEY, '[]');
+
+    expect(await loadKafkaConsumeForm('prod')).toBeNull();
+    expect(writeKeyMock).not.toHaveBeenCalledWith(KAFKA_CONSUME_FORMS_KEY, expect.any(String));
   });
 
   it('imports consume topics from webview localStorage', async () => {

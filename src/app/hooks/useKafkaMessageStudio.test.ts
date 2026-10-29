@@ -4,7 +4,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useKafkaMessageStudio } from './useKafkaMessageStudio';
-import { loadKafkaConsumeTopic, saveKafkaConsumeTopic } from '@shared/kafka/kafkaStorage';
+import { loadKafkaConsumeForm, loadKafkaConsumeTopic, loadKafkaPublishForm, saveKafkaConsumeForm, saveKafkaConsumeTopic, saveKafkaPublishForm } from '@shared/kafka/kafkaStorage';
 import type { UseKafkaStateReturn } from './useKafkaState';
 import type { KafkaEnvelope } from '@shared/kafka/kafkaClient';
 
@@ -105,6 +105,30 @@ describe('setConsumeDraft', () => {
     expect(result.current.consumeDraft.startPosition).toBe('latest'); // unchanged
   });
 
+  it('restores the publish form after a restart and keeps later edits', async () => {
+    await saveKafkaPublishForm('cluster-a', {
+      topic: '221498-ons-retail-enrollment-event',
+      key: 'order-1',
+      keyFormat: 'string',
+      partition: '',
+      acks: -1,
+      timeoutMs: '30000',
+      headers: [{ id: 'h-1', key: 'application.name', value: 'ons-enrollment-core', enabled: true }],
+      body: '{"messagingMode":"PRODUCTION"}',
+      bodyFormat: 'json',
+    });
+    const { result } = renderHook(() => useKafkaMessageStudio(makeKafkaState()));
+    await waitFor(() => {
+      expect(result.current.publishDraft.topic).toBe('221498-ons-retail-enrollment-event');
+    });
+    expect(result.current.publishDraft.headers[0]?.key).toBe('application.name');
+    expect(result.current.publishDraft.body).toContain('PRODUCTION');
+    act(() => { result.current.setPublishDraft({ body: '{"messagingMode":"TEST"}' }); });
+    await waitFor(async () => {
+      expect((await loadKafkaPublishForm('cluster-a'))?.body).toBe('{"messagingMode":"TEST"}');
+    });
+  });
+
   it('restores the consume topic after a restart', async () => {
     await saveKafkaConsumeTopic('cluster-a', '222043-sales-offer');
     const { result } = renderHook(() =>
@@ -127,21 +151,87 @@ describe('setConsumeDraft', () => {
   });
 
   it('keeps a topic typed before the saved value loads', async () => {
-    let release: (topic: string) => void = () => {};
-    const pending = new Promise<string>((resolve) => { release = resolve; });
+    let release: (saved: Awaited<ReturnType<typeof loadKafkaConsumeForm>>) => void = () => {};
+    const pending = new Promise<Awaited<ReturnType<typeof loadKafkaConsumeForm>>>((resolve) => { release = resolve; });
     const storage = await import('@shared/kafka/kafkaStorage');
-    const load = vi.spyOn(storage, 'loadKafkaConsumeTopic').mockReturnValue(pending);
+    const load = vi.spyOn(storage, 'loadKafkaConsumeForm').mockReturnValue(pending);
     const { result } = renderHook(() =>
       useKafkaMessageStudio(makeKafkaState()),
     );
     act(() => { result.current.setConsumeDraft({ topic: 'typed-first' }); });
     await act(async () => {
-      release('saved-topic');
+      release({
+        topic: 'saved-topic',
+        groupId: '',
+        startPosition: 'latest',
+        timeoutMs: '',
+        maxMessages: '',
+        keyEquals: '',
+        headerMatch: '',
+        jsonPath: '$.saved',
+        jsonPathEquals: 'saved',
+        bodyContains: 'saved',
+        sortOrder: 'asc',
+      });
     });
+    try {
+      await waitFor(() => {
+        expect(result.current.consumeDraft.topic).toBe('typed-first');
+        expect(result.current.consumeDraft.jsonPath).toBe('');
+      });
+    } finally {
+      load.mockRestore();
+    }
+  });
+
+  it('restores consume filters after a restart', async () => {
+    await saveKafkaConsumeForm('cluster-a', {
+      topic: 'orders.events',
+      groupId: 'redfireforge-debug-kept',
+      startPosition: 'earliest',
+      timeoutMs: '100000',
+      maxMessages: '500',
+      keyEquals: 'order-1',
+      headerMatch: 'source=hub',
+      jsonPath: '$.event.header.name',
+      jsonPathEquals: 'OrderCreated',
+      bodyContains: 'status',
+      sortOrder: 'desc',
+    });
+    const { result } = renderHook(() =>
+      useKafkaMessageStudio(makeKafkaState()),
+    );
     await waitFor(() => {
-      expect(result.current.consumeDraft.topic).toBe('typed-first');
+      expect(result.current.consumeDraft.jsonPath).toBe('$.event.header.name');
     });
-    load.mockRestore();
+    expect(result.current.consumeDraft.jsonPathEquals).toBe('OrderCreated');
+    expect(result.current.consumeDraft.bodyContains).toBe('status');
+    expect(result.current.consumeDraft.headerMatch).toBe('source=hub');
+    expect(result.current.consumeDraft.keyEquals).toBe('order-1');
+    expect(result.current.consumeDraft.groupId).toBe('redfireforge-debug-kept');
+    expect(result.current.consumeDraft.startPosition).toBe('earliest');
+    expect(result.current.consumeDraft.maxMessages).toBe('500');
+    expect(result.current.consumeDraft.sortOrder).toBe('desc');
+  });
+
+  it('saves consume filters for the selected cluster', async () => {
+    const { result } = renderHook(() =>
+      useKafkaMessageStudio(makeKafkaState()),
+    );
+    await waitFor(() => expect(result.current.consumeDraft.topic).toBe(''));
+    act(() => {
+      result.current.setConsumeDraft({
+        jsonPath: '$.event.header.name',
+        jsonPathEquals: 'OrderCreated',
+        bodyContains: 'status',
+      });
+    });
+    await waitFor(async () => {
+      const saved = await loadKafkaConsumeForm('cluster-a');
+      expect(saved?.jsonPath).toBe('$.event.header.name');
+      expect(saved?.jsonPathEquals).toBe('OrderCreated');
+      expect(saved?.bodyContains).toBe('status');
+    });
   });
 
   it('loads the topic for a newly selected cluster', async () => {
@@ -262,6 +352,19 @@ describe('sendOnce', () => {
     act(() => { result.current.setPublishDraft({ body: '{}', topic: 't' }); });
     await act(async () => { await result.current.sendOnce(); });
     expect(result.current.publishError).toBeNull();
+  });
+
+  it('sends JSON after replacing a smart quote', async () => {
+    const dispatch = makeDispatch(okEnvelope({ topic: 't', sentCount: 1, records: [] }));
+    const { result } = renderHook(() =>
+      useKafkaMessageStudio(makeKafkaState(), { dispatch }),
+    );
+    act(() => { result.current.setPublishDraft({ topic: 't', body: '{"dsMode":\u201dTEMPORAL"}' }); });
+    await act(async () => { await result.current.sendOnce(); });
+    expect(result.current.publishError).toBeNull();
+    expect(dispatch).toHaveBeenCalledWith('produce', expect.objectContaining({
+      messages: [expect.objectContaining({ value: '{"dsMode":"TEMPORAL"}' })],
+    }));
   });
 
   it('rejects invalid JSON body before sending', async () => {

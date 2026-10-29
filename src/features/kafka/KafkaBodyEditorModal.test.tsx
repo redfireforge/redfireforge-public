@@ -137,11 +137,138 @@ describe('KafkaBodyEditorModal', () => {
 
     const searchInput = screen.getByLabelText('Search body content');
     await user.type(searchInput, 'apple');
-    expect(screen.getByText('0/2')).toBeInTheDocument();
+    expect(screen.getByText('1/2')).toBeInTheDocument();
+    expect(screen.getByTestId('kbe-search-current')).toHaveTextContent('apple');
 
     await user.click(screen.getByLabelText('Clear search'));
     expect(searchInput).toHaveValue('');
     expect(screen.queryByText('1/2')).not.toBeInTheDocument();
+  });
+
+  it('highlights the current match and moves to the next one', async () => {
+    const user = userEvent.setup();
+    render(
+      <KafkaBodyEditorModal
+        value={'apple\nbanana\napple'}
+        onChange={vi.fn()}
+        onClose={vi.fn()}
+        format="text"
+      />,
+    );
+
+    const textarea = screen.getByLabelText('Message body content') as HTMLTextAreaElement;
+    const select = vi.spyOn(HTMLTextAreaElement.prototype, 'setSelectionRange');
+    await user.type(screen.getByLabelText('Search body content'), 'apple');
+    expect(screen.getByTestId('kbe-search-current')).toHaveTextContent('apple');
+    expect(select).not.toHaveBeenCalled();
+    expect(textarea.selectionStart).toBe(textarea.selectionEnd);
+
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.getByText('2/2')).toBeInTheDocument();
+    expect(screen.getByTestId('kbe-search-current')).toHaveTextContent('apple');
+    expect(select).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'Previous' }));
+    expect(screen.getByText('1/2')).toBeInTheDocument();
+    select.mockRestore();
+  });
+
+  it('keeps an edited character instead of replacing the highlighted match', () => {
+    const select = vi.spyOn(HTMLTextAreaElement.prototype, 'setSelectionRange');
+    render(
+      <KafkaBodyEditorModal
+        value="apple pie"
+        onChange={vi.fn()}
+        onClose={vi.fn()}
+        format="text"
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('Search body content'), { target: { value: 'apple' } });
+    select.mockClear();
+    const area = screen.getByLabelText('Message body content');
+    fireEvent.change(area, { target: { value: 'apXple pie' } });
+    expect(area).toHaveValue('apXple pie');
+    expect(screen.queryByTestId('kbe-search-current')).toBeNull();
+    expect(select).not.toHaveBeenCalled();
+    select.mockRestore();
+  });
+
+  it('scrolls the current match into view and steps with Enter', async () => {
+    const user = userEvent.setup();
+    render(
+      <KafkaBodyEditorModal
+        value={'apple\nbanana\napple'}
+        onChange={vi.fn()}
+        onClose={vi.fn()}
+        format="text"
+      />,
+    );
+
+    const search = screen.getByLabelText('Search body content');
+    const textarea = screen.getByLabelText('Message body content') as HTMLTextAreaElement;
+    await user.type(search, 'apple');
+
+    const box = (values: Partial<DOMRect>): DOMRect => ({
+      top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0, toJSON: () => ({}),
+      ...values,
+    });
+    const proto = HTMLElement.prototype.getBoundingClientRect;
+    const spy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (this.classList.contains('kbe-textarea')) {
+        return box({ right: 120, bottom: 40, width: 120, height: 40 });
+      }
+      if (this.tagName === 'MARK') {
+        return box({ top: 90, left: -10, right: 240, bottom: 110, width: 250, height: 20 });
+      }
+      return proto.call(this);
+    });
+
+    try {
+      await user.click(screen.getByRole('button', { name: 'Next' }));
+      expect(textarea.scrollTop).toBeGreaterThan(0);
+      expect(textarea.scrollLeft).toBeLessThan(0);
+      fireEvent.scroll(textarea);
+      expect(document.querySelector('.kbe-highlight')?.getAttribute('style')).toContain('translate');
+
+      spy.mockImplementation(function (this: HTMLElement) {
+        if (this.classList.contains('kbe-textarea')) {
+          return box({ right: 400, bottom: 80, width: 400, height: 80 });
+        }
+        if (this.tagName === 'MARK') {
+          return box({ top: 10, left: 80, right: 140, bottom: 30, width: 60, height: 20 });
+        }
+        return proto.call(this);
+      });
+      const scrollLeft = textarea.scrollLeft;
+      await user.click(screen.getByRole('button', { name: 'Next' }));
+      expect(textarea.scrollLeft).toBe(scrollLeft);
+
+      fireEvent.keyDown(search, { key: 'Enter', shiftKey: true });
+      expect(screen.getByText('2/2')).toBeInTheDocument();
+      fireEvent.keyDown(search, { key: 'Enter' });
+      expect(screen.getByText('1/2')).toBeInTheDocument();
+      await user.clear(search);
+      fireEvent.keyDown(search, { key: 'Enter' });
+      expect(screen.queryByText('2/2')).not.toBeInTheDocument();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('replaces a smart quote while editing JSON', () => {
+    render(
+      <KafkaBodyEditorModal
+        value='{"dsMode":"EC"}'
+        onChange={vi.fn()}
+        onClose={vi.fn()}
+        format="json"
+      />,
+    );
+    fireEvent.change(screen.getByLabelText('Message body content'), {
+      target: { value: '{"dsMode":\u201dTEMPORAL"}' },
+    });
+    expect(screen.getByLabelText('Message body content')).toHaveValue('{"dsMode":"TEMPORAL"}');
   });
 
   it('closes only when clicking overlay itself', async () => {
