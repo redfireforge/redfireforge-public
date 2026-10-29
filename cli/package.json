@@ -1,6 +1,6 @@
 {
   "name": "redfireforge-cli",
-  "version": "0.8.19",
+  "version": "0.8.20",
   "description": "RedfireForge CLI — API Performance Testing from the Command Line",
   "keywords": [
     "api",
