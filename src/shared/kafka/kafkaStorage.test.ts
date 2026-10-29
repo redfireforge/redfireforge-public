@@ -494,10 +494,16 @@ describe('kafkaStorage – consume topic', () => {
       ],
       body: '{"ok":true}',
       bodyFormat: 'json',
+      headersExpanded: false,
+      deletedHeaders: [{ id: 'h-del', key: 'old', value: '1', enabled: true }],
       schemaConfig: { registryUrl: 'http://schema', format: 'avro' },
     });
     const saved = await loadKafkaPublishForm('cluster-a');
     expect(saved?.topic).toBe('orders.events');
+    expect(saved?.headersExpanded).toBe(false);
+    expect(saved?.deletedHeaders).toEqual([
+      { id: 'h-del', key: 'old', value: '1', enabled: true },
+    ]);
     expect(saved?.headers).toEqual([
       { id: 'h-1', key: 'application.name', value: 'ons-enrollment-core', enabled: true },
     ]);
@@ -526,6 +532,7 @@ describe('kafkaStorage – consume topic', () => {
     expect(saved?.headers).toEqual([
       { id: 'h-restored-0', key: 'trace', value: '12', enabled: false },
     ]);
+    expect(saved?.headersExpanded).toBeUndefined();
     expect(await loadKafkaPublishForm('cluster-b')).toBeNull();
     localStorage.setItem('perf-test-kafka-publish-forms-v1', 'not-json');
     expect(await loadKafkaPublishForm('cluster-a')).toBeNull();
