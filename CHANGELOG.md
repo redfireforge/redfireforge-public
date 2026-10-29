@@ -8,6 +8,9 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Added
+- **Kafka Consumer Groups** — Topics → Consumer Groups opens with a count of how many times each group ID appears, then the existing detail table. Each section can shrink or expand on its own.
+
 ## [0.8.19] — 2026-10-27
 
 ### Fixed
