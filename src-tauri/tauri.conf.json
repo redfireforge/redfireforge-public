@@ -7,7 +7,7 @@
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
     "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build:prod && npm run build:sidecar"
+    "beforeBuildCommand": "node scripts/stage-kafkajs-resource.mjs && npm run build:prod && npm run build:sidecar"
   },
   "app": {
     "withGlobalTauri": true,
@@ -46,7 +46,8 @@
       "icons/icon.ico"
     ],
     "resources": [
-      "../cli/dist/redfireforge.mjs"
+      "../cli/dist/redfireforge.mjs",
+      "resources/event-hubs/**/*"
     ],
     "externalBin": [
       "binaries/redfireforge-companion"
