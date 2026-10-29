@@ -221,6 +221,45 @@ describe('KafkaTopicDetailPanel', () => {
     expect(screen.getByText('Dead').className).toContain('kafka-cg-state-grey');
   });
 
+  it('consumer groups tab: counts repeated group ids and shrinks each section', () => {
+    const detail = makeDetail({
+      consumerGroups: [
+        { groupId: 'shadow', state: 'Stable', totalLag: 0 },
+        { groupId: 'shadow', state: 'Stable', totalLag: 0 },
+        { groupId: 'billing', state: 'Stable', totalLag: 4 },
+      ],
+    });
+    render(
+      <KafkaTopicDetailPanel
+        detail={detail}
+        loading={false}
+        error={null}
+        browser={makeBrowser()}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Consumer Groups' }));
+
+    const counts = screen.getByTestId('cg-counts');
+    expect(counts.textContent).toContain('Same group IDs');
+    expect(counts.textContent).toContain('2');
+    const rows = screen.getAllByTestId('cg-count-row');
+    expect(rows[0].textContent).toContain('shadow');
+    expect(rows[0].textContent).toContain('2');
+    expect(rows[1].textContent).toContain('billing');
+    expect(rows[1].textContent).toContain('1');
+    expect(screen.getByTestId('cg-detail').textContent).toContain('Detail');
+    expect(screen.getAllByText('shadow')).toHaveLength(3);
+
+    fireEvent.click(screen.getByTestId('cg-counts-toggle'));
+    expect(screen.getByTestId('cg-counts').querySelector('.is-shrunk')).toBeTruthy();
+    expect(screen.queryAllByTestId('cg-count-row')).toHaveLength(0);
+    expect(screen.getByTestId('cg-counts-toggle').textContent).toContain('Expand');
+
+    fireEvent.click(screen.getByTestId('cg-detail-toggle'));
+    expect(screen.getByTestId('cg-detail').querySelector('.is-shrunk')).toBeTruthy();
+    expect(screen.getByTestId('cg-detail-toggle').textContent).toContain('Expand');
+  });
+
   it('consumer groups tab: empty state when length === 0', () => {
     render(
       <KafkaTopicDetailPanel

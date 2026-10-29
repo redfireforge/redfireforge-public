@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { CustomSelect } from '@shared/components/CustomSelect';
 import type { KafkaTopicDetail } from './useTopicExplorer';
 import type { UseTopicMessageBrowserReturn } from './useTopicMessageBrowser';
@@ -48,8 +48,67 @@ function stateColor(state: string): string {
   return 'kafka-cg-state-grey';
 }
 
+function countConsumerGroups(groups: KafkaTopicDetail['consumerGroups']): { groupId: string; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const group of groups) {
+    counts.set(group.groupId, (counts.get(group.groupId) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([groupId, count]) => ({ groupId, count }))
+    .sort((left, right) => right.count - left.count || left.groupId.localeCompare(right.groupId));
+}
+
+function GroupSection({
+  title,
+  countLabel,
+  open,
+  onToggle,
+  controlsId,
+  testId,
+  children,
+}: {
+  title: string;
+  countLabel: string;
+  open: boolean;
+  onToggle: () => void;
+  controlsId: string;
+  testId: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="kafka-cg-section" data-testid={testId}>
+      <div className="kafka-cg-section-header">
+        <span className="kafka-ms-section-title">
+          {title}
+          <span className="kafka-ms-section-count">{countLabel}</span>
+        </span>
+        <button
+          type="button"
+          className="kafka-ms-collapse-btn"
+          onClick={onToggle}
+          aria-expanded={open}
+          aria-controls={controlsId}
+          data-testid={`${testId}-toggle`}
+        >
+          {open ? 'Shrink' : 'Expand'}
+          <span className={`kafka-ms-collapse-chevron${open ? '' : ' collapsed'}`} aria-hidden="true">▾</span>
+        </button>
+      </div>
+      <div id={controlsId} className={open ? 'kafka-cg-section-body' : 'kafka-cg-section-body is-shrunk'}>
+        {open ? children : null}
+      </div>
+    </section>
+  );
+}
+
 export function KafkaTopicDetailPanel({ detail, loading, error, browser }: KafkaTopicDetailPanelProps) {
   const [tab, setTab] = useState<DetailTab>('messages');
+  const [groupCountsOpen, setGroupCountsOpen] = useState(true);
+  const [groupDetailOpen, setGroupDetailOpen] = useState(true);
+  const groupCounts = useMemo(
+    () => countConsumerGroups(detail?.consumerGroups ?? []),
+    [detail?.consumerGroups],
+  );
 
   const selectedTimeWindow = useMemo(
     () => TIME_WINDOW_OPTIONS.find((option) => option.value === browser.draft.timeWindow)?.value ?? 'latest',
@@ -423,20 +482,53 @@ export function KafkaTopicDetailPanel({ detail, loading, error, browser }: Kafka
             ) : detail.consumerGroups.length === 0 ? (
               <p className="kafka-ms-empty-state">No consumer groups found for this topic.</p>
             ) : (
-              <table className="kafka-consumer-group-table">
-                <thead>
-                  <tr><th>Group ID</th><th>State</th><th>Total Lag</th></tr>
-                </thead>
-                <tbody>
-                  {detail.consumerGroups.map((g) => (
-                    <tr key={g.groupId}>
-                      <td>{g.groupId}</td>
-                      <td><span className={`kafka-cg-state-badge ${stateColor(g.state)}`}>{g.state}</span></td>
-                      <td className={g.totalLag > 0 ? 'kafka-lag-amber' : 'kafka-lag-green'}>{formatNumber(g.totalLag)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="kafka-cg-sections">
+                <GroupSection
+                  title="Same group IDs"
+                  countLabel={formatNumber(groupCounts.length)}
+                  open={groupCountsOpen}
+                  onToggle={() => setGroupCountsOpen((open) => !open)}
+                  controlsId="kafka-cg-counts-body"
+                  testId="cg-counts"
+                >
+                  <table className="kafka-consumer-group-table">
+                    <thead>
+                      <tr><th>Group ID</th><th>Count</th></tr>
+                    </thead>
+                    <tbody>
+                      {groupCounts.map((row) => (
+                        <tr key={row.groupId} data-testid="cg-count-row">
+                          <td>{row.groupId}</td>
+                          <td>{formatNumber(row.count)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </GroupSection>
+                <GroupSection
+                  title="Detail"
+                  countLabel={formatNumber(detail.consumerGroups.length)}
+                  open={groupDetailOpen}
+                  onToggle={() => setGroupDetailOpen((open) => !open)}
+                  controlsId="kafka-cg-detail-body"
+                  testId="cg-detail"
+                >
+                  <table className="kafka-consumer-group-table">
+                    <thead>
+                      <tr><th>Group ID</th><th>State</th><th>Total Lag</th></tr>
+                    </thead>
+                    <tbody>
+                      {detail.consumerGroups.map((g, index) => (
+                        <tr key={`${g.groupId}-${index}`}>
+                          <td>{g.groupId}</td>
+                          <td><span className={`kafka-cg-state-badge ${stateColor(g.state)}`}>{g.state}</span></td>
+                          <td className={g.totalLag > 0 ? 'kafka-lag-amber' : 'kafka-lag-green'}>{formatNumber(g.totalLag)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </GroupSection>
+              </div>
             )}
           </div>
         )}
