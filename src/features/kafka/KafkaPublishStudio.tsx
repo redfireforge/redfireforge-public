@@ -44,14 +44,34 @@ export function KafkaPublishStudio({
   const { update: updateHeader, remove: removeHeader, move: moveHeader } =
     useListCrud(publishDraft.headers, (items) => setPublishDraft({ headers: items }));
 
+  const deleteHeaders = useCallback(() => {
+    if (publishDraft.headers.length === 0) return;
+    setPublishDraft({
+      headers: [],
+      deletedHeaders: publishDraft.headers,
+    });
+    setHeaderPasteError(null);
+  }, [publishDraft.headers, setPublishDraft]);
+
+  const restoreHeaders = useCallback(() => {
+    const deleted = publishDraft.deletedHeaders ?? [];
+    if (deleted.length === 0) return;
+    setPublishDraft({
+      headers: deleted,
+      deletedHeaders: [],
+      headersExpanded: true,
+    });
+    setHeaderPasteError(null);
+  }, [publishDraft.deletedHeaders, setPublishDraft]);
+
   const addHeader = useCallback(() => {
     setPublishDraft({
       headers: [
         ...publishDraft.headers,
         { id: `h-${Date.now()}`, key: '', value: '', enabled: true },
       ],
+      headersExpanded: true,
     });
-    setHeadersExpanded(true);
   }, [publishDraft.headers, setPublishDraft]);
 
   const pasteHeaders = useCallback(async () => {
@@ -70,9 +90,9 @@ export function KafkaPublishStudio({
           value: row.value,
           enabled: true,
         })),
+        headersExpanded: true,
       });
       setHeaderPasteError(null);
-      setHeadersExpanded(true);
     } catch {
       setHeaderPasteError('Could not read the clipboard.');
     }
@@ -81,7 +101,7 @@ export function KafkaPublishStudio({
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [decodePreview, setDecodePreview] = useState<{ text: string; ok: boolean } | null>(null);
   const [bodyEditorOpen, setBodyEditorOpen] = useState(false);
-  const [headersExpanded, setHeadersExpanded] = useState(true);
+  const headersExpanded = publishDraft.headersExpanded !== false;
   const [headerPasteError, setHeaderPasteError] = useState<string | null>(null);
   const topicEmpty = publishDraft.topic.trim() === '';
   const bodyEmpty = publishDraft.body.trim() === '';
@@ -281,7 +301,7 @@ export function KafkaPublishStudio({
               <button
                 type="button"
                 className="kafka-ms-collapse-btn"
-                onClick={() => setHeadersExpanded((open) => !open)}
+                onClick={() => setPublishDraft({ headersExpanded: !headersExpanded })}
                 aria-expanded={headersExpanded}
                 aria-controls="kafka-pub-headers-body"
                 data-testid="pub-headers-toggle"
@@ -298,6 +318,27 @@ export function KafkaPublishStudio({
               >
                 Paste
               </button>
+              <button
+                type="button"
+                className="kafka-ms-add-btn kafka-ms-delete-headers-btn"
+                onClick={deleteHeaders}
+                disabled={publishDraft.headers.length === 0}
+                title="Delete all headers"
+                data-testid="pub-delete-headers"
+              >
+                Delete headers
+              </button>
+              {(publishDraft.deletedHeaders?.length ?? 0) > 0 && (
+                <button
+                  type="button"
+                  className="kafka-ms-add-btn"
+                  onClick={restoreHeaders}
+                  title="Put the deleted headers back"
+                  data-testid="pub-restore-headers"
+                >
+                  Restore headers
+                </button>
+              )}
               <button
                 className="kafka-ms-add-btn"
                 onClick={addHeader}
