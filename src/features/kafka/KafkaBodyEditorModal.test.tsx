@@ -256,6 +256,21 @@ describe('KafkaBodyEditorModal', () => {
     }
   });
 
+  it('replaces a smart quote while editing JSON', () => {
+    render(
+      <KafkaBodyEditorModal
+        value='{"dsMode":"EC"}'
+        onChange={vi.fn()}
+        onClose={vi.fn()}
+        format="json"
+      />,
+    );
+    fireEvent.change(screen.getByLabelText('Message body content'), {
+      target: { value: '{"dsMode":\u201dTEMPORAL"}' },
+    });
+    expect(screen.getByLabelText('Message body content')).toHaveValue('{"dsMode":"TEMPORAL"}');
+  });
+
   it('closes only when clicking overlay itself', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();

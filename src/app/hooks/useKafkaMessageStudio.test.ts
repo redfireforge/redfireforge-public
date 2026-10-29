@@ -354,6 +354,19 @@ describe('sendOnce', () => {
     expect(result.current.publishError).toBeNull();
   });
 
+  it('sends JSON after replacing a smart quote', async () => {
+    const dispatch = makeDispatch(okEnvelope({ topic: 't', sentCount: 1, records: [] }));
+    const { result } = renderHook(() =>
+      useKafkaMessageStudio(makeKafkaState(), { dispatch }),
+    );
+    act(() => { result.current.setPublishDraft({ topic: 't', body: '{"dsMode":\u201dTEMPORAL"}' }); });
+    await act(async () => { await result.current.sendOnce(); });
+    expect(result.current.publishError).toBeNull();
+    expect(dispatch).toHaveBeenCalledWith('produce', expect.objectContaining({
+      messages: [expect.objectContaining({ value: '{"dsMode":"TEMPORAL"}' })],
+    }));
+  });
+
   it('rejects invalid JSON body before sending', async () => {
     const dispatch = vi.fn().mockResolvedValue(okEnvelope({}));
     const { result } = renderHook(() =>

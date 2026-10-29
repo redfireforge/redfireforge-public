@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  straightenJsonQuotes,
   validateAndFormatJson,
   validateBase64,
   validateHex,
@@ -92,6 +93,13 @@ describe('validateAndFormatJson', () => {
   it('returns ok:false for partial JSON', () => {
     const result = validateAndFormatJson('{"a":');
     expect(result.ok).toBe(false);
+  });
+
+  it('accepts a smart quote that macOS inserted before a JSON value', () => {
+    expect(straightenJsonQuotes('{"dsMode":\u201dTEMPORAL"}')).toBe('{"dsMode":"TEMPORAL"}');
+    const result = validateAndFormatJson('{"dsMode":\u201dTEMPORAL"}');
+    expect(result.ok).toBe(true);
+    expect(result.formatted).toBe('{\n  "dsMode": "TEMPORAL"\n}');
   });
 });
 

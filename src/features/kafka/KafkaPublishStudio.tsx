@@ -5,7 +5,7 @@ import KafkaSchemaConfigSection from '../workflow/components/configs/KafkaSchema
 import type { UseKafkaMessageStudioReturn } from '@app/hooks/useKafkaMessageStudio';
 import type { KafkaPublishTemplate } from '@shared/kafka/kafkaStorage';
 import type { KafkaSerdeFormat } from './types';
-import { validateBase64, validateHex } from './kafkaMessageStudioUtils';
+import { straightenJsonQuotes, validateBase64, validateHex } from './kafkaMessageStudioUtils';
 import { parseKafkaHeadersClipboard } from './kafkaHeaderClipboard';
 import { KafkaTemplateControls } from './KafkaTemplateControls';
 import { KafkaPublishBodySearch, KafkaPublishBodySearchBar, KafkaPublishBodySearchEditor } from './KafkaPublishBodySearch';
@@ -445,7 +445,12 @@ export function KafkaPublishStudio({
               : '{"key": "value"}'
             }
             value={publishDraft.body}
-            onChange={(e) => { setPublishDraft({ body: e.target.value }); setDecodePreview(null); }}
+            onChange={(e) => {
+              const format = publishDraft.bodyFormat ?? 'json';
+              const body = format === 'json' ? straightenJsonQuotes(e.target.value) : e.target.value;
+              setPublishDraft({ body });
+              setDecodePreview(null);
+            }}
             onBlur={() => setTouched((p) => ({ ...p, body: true }))}
           />
           </KafkaPublishBodySearchEditor>
