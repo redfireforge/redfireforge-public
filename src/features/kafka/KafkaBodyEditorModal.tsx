@@ -229,7 +229,11 @@ export default function KafkaBodyEditorModal({ value, onChange, onClose, format 
               onNext={() => revealMatch(1)}
               onClear={() => setSearchTerm('')}
               placeholder="Search body…"
-              className="kbe-search"
+              className="kbe-search kafka-ms-body-search"
+              inputClassName="kafka-ms-body-search-input"
+              countClassName="kafka-ms-body-search-count"
+              navClassName="kafka-ms-body-search-nav"
+              clearClassName="kafka-ms-body-search-clear"
               inputRef={searchInputRef}
               ariaLabel="Search body content"
               onKeyDown={(event) => {
