@@ -6,7 +6,9 @@ import type { UseKafkaMessageStudioReturn } from '@app/hooks/useKafkaMessageStud
 import type { KafkaPublishTemplate } from '@shared/kafka/kafkaStorage';
 import type { KafkaSerdeFormat } from './types';
 import { validateBase64, validateHex } from './kafkaMessageStudioUtils';
+import { parseKafkaHeadersClipboard } from './kafkaHeaderClipboard';
 import { KafkaTemplateControls } from './KafkaTemplateControls';
+import { KafkaPublishBodySearch, KafkaPublishBodySearchBar, KafkaPublishBodySearchEditor } from './KafkaPublishBodySearch';
 
 const KafkaBodyEditorModal = lazy(() => import('./KafkaBodyEditorModal'));
 
@@ -49,11 +51,38 @@ export function KafkaPublishStudio({
         { id: `h-${Date.now()}`, key: '', value: '', enabled: true },
       ],
     });
+    setHeadersExpanded(true);
   }, [publishDraft.headers, setPublishDraft]);
+
+  const pasteHeaders = useCallback(async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      const parsed = parseKafkaHeadersClipboard(text);
+      if (!parsed) {
+        setHeaderPasteError('Clipboard is not a header list. Copy headers from a message first.');
+        return;
+      }
+      const stamp = Date.now();
+      setPublishDraft({
+        headers: parsed.map((row, index) => ({
+          id: `h-paste-${stamp}-${index}`,
+          key: row.key,
+          value: row.value,
+          enabled: true,
+        })),
+      });
+      setHeaderPasteError(null);
+      setHeadersExpanded(true);
+    } catch {
+      setHeaderPasteError('Could not read the clipboard.');
+    }
+  }, [setPublishDraft]);
 
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [decodePreview, setDecodePreview] = useState<{ text: string; ok: boolean } | null>(null);
   const [bodyEditorOpen, setBodyEditorOpen] = useState(false);
+  const [headersExpanded, setHeadersExpanded] = useState(true);
+  const [headerPasteError, setHeaderPasteError] = useState<string | null>(null);
   const topicEmpty = publishDraft.topic.trim() === '';
   const bodyEmpty = publishDraft.body.trim() === '';
   const canSend = !topicEmpty && !publishLoading && connected;
@@ -242,15 +271,50 @@ export function KafkaPublishStudio({
         {/* ── Headers ── */}
         <div className="kafka-ms-section">
           <div className="kafka-ms-section-header">
-            <span className="kafka-ms-section-title">Headers</span>
-            <button
-              className="kafka-ms-add-btn"
-              onClick={addHeader}
-              title="Add header"
-            >
-              + Add
-            </button>
+            <span className="kafka-ms-section-title">
+              Headers
+              {publishDraft.headers.length > 0 && (
+                <span className="kafka-ms-section-count">{publishDraft.headers.length}</span>
+              )}
+            </span>
+            <span className="kafka-ms-section-actions">
+              <button
+                type="button"
+                className="kafka-ms-collapse-btn"
+                onClick={() => setHeadersExpanded((open) => !open)}
+                aria-expanded={headersExpanded}
+                aria-controls="kafka-pub-headers-body"
+                data-testid="pub-headers-toggle"
+              >
+                {headersExpanded ? 'Shrink' : 'Expand'}
+                <span className={`kafka-ms-collapse-chevron${headersExpanded ? '' : ' collapsed'}`} aria-hidden="true">▾</span>
+              </button>
+              <button
+                type="button"
+                className="kafka-ms-add-btn"
+                onClick={() => { void pasteHeaders(); }}
+                title="Paste copied headers and replace this list"
+                data-testid="pub-paste-headers"
+              >
+                Paste
+              </button>
+              <button
+                className="kafka-ms-add-btn"
+                onClick={addHeader}
+                title="Add header"
+              >
+                + Add
+              </button>
+            </span>
           </div>
+          <div
+            id="kafka-pub-headers-body"
+            className={`kafka-ms-headers-body${headersExpanded ? '' : ' is-shrunk'}`}
+            data-testid="pub-headers-body"
+          >
+          {headerPasteError && (
+            <p className="kafka-ms-empty-state" data-testid="pub-paste-headers-error">{headerPasteError}</p>
+          )}
           {publishDraft.headers.length === 0 ? (
             <p className="kafka-ms-empty-state">No custom headers configured</p>
           ) : (
@@ -297,12 +361,15 @@ export function KafkaPublishStudio({
               ))}
             </div>
           )}
+          </div>
         </div>
 
         {/* Body */}
         <div className="kafka-ms-field full">
+          <KafkaPublishBodySearch text={publishDraft.body}>
           <div className="kafka-ms-field-label-row">
             <label htmlFor="kms-pub-body">Message Body</label>
+            <KafkaPublishBodySearchBar />
             <div className="kafka-ms-field-label-actions">
               <button
                 type="button"
@@ -367,6 +434,7 @@ export function KafkaPublishStudio({
               )}
             </div>
           </div>
+          <KafkaPublishBodySearchEditor>
           <textarea
             id="kms-pub-body"
             className="kafka-ms-textarea"
@@ -380,6 +448,8 @@ export function KafkaPublishStudio({
             onChange={(e) => { setPublishDraft({ body: e.target.value }); setDecodePreview(null); }}
             onBlur={() => setTouched((p) => ({ ...p, body: true }))}
           />
+          </KafkaPublishBodySearchEditor>
+          </KafkaPublishBodySearch>
           {decodePreview && (
             <span
               className={`kafka-ms-decode-preview${decodePreview.ok ? '' : ' kafka-ms-decode-preview--error'}`}
