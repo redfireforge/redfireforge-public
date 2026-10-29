@@ -359,9 +359,9 @@ fn json_i64(value: Option<&Value>) -> Option<i64> {
     }
 }
 
-fn kafkajs_root() -> Option<PathBuf> {
-    let mut dir = std::env::current_dir().ok()?;
-    for _ in 0..6 {
+fn directory_with_kafkajs(start: PathBuf) -> Option<PathBuf> {
+    let mut dir = start;
+    for _ in 0..12 {
         if dir.join("node_modules").join("kafkajs").is_dir() {
             return Some(dir);
         }
@@ -372,8 +372,60 @@ fn kafkajs_root() -> Option<PathBuf> {
     None
 }
 
+fn kafkajs_root() -> Option<PathBuf> {
+    let mut starts = Vec::new();
+    if let Ok(cwd) = std::env::current_dir() {
+        starts.push(cwd);
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(bin_dir) = exe.parent() {
+            // Packaged app: Contents/MacOS/<binary> → Contents/Resources/event-hubs
+            if let Some(contents) = bin_dir.parent() {
+                let resources = contents.join("Resources");
+                starts.push(resources.join("event-hubs"));
+                // Tauri keeps the `resources/` prefix from the config path.
+                starts.push(resources.join("resources").join("event-hubs"));
+            }
+            starts.push(bin_dir.to_path_buf());
+        }
+    }
+    starts.into_iter().find_map(directory_with_kafkajs)
+}
+
+/// Finder launches have a short PATH, so Node from nvm or Homebrew is missed.
+fn node_binary() -> PathBuf {
+    if let Ok(path) = std::env::var("PATH") {
+        for dir in std::env::split_paths(&path) {
+            let candidate = dir.join(if cfg!(windows) { "node.exe" } else { "node" });
+            if candidate.is_file() {
+                return candidate;
+            }
+        }
+    }
+    for candidate in ["/opt/homebrew/bin/node", "/usr/local/bin/node"] {
+        let path = PathBuf::from(candidate);
+        if path.is_file() {
+            return path;
+        }
+    }
+    if let Some(home) = std::env::var_os("HOME") {
+        let nvm = PathBuf::from(home).join(".nvm/versions/node");
+        if let Ok(entries) = std::fs::read_dir(&nvm) {
+            let mut versions: Vec<_> = entries.filter_map(Result::ok).map(|entry| entry.path()).collect();
+            versions.sort();
+            if let Some(latest) = versions.into_iter().next_back() {
+                let node = latest.join("bin/node");
+                if node.is_file() {
+                    return node;
+                }
+            }
+        }
+    }
+    PathBuf::from("node")
+}
+
 fn run_kafkajs(root: &PathBuf, payload: &str, timeout_ms: u64) -> Result<String, String> {
-    let mut child = Command::new("node")
+    let mut child = Command::new(node_binary())
         .arg("-e")
         .arg(LOOKUP_SCRIPT)
         .current_dir(root)
@@ -492,6 +544,18 @@ mod tests {
         assert!(parse_offset_rows("not-json").is_err());
         assert!(parse_offset_rows("[]").unwrap_err().contains("no partitions"));
         assert!(parse_offset_rows(r#"[{"partition":"a"}]"#).is_err());
+    }
+
+    #[test]
+    fn finds_kafkajs_when_the_app_directory_is_not_the_repo() {
+        let root = std::env::temp_dir().join(format!("rff-kafkajs-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("Contents/Resources/event-hubs/node_modules/kafkajs")).unwrap();
+        let found = directory_with_kafkajs(root.join("Contents/MacOS"));
+        assert_eq!(found, None);
+        let found = directory_with_kafkajs(root.join("Contents/Resources/event-hubs"));
+        assert!(found.unwrap().join("node_modules/kafkajs").is_dir());
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

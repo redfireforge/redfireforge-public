@@ -13,6 +13,17 @@ Format follows Keep a Changelog and Semantic Versioning.
 - **Kafka body query and result search** — Body Contains accepts AND, OR, parentheses, and quoted phrases. Consume and Topics → Messages can search the rows already returned, and clearing that search shows the full result again. Consume keeps the filter form for the selected cluster. Topics → Messages can hide the filter form so the result list can grow.
 - **Kafka Consumer Groups** — Topics → Consumer Groups opens with a count of how many times each group ID appears, then the existing detail table. Each section can shrink or expand on its own.
 
+## [0.8.20] — 2026-10-29
+
+### Added
+- **Kafka Consumer Groups** — Topics → Consumer Groups opens with a count of how many times each group ID appears, then the existing detail table. Each section can shrink or expand on its own.
+
+## [0.8.19] — 2026-10-27
+
+### Fixed
+- **CI product tests** — CustomSelect method swatch tests assert inline colors via `element.style` so they pass with `@testing-library/jest-dom` 7.
+- **Event Hubs Consume Once** — The desktop app ships KafkaJS and uses it for Event Hubs offsets, including when the app is opened from Finder.
+
 ## [0.8.18] — 2026-10-20
 
 ### Fixed
