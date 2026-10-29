@@ -3007,6 +3007,19 @@ select.kafka-ms-form-select--fmt:focus,
   cursor: pointer;
 }
 .kafka-ms-add-btn:hover { background: rgba(255,255,255,0.07); }
+.kafka-ms-delete-headers-btn {
+  color: var(--danger, #f44336);
+  border-color: color-mix(in srgb, var(--danger, #f44336) 45%, var(--border));
+}
+.kafka-ms-delete-headers-btn:hover:not(:disabled) {
+  color: var(--danger, #f44336);
+  border-color: var(--danger, #f44336);
+  background: color-mix(in srgb, var(--danger, #f44336) 12%, transparent);
+}
+.kafka-ms-delete-headers-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 .kafka-ms-kv-list { display: flex; flex-direction: column; gap: 6px; }
 .kafka-ms-kv-row {
   display: grid;

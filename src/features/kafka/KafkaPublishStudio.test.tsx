@@ -459,22 +459,65 @@ describe('KafkaPublishStudio — Header Row Actions', () => {
       .toContain('Could not read the clipboard');
   });
 
+  it('deletes every header and keeps them for restore', () => {
+    const studio = renderWithHeader();
+    fireEvent.click(screen.getByTestId('pub-delete-headers'));
+    expect(studio.setPublishDraft).toHaveBeenCalledWith({
+      headers: [],
+      deletedHeaders: [{ id: 'h-1', key: 'x-env', value: 'prod', enabled: true }],
+    });
+  });
+
+  it('restores the headers removed by delete', () => {
+    const draft = {
+      ...basePublishDraft(),
+      headers: [],
+      deletedHeaders: [{ id: 'h-1', key: 'x-env', value: 'prod', enabled: true }],
+    };
+    const studio = makeStudio({ publishDraft: draft });
+    render(<KafkaPublishStudio studio={studio} clusterId="c" {...defaultTemplateProps()} />);
+    fireEvent.click(screen.getByTestId('pub-restore-headers'));
+    expect(studio.setPublishDraft).toHaveBeenCalledWith({
+      headers: [{ id: 'h-1', key: 'x-env', value: 'prod', enabled: true }],
+      deletedHeaders: [],
+      headersExpanded: true,
+    });
+  });
+
+  it('disables delete headers when the list is empty', () => {
+    render(<KafkaPublishStudio studio={makeStudio()} clusterId="c" {...defaultTemplateProps()} />);
+    expect(screen.getByTestId('pub-delete-headers').hasAttribute('disabled')).toBe(true);
+    expect(screen.queryByTestId('pub-restore-headers')).toBeNull();
+  });
+
   it('shrinks the header list so the message body stays in view', () => {
-    renderWithHeader();
+    const studio = renderWithHeader();
     const body = screen.getByTestId('pub-headers-body');
     const toggle = screen.getByTestId('pub-headers-toggle');
     expect(body.className).not.toContain('is-shrunk');
     expect(toggle.textContent).toContain('Shrink');
 
     fireEvent.click(toggle);
+    expect(studio.setPublishDraft).toHaveBeenCalledWith({ headersExpanded: false });
+    expect(screen.getByLabelText('Message Body')).toBeTruthy();
+  });
+
+  it('shows a shrunk header list when that state was saved', () => {
+    const draft = {
+      ...basePublishDraft(),
+      headers: [{ id: 'h-1', key: 'x-env', value: 'prod', enabled: true }],
+      headersExpanded: false,
+    };
+    const studio = makeStudio({ publishDraft: draft });
+    render(<KafkaPublishStudio studio={studio} clusterId="c" {...defaultTemplateProps()} />);
+    const body = screen.getByTestId('pub-headers-body');
+    const toggle = screen.getByTestId('pub-headers-toggle');
     expect(body.className).toContain('is-shrunk');
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
     expect(toggle.textContent).toContain('Expand');
-    expect(screen.getByLabelText('Message Body')).toBeTruthy();
 
-    fireEvent.click(screen.getByTestId('pub-headers-toggle'));
-    expect(body.className).not.toContain('is-shrunk');
-    expect(screen.getByPlaceholderText('header-key')).toBeTruthy();
+    fireEvent.click(toggle);
+    expect(studio.setPublishDraft).toHaveBeenCalledWith({ headersExpanded: true });
   });
 
   it('calls setPublishDraft when remove header button clicked', () => {
