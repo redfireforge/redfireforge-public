@@ -157,19 +157,41 @@ describe('KafkaBodyEditorModal', () => {
     );
 
     const textarea = screen.getByLabelText('Message body content') as HTMLTextAreaElement;
+    const select = vi.spyOn(HTMLTextAreaElement.prototype, 'setSelectionRange');
     await user.type(screen.getByLabelText('Search body content'), 'apple');
     expect(screen.getByTestId('kbe-search-current')).toHaveTextContent('apple');
-    expect(textarea.selectionStart).toBe(0);
-    expect(textarea.selectionEnd).toBe(5);
+    expect(select).not.toHaveBeenCalled();
+    expect(textarea.selectionStart).toBe(textarea.selectionEnd);
 
     await user.click(screen.getByRole('button', { name: 'Next' }));
     expect(screen.getByText('2/2')).toBeInTheDocument();
-    expect(textarea.selectionStart).toBe('apple\nbanana\n'.length);
-    expect(textarea.selectionEnd).toBe('apple\nbanana\napple'.length);
+    expect(screen.getByTestId('kbe-search-current')).toHaveTextContent('apple');
+    expect(select).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole('button', { name: 'Previous' }));
     expect(screen.getByText('1/2')).toBeInTheDocument();
-    expect(textarea.selectionStart).toBe(0);
+    select.mockRestore();
+  });
+
+  it('keeps an edited character instead of replacing the highlighted match', () => {
+    const select = vi.spyOn(HTMLTextAreaElement.prototype, 'setSelectionRange');
+    render(
+      <KafkaBodyEditorModal
+        value="apple pie"
+        onChange={vi.fn()}
+        onClose={vi.fn()}
+        format="text"
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('Search body content'), { target: { value: 'apple' } });
+    select.mockClear();
+    const area = screen.getByLabelText('Message body content');
+    fireEvent.change(area, { target: { value: 'apXple pie' } });
+    expect(area).toHaveValue('apXple pie');
+    expect(screen.queryByTestId('kbe-search-current')).toBeNull();
+    expect(select).not.toHaveBeenCalled();
+    select.mockRestore();
   });
 
   it('scrolls the current match into view and steps with Enter', async () => {
