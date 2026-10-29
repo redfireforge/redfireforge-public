@@ -479,6 +479,13 @@ function parseSerdeFormat(value: unknown, fallback: 'string' | 'json'): 'string'
   return fallback;
 }
 
+function parsePublishHeaderList(value: unknown): KafkaPublishDraft['headers'] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((row, index) => parsePublishHeader(row, index))
+    .filter((row): row is KafkaPublishDraft['headers'][number] => row !== null);
+}
+
 function parsePublishHeader(value: unknown, index: number): KafkaPublishDraft['headers'][number] | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
@@ -493,11 +500,8 @@ function parsePublishForm(value: unknown): KafkaPublishDraft | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const source = value as Record<string, unknown>;
   const acks = source.acks === 0 || source.acks === 1 || source.acks === -1 ? source.acks : -1;
-  const headers = Array.isArray(source.headers)
-    ? source.headers
-      .map((row, index) => parsePublishHeader(row, index))
-      .filter((row): row is KafkaPublishDraft['headers'][number] => row !== null)
-    : [];
+  const headers = parsePublishHeaderList(source.headers);
+  const deletedHeaders = parsePublishHeaderList(source.deletedHeaders);
   const schemaConfig = parseSchemaConfig(source.schemaConfig);
   return {
     topic: textField(source.topic).trim(),
@@ -507,8 +511,10 @@ function parsePublishForm(value: unknown): KafkaPublishDraft | null {
     acks,
     timeoutMs: textField(source.timeoutMs).trim(),
     headers,
+    ...(deletedHeaders.length > 0 ? { deletedHeaders } : {}),
     body: textField(source.body),
     bodyFormat: parseSerdeFormat(source.bodyFormat, 'json'),
+    ...(source.headersExpanded === false ? { headersExpanded: false as const } : {}),
     ...(schemaConfig ? { schemaConfig } : {}),
   };
 }
@@ -563,8 +569,21 @@ export async function saveKafkaPublishForm(clusterId: string, draft: KafkaPublis
         value: row.value,
         enabled: row.enabled !== false,
       })),
+    ...(draft.deletedHeaders && draft.deletedHeaders.length > 0
+      ? {
+        deletedHeaders: draft.deletedHeaders
+          .filter((row) => row.key.trim() || row.value)
+          .map((row, index) => ({
+            id: row.id.trim() || `h-deleted-${index}`,
+            key: row.key,
+            value: row.value,
+            enabled: row.enabled !== false,
+          })),
+      }
+      : {}),
     body: draft.body,
     bodyFormat: parseSerdeFormat(draft.bodyFormat, 'json'),
+    ...(draft.headersExpanded === false ? { headersExpanded: false as const } : {}),
     ...(schemaConfig ? { schemaConfig } : {}),
   };
   await writeKey(KAFKA_PUBLISH_FORMS_KEY, JSON.stringify(forms));
