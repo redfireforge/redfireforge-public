@@ -3806,6 +3806,23 @@ select.kafka-ms-form-select--fmt:focus,
 
 /* ── Consumer group table ── */
 
+.kafka-cg-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.kafka-cg-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 32px;
+  margin-bottom: 6px;
+}
+.kafka-cg-section-body.is-shrunk {
+  display: none;
+}
+
 .kafka-consumer-group-table {
   width: 100%;
   border-collapse: collapse;
