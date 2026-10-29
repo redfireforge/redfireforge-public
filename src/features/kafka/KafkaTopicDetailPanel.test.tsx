@@ -463,6 +463,30 @@ describe('KafkaTopicDetailPanel', () => {
     expect(browser.setDraft).toHaveBeenCalledWith({ sortOrder: 'desc' });
   });
 
+  it('messages tab: Hide collapses the filter form so the result list can grow', () => {
+    render(
+      <KafkaTopicDetailPanel
+        detail={makeDetail()}
+        loading={false}
+        error={null}
+        browser={makeBrowser({ result: [], messageCount: 0 })}
+      />,
+    );
+
+    const toggle = screen.getByTestId('detail-filters-collapse-btn');
+    expect(toggle.textContent).toContain('Hide');
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByTestId('detail-messages-tab').className).not.toContain('kafka-explorer-messages--filters-hidden');
+
+    fireEvent.click(toggle);
+
+    expect(toggle.textContent).toContain('Show');
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByTestId('detail-messages-tab').className).toContain('kafka-explorer-messages--filters-hidden');
+    expect(document.getElementById('kafka-detail-filters-body')?.className).toContain('kafka-ms-collapsible--hidden');
+    expect(screen.getByTestId('detail-consume-btn')).toBeTruthy();
+  });
+
   it('messages tab: shows Consuming… while loading', () => {
     render(
       <KafkaTopicDetailPanel
@@ -488,6 +512,31 @@ describe('KafkaTopicDetailPanel', () => {
 
     fireEvent.click(screen.getByTestId('detail-consume-btn'));
     expect(browser.consumeOnce).toHaveBeenCalledOnce();
+  });
+
+  it('messages tab: narrows returned messages and restores them when search is cleared', () => {
+    const rows = [
+      { topic: 't', partition: 0, offset: '1', value: '{"id":"AAA","type":"CREATED"}' },
+      { topic: 't', partition: 1, offset: '2', value: '{"vin":"BBB","type":"OTHER"}' },
+    ];
+    const browser = makeBrowser({ result: rows, messageCount: 2 });
+    render(
+      <KafkaTopicDetailPanel
+        detail={makeDetail()}
+        loading={false}
+        error={null}
+        browser={browser}
+      />,
+    );
+    fireEvent.change(screen.getByTestId('detail-result-search-input'), { target: { value: 'AAA OR missing' } });
+    expect(screen.getByTestId('detail-results').textContent).toContain('1 of 2');
+    expect(screen.getByTestId('detail-row-0')).toBeTruthy();
+    expect(screen.queryByTestId('detail-row-1')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('detail-result-search-clear'));
+    expect(screen.getByTestId('detail-row-0')).toBeTruthy();
+    expect(screen.getByTestId('detail-row-1')).toBeTruthy();
+    expect(screen.getByTestId('detail-results').textContent).toContain('2 messages');
   });
 
   it('messages tab: formats timestamp in results table', () => {

@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { selectOption } from '@test-utils/customSelectHelper';
+import { selectOption, selectOptionByTestId } from '@test-utils/customSelectHelper';
 import { KafkaPublishStudio } from './KafkaPublishStudio';
 import type { UseKafkaMessageStudioReturn } from '@app/hooks/useKafkaMessageStudio';
 import type { KafkaPublishDraft } from './types';
@@ -424,6 +424,102 @@ describe('KafkaPublishStudio — Header Row Actions', () => {
     );
   });
 
+  it('replaces the header list from a pasted clipboard', async () => {
+    const studio = renderWithHeader();
+    Object.assign(navigator, {
+      clipboard: {
+        readText: vi.fn().mockResolvedValue('[{"key":"application.name","value":"ons-enrollment-core"}]'),
+      },
+    });
+    fireEvent.click(screen.getByTestId('pub-paste-headers'));
+    await waitFor(() => expect(studio.setPublishDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        headers: [expect.objectContaining({ key: 'application.name', value: 'ons-enrollment-core', enabled: true })],
+      }),
+    ));
+  });
+
+  it('reports a paste that is not a header list', async () => {
+    renderWithHeader();
+    Object.assign(navigator, {
+      clipboard: { readText: vi.fn().mockResolvedValue('not headers') },
+    });
+    fireEvent.click(screen.getByTestId('pub-paste-headers'));
+    expect((await screen.findByTestId('pub-paste-headers-error')).textContent)
+      .toContain('Clipboard is not a header list');
+  });
+
+  it('reports when the clipboard cannot be read', async () => {
+    renderWithHeader();
+    Object.assign(navigator, {
+      clipboard: { readText: vi.fn().mockRejectedValue(new Error('denied')) },
+    });
+    fireEvent.click(screen.getByTestId('pub-paste-headers'));
+    expect((await screen.findByTestId('pub-paste-headers-error')).textContent)
+      .toContain('Could not read the clipboard');
+  });
+
+  it('deletes every header and keeps them for restore', () => {
+    const studio = renderWithHeader();
+    fireEvent.click(screen.getByTestId('pub-delete-headers'));
+    expect(studio.setPublishDraft).toHaveBeenCalledWith({
+      headers: [],
+      deletedHeaders: [{ id: 'h-1', key: 'x-env', value: 'prod', enabled: true }],
+    });
+  });
+
+  it('restores the headers removed by delete', () => {
+    const draft = {
+      ...basePublishDraft(),
+      headers: [],
+      deletedHeaders: [{ id: 'h-1', key: 'x-env', value: 'prod', enabled: true }],
+    };
+    const studio = makeStudio({ publishDraft: draft });
+    render(<KafkaPublishStudio studio={studio} clusterId="c" {...defaultTemplateProps()} />);
+    fireEvent.click(screen.getByTestId('pub-restore-headers'));
+    expect(studio.setPublishDraft).toHaveBeenCalledWith({
+      headers: [{ id: 'h-1', key: 'x-env', value: 'prod', enabled: true }],
+      deletedHeaders: [],
+      headersExpanded: true,
+    });
+  });
+
+  it('disables delete headers when the list is empty', () => {
+    render(<KafkaPublishStudio studio={makeStudio()} clusterId="c" {...defaultTemplateProps()} />);
+    expect(screen.getByTestId('pub-delete-headers').hasAttribute('disabled')).toBe(true);
+    expect(screen.queryByTestId('pub-restore-headers')).toBeNull();
+  });
+
+  it('shrinks the header list so the message body stays in view', () => {
+    const studio = renderWithHeader();
+    const body = screen.getByTestId('pub-headers-body');
+    const toggle = screen.getByTestId('pub-headers-toggle');
+    expect(body.className).not.toContain('is-shrunk');
+    expect(toggle.textContent).toContain('Shrink');
+
+    fireEvent.click(toggle);
+    expect(studio.setPublishDraft).toHaveBeenCalledWith({ headersExpanded: false });
+    expect(screen.getByLabelText('Message Body')).toBeTruthy();
+  });
+
+  it('shows a shrunk header list when that state was saved', () => {
+    const draft = {
+      ...basePublishDraft(),
+      headers: [{ id: 'h-1', key: 'x-env', value: 'prod', enabled: true }],
+      headersExpanded: false,
+    };
+    const studio = makeStudio({ publishDraft: draft });
+    render(<KafkaPublishStudio studio={studio} clusterId="c" {...defaultTemplateProps()} />);
+    const body = screen.getByTestId('pub-headers-body');
+    const toggle = screen.getByTestId('pub-headers-toggle');
+    expect(body.className).toContain('is-shrunk');
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(toggle.textContent).toContain('Expand');
+
+    fireEvent.click(toggle);
+    expect(studio.setPublishDraft).toHaveBeenCalledWith({ headersExpanded: true });
+  });
+
   it('calls setPublishDraft when remove header button clicked', () => {
     const studio = renderWithHeader();
     fireEvent.click(screen.getByLabelText('Remove header'));
@@ -522,6 +618,18 @@ describe('KafkaPublishStudio — Header Row Actions', () => {
     });
     render(<KafkaPublishStudio studio={studio} clusterId="c" {...defaultTemplateProps()} />);
     expect(screen.getByTestId('pub-result').textContent).toContain('ts 1700000000000');
+  });
+
+  it('clears the decode preview when the body format changes', async () => {
+    const studio = makeStudio({
+      publishDraft: { ...basePublishDraft(), body: 'aGVsbG8=', bodyFormat: 'base64' },
+    });
+    render(<KafkaPublishStudio studio={studio} clusterId="c" {...defaultTemplateProps()} />);
+    fireEvent.click(screen.getByTestId('pub-decode-preview-badge'));
+    await screen.findByTestId('pub-decode-preview-result');
+    selectOptionByTestId('pub-body-format', 'JSON');
+    expect(studio.setPublishDraft).toHaveBeenCalledWith(expect.objectContaining({ bodyFormat: 'json' }));
+    expect(screen.queryByTestId('pub-decode-preview-result')).toBeNull();
   });
 
   it('shows decode-preview badge when bodyFormat is base64 and calls handler', async () => {

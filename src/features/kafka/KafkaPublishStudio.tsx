@@ -5,8 +5,10 @@ import KafkaSchemaConfigSection from '../workflow/components/configs/KafkaSchema
 import type { UseKafkaMessageStudioReturn } from '@app/hooks/useKafkaMessageStudio';
 import type { KafkaPublishTemplate } from '@shared/kafka/kafkaStorage';
 import type { KafkaSerdeFormat } from './types';
-import { validateBase64, validateHex } from './kafkaMessageStudioUtils';
+import { straightenJsonQuotes, validateBase64, validateHex } from './kafkaMessageStudioUtils';
+import { parseKafkaHeadersClipboard } from './kafkaHeaderClipboard';
 import { KafkaTemplateControls } from './KafkaTemplateControls';
+import { KafkaPublishBodySearch, KafkaPublishBodySearchBar, KafkaPublishBodySearchEditor } from './KafkaPublishBodySearch';
 
 const KafkaBodyEditorModal = lazy(() => import('./KafkaBodyEditorModal'));
 
@@ -42,18 +44,65 @@ export function KafkaPublishStudio({
   const { update: updateHeader, remove: removeHeader, move: moveHeader } =
     useListCrud(publishDraft.headers, (items) => setPublishDraft({ headers: items }));
 
+  const deleteHeaders = useCallback(() => {
+    if (publishDraft.headers.length === 0) return;
+    setPublishDraft({
+      headers: [],
+      deletedHeaders: publishDraft.headers,
+    });
+    setHeaderPasteError(null);
+  }, [publishDraft.headers, setPublishDraft]);
+
+  const restoreHeaders = useCallback(() => {
+    const deleted = publishDraft.deletedHeaders ?? [];
+    if (deleted.length === 0) return;
+    setPublishDraft({
+      headers: deleted,
+      deletedHeaders: [],
+      headersExpanded: true,
+    });
+    setHeaderPasteError(null);
+  }, [publishDraft.deletedHeaders, setPublishDraft]);
+
   const addHeader = useCallback(() => {
     setPublishDraft({
       headers: [
         ...publishDraft.headers,
         { id: `h-${Date.now()}`, key: '', value: '', enabled: true },
       ],
+      headersExpanded: true,
     });
   }, [publishDraft.headers, setPublishDraft]);
+
+  const pasteHeaders = useCallback(async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      const parsed = parseKafkaHeadersClipboard(text);
+      if (!parsed) {
+        setHeaderPasteError('Clipboard is not a header list. Copy headers from a message first.');
+        return;
+      }
+      const stamp = Date.now();
+      setPublishDraft({
+        headers: parsed.map((row, index) => ({
+          id: `h-paste-${stamp}-${index}`,
+          key: row.key,
+          value: row.value,
+          enabled: true,
+        })),
+        headersExpanded: true,
+      });
+      setHeaderPasteError(null);
+    } catch {
+      setHeaderPasteError('Could not read the clipboard.');
+    }
+  }, [setPublishDraft]);
 
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [decodePreview, setDecodePreview] = useState<{ text: string; ok: boolean } | null>(null);
   const [bodyEditorOpen, setBodyEditorOpen] = useState(false);
+  const headersExpanded = publishDraft.headersExpanded !== false;
+  const [headerPasteError, setHeaderPasteError] = useState<string | null>(null);
   const topicEmpty = publishDraft.topic.trim() === '';
   const bodyEmpty = publishDraft.body.trim() === '';
   const canSend = !topicEmpty && !publishLoading && connected;
@@ -242,15 +291,71 @@ export function KafkaPublishStudio({
         {/* ── Headers ── */}
         <div className="kafka-ms-section">
           <div className="kafka-ms-section-header">
-            <span className="kafka-ms-section-title">Headers</span>
-            <button
-              className="kafka-ms-add-btn"
-              onClick={addHeader}
-              title="Add header"
-            >
-              + Add
-            </button>
+            <span className="kafka-ms-section-title">
+              Headers
+              {publishDraft.headers.length > 0 && (
+                <span className="kafka-ms-section-count">{publishDraft.headers.length}</span>
+              )}
+            </span>
+            <span className="kafka-ms-section-actions">
+              <button
+                type="button"
+                className="kafka-ms-collapse-btn"
+                onClick={() => setPublishDraft({ headersExpanded: !headersExpanded })}
+                aria-expanded={headersExpanded}
+                aria-controls="kafka-pub-headers-body"
+                data-testid="pub-headers-toggle"
+              >
+                {headersExpanded ? 'Shrink' : 'Expand'}
+                <span className={`kafka-ms-collapse-chevron${headersExpanded ? '' : ' collapsed'}`} aria-hidden="true">▾</span>
+              </button>
+              <button
+                type="button"
+                className="kafka-ms-add-btn"
+                onClick={() => { void pasteHeaders(); }}
+                title="Paste copied headers and replace this list"
+                data-testid="pub-paste-headers"
+              >
+                Paste
+              </button>
+              <button
+                type="button"
+                className="kafka-ms-add-btn kafka-ms-delete-headers-btn"
+                onClick={deleteHeaders}
+                disabled={publishDraft.headers.length === 0}
+                title="Delete all headers"
+                data-testid="pub-delete-headers"
+              >
+                Delete headers
+              </button>
+              {(publishDraft.deletedHeaders?.length ?? 0) > 0 && (
+                <button
+                  type="button"
+                  className="kafka-ms-add-btn"
+                  onClick={restoreHeaders}
+                  title="Put the deleted headers back"
+                  data-testid="pub-restore-headers"
+                >
+                  Restore headers
+                </button>
+              )}
+              <button
+                className="kafka-ms-add-btn"
+                onClick={addHeader}
+                title="Add header"
+              >
+                + Add
+              </button>
+            </span>
           </div>
+          <div
+            id="kafka-pub-headers-body"
+            className={`kafka-ms-headers-body${headersExpanded ? '' : ' is-shrunk'}`}
+            data-testid="pub-headers-body"
+          >
+          {headerPasteError && (
+            <p className="kafka-ms-empty-state" data-testid="pub-paste-headers-error">{headerPasteError}</p>
+          )}
           {publishDraft.headers.length === 0 ? (
             <p className="kafka-ms-empty-state">No custom headers configured</p>
           ) : (
@@ -297,12 +402,15 @@ export function KafkaPublishStudio({
               ))}
             </div>
           )}
+          </div>
         </div>
 
         {/* Body */}
         <div className="kafka-ms-field full">
+          <KafkaPublishBodySearch text={publishDraft.body}>
           <div className="kafka-ms-field-label-row">
             <label htmlFor="kms-pub-body">Message Body</label>
+            <KafkaPublishBodySearchBar />
             <div className="kafka-ms-field-label-actions">
               <button
                 type="button"
@@ -367,6 +475,7 @@ export function KafkaPublishStudio({
               )}
             </div>
           </div>
+          <KafkaPublishBodySearchEditor>
           <textarea
             id="kms-pub-body"
             className="kafka-ms-textarea"
@@ -377,9 +486,16 @@ export function KafkaPublishStudio({
               : '{"key": "value"}'
             }
             value={publishDraft.body}
-            onChange={(e) => { setPublishDraft({ body: e.target.value }); setDecodePreview(null); }}
+            onChange={(e) => {
+              const format = publishDraft.bodyFormat ?? 'json';
+              const body = format === 'json' ? straightenJsonQuotes(e.target.value) : e.target.value;
+              setPublishDraft({ body });
+              setDecodePreview(null);
+            }}
             onBlur={() => setTouched((p) => ({ ...p, body: true }))}
           />
+          </KafkaPublishBodySearchEditor>
+          </KafkaPublishBodySearch>
           {decodePreview && (
             <span
               className={`kafka-ms-decode-preview${decodePreview.ok ? '' : ' kafka-ms-decode-preview--error'}`}
