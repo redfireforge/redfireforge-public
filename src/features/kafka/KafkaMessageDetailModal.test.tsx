@@ -138,6 +138,12 @@ describe('KafkaMessageDetailModal body search', () => {
     act(() => { vi.advanceTimersByTime(1500); });
     expect(screen.getByTestId('kmd-copy-key').textContent).toBe('Copy');
 
+    fireEvent.click(screen.getByTestId('kmd-copy-headers'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"key": "trace"'));
+    expect(screen.getByTestId('kmd-copy-headers').textContent).toContain('Copied');
+    act(() => { vi.advanceTimersByTime(1500); });
+    expect(screen.getByTestId('kmd-copy-headers').textContent).toBe('Copy');
+
     fireEvent.click(screen.getByTestId('kmd-copy-payload'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('accountType'));
     expect(screen.getByTestId('kmd-copy-payload').textContent).toContain('Copied');

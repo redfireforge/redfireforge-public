@@ -39,6 +39,7 @@ coverage-*/
 
 # Java fixture build outputs
 docker/grpc/spring-boot/target/
+packages/rff-mock-java/target/
 
 # Learning Hub last-run compose logs (written under $APP_DATA; never commit if they appear in docker/)
 docker/**/last-run-*.log

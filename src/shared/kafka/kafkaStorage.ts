@@ -1,6 +1,7 @@
 import { readKey, removeKey, writeKey } from '../utils/storage';
 import { isTauri } from '../utils/platform';
 import { normalizeKafkaClusterConfig, type KafkaClusterConfig } from './kafkaConfig';
+import type { KafkaSchemaConfig } from './kafkaClient';
 import type { KafkaConsumeDraft, KafkaPublishDraft } from '../../features/kafka/types';
 
 /** Tauri bundle IDs — each build keeps its own Application Support folder. */
@@ -233,6 +234,24 @@ export const KAFKA_PUBLISH_TEMPLATES_KEY = 'perf-test-kafka-publish-templates-v1
 export const KAFKA_CONSUME_TEMPLATES_KEY = 'perf-test-kafka-consume-templates-v1';
 /** Last Consume topic per cluster id. Survives an app restart. */
 export const KAFKA_CONSUME_TOPICS_KEY = 'perf-test-kafka-consume-topics-v1';
+export const KAFKA_CONSUME_FORMS_KEY = 'perf-test-kafka-consume-forms-v1';
+export const KAFKA_PUBLISH_FORMS_KEY = 'perf-test-kafka-publish-forms-v1';
+
+/** Consume form fields restored after a restart, per cluster. */
+export interface KafkaConsumeFormSnapshot {
+  topic: string;
+  groupId: string;
+  startPosition: 'latest' | 'earliest';
+  timeoutMs: string;
+  maxMessages: string;
+  keyEquals: string;
+  headerMatch: string;
+  jsonPath: string;
+  jsonPathEquals: string;
+  bodyContains: string;
+  sortOrder: 'asc' | 'desc';
+  schemaConfig?: KafkaSchemaConfig;
+}
 
 export interface KafkaPublishTemplate {
   id: string;
@@ -340,6 +359,215 @@ export async function loadKafkaConsumeTopic(clusterId: string): Promise<string> 
     await finalizeImportedKey(hit, KAFKA_CONSUME_TOPICS_KEY);
   }
   return topics[clusterId] ?? '';
+}
+
+function textField(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
+function parseSchemaConfig(value: unknown): KafkaSchemaConfig | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const source = value as Record<string, unknown>;
+  const format = source.format;
+  if (format !== 'avro' && format !== 'protobuf' && format !== 'json-schema') return undefined;
+  if (typeof source.registryUrl !== 'string') return undefined;
+  const config: KafkaSchemaConfig = { registryUrl: source.registryUrl, format };
+  if (typeof source.subject === 'string' && source.subject.trim()) config.subject = source.subject;
+  if (typeof source.version === 'number' && Number.isFinite(source.version)) config.version = source.version;
+  const auth = source.auth;
+  if (auth && typeof auth === 'object' && !Array.isArray(auth)) {
+    const row = auth as Record<string, unknown>;
+    if (typeof row.username === 'string' && typeof row.password === 'string') {
+      config.auth = { username: row.username, password: row.password };
+    }
+  }
+  return config;
+}
+
+function parseConsumeForm(value: unknown): KafkaConsumeFormSnapshot | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const source = value as Record<string, unknown>;
+  const schemaConfig = parseSchemaConfig(source.schemaConfig);
+  return {
+    topic: textField(source.topic).trim(),
+    groupId: textField(source.groupId).trim(),
+    startPosition: source.startPosition === 'earliest' ? 'earliest' : 'latest',
+    timeoutMs: textField(source.timeoutMs).trim(),
+    maxMessages: textField(source.maxMessages).trim(),
+    keyEquals: textField(source.keyEquals),
+    headerMatch: textField(source.headerMatch),
+    jsonPath: textField(source.jsonPath),
+    jsonPathEquals: textField(source.jsonPathEquals),
+    bodyContains: textField(source.bodyContains),
+    sortOrder: source.sortOrder === 'desc' ? 'desc' : 'asc',
+    ...(schemaConfig ? { schemaConfig } : {}),
+  };
+}
+
+function parseConsumeForms(raw: string | null): Record<string, KafkaConsumeFormSnapshot> {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const forms: Record<string, KafkaConsumeFormSnapshot> = {};
+    for (const [clusterId, value] of Object.entries(parsed)) {
+      const form = parseConsumeForm(value);
+      if (form) forms[clusterId] = form;
+    }
+    return forms;
+  } catch {
+    return {};
+  }
+}
+
+export async function loadKafkaConsumeForm(clusterId: string): Promise<KafkaConsumeFormSnapshot | null> {
+  const hit = await firstKeyHit([KAFKA_CONSUME_FORMS_KEY]);
+  if (hit) {
+    const forms = parseConsumeForms(hit.value);
+    if (hit.key !== KAFKA_CONSUME_FORMS_KEY || hit.source !== 'primary') {
+      if (Object.keys(forms).length > 0) {
+        await writeKey(KAFKA_CONSUME_FORMS_KEY, JSON.stringify(forms));
+      }
+      await finalizeImportedKey(hit, KAFKA_CONSUME_FORMS_KEY);
+    }
+    if (forms[clusterId]) return forms[clusterId];
+  }
+  const topic = await loadKafkaConsumeTopic(clusterId);
+  if (!topic) return null;
+  return {
+    topic,
+    groupId: '',
+    startPosition: 'latest',
+    timeoutMs: '',
+    maxMessages: '',
+    keyEquals: '',
+    headerMatch: '',
+    jsonPath: '',
+    jsonPathEquals: '',
+    bodyContains: '',
+    sortOrder: 'asc',
+  };
+}
+
+export async function saveKafkaConsumeForm(
+  clusterId: string,
+  draft: KafkaConsumeDraft,
+): Promise<void> {
+  const hit = await firstKeyHit([KAFKA_CONSUME_FORMS_KEY]);
+  const forms = parseConsumeForms(hit?.value ?? null);
+  const schemaConfig = parseSchemaConfig(draft.schemaConfig);
+  forms[clusterId] = {
+    topic: draft.topic.trim(),
+    groupId: draft.groupId.trim(),
+    startPosition: draft.startPosition === 'earliest' ? 'earliest' : 'latest',
+    timeoutMs: draft.timeoutMs.trim(),
+    maxMessages: draft.maxMessages.trim(),
+    keyEquals: draft.keyEquals,
+    headerMatch: draft.headerMatch,
+    jsonPath: draft.jsonPath,
+    jsonPathEquals: draft.jsonPathEquals,
+    bodyContains: draft.bodyContains,
+    sortOrder: draft.sortOrder === 'desc' ? 'desc' : 'asc',
+    ...(schemaConfig ? { schemaConfig } : {}),
+  };
+  await writeKey(KAFKA_CONSUME_FORMS_KEY, JSON.stringify(forms));
+  await saveKafkaConsumeTopic(clusterId, draft.topic);
+}
+
+function parseSerdeFormat(value: unknown, fallback: 'string' | 'json'): 'string' | 'json' | 'base64' | 'hex' {
+  if (value === 'string' || value === 'json' || value === 'base64' || value === 'hex') return value;
+  return fallback;
+}
+
+function parsePublishHeader(value: unknown, index: number): KafkaPublishDraft['headers'][number] | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  const key = textField(row.key);
+  const headerValue = row.value == null ? '' : String(row.value);
+  if (!key && !headerValue) return null;
+  const id = typeof row.id === 'string' && row.id.trim() ? row.id.trim() : `h-restored-${index}`;
+  return { id, key, value: headerValue, enabled: row.enabled !== false };
+}
+
+function parsePublishForm(value: unknown): KafkaPublishDraft | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const source = value as Record<string, unknown>;
+  const acks = source.acks === 0 || source.acks === 1 || source.acks === -1 ? source.acks : -1;
+  const headers = Array.isArray(source.headers)
+    ? source.headers
+      .map((row, index) => parsePublishHeader(row, index))
+      .filter((row): row is KafkaPublishDraft['headers'][number] => row !== null)
+    : [];
+  const schemaConfig = parseSchemaConfig(source.schemaConfig);
+  return {
+    topic: textField(source.topic).trim(),
+    key: textField(source.key),
+    keyFormat: parseSerdeFormat(source.keyFormat, 'string'),
+    partition: textField(source.partition).trim(),
+    acks,
+    timeoutMs: textField(source.timeoutMs).trim(),
+    headers,
+    body: textField(source.body),
+    bodyFormat: parseSerdeFormat(source.bodyFormat, 'json'),
+    ...(schemaConfig ? { schemaConfig } : {}),
+  };
+}
+
+function parsePublishForms(raw: string | null): Record<string, KafkaPublishDraft> {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const forms: Record<string, KafkaPublishDraft> = {};
+    for (const [clusterId, value] of Object.entries(parsed)) {
+      const form = parsePublishForm(value);
+      if (form) forms[clusterId] = form;
+    }
+    return forms;
+  } catch {
+    return {};
+  }
+}
+
+export async function loadKafkaPublishForm(clusterId: string): Promise<KafkaPublishDraft | null> {
+  if (!clusterId) return null;
+  const hit = await firstKeyHit([KAFKA_PUBLISH_FORMS_KEY]);
+  if (!hit) return null;
+  const forms = parsePublishForms(hit.value);
+  if (hit.key !== KAFKA_PUBLISH_FORMS_KEY || hit.source !== 'primary') {
+    if (Object.keys(forms).length > 0) {
+      await writeKey(KAFKA_PUBLISH_FORMS_KEY, JSON.stringify(forms));
+    }
+    await finalizeImportedKey(hit, KAFKA_PUBLISH_FORMS_KEY);
+  }
+  return forms[clusterId] ?? null;
+}
+
+export async function saveKafkaPublishForm(clusterId: string, draft: KafkaPublishDraft): Promise<void> {
+  if (!clusterId) return;
+  const hit = await firstKeyHit([KAFKA_PUBLISH_FORMS_KEY]);
+  const forms = parsePublishForms(hit?.value ?? null);
+  const schemaConfig = parseSchemaConfig(draft.schemaConfig);
+  forms[clusterId] = {
+    topic: draft.topic.trim(),
+    key: draft.key,
+    keyFormat: parseSerdeFormat(draft.keyFormat, 'string'),
+    partition: draft.partition.trim(),
+    acks: draft.acks === 0 || draft.acks === 1 ? draft.acks : -1,
+    timeoutMs: draft.timeoutMs.trim(),
+    headers: draft.headers
+      .filter((row) => row.key.trim() || row.value)
+      .map((row, index) => ({
+        id: row.id.trim() || `h-restored-${index}`,
+        key: row.key,
+        value: row.value,
+        enabled: row.enabled !== false,
+      })),
+    body: draft.body,
+    bodyFormat: parseSerdeFormat(draft.bodyFormat, 'json'),
+    ...(schemaConfig ? { schemaConfig } : {}),
+  };
+  await writeKey(KAFKA_PUBLISH_FORMS_KEY, JSON.stringify(forms));
 }
 
 export async function saveKafkaConsumeTopic(clusterId: string, topic: string): Promise<void> {

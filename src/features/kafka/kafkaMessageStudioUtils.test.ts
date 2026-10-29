@@ -49,6 +49,17 @@ describe('matchesKafkaResultSearch', () => {
     expect(matchesKafkaResultSearch({ ...row, key: undefined }, 'order')).toBe(false);
     expect(matchesKafkaResultSearch({ ...row, key: undefined }, 'CREATED')).toBe(true);
   });
+
+  it('applies AND and OR across the returned message without another fetch', () => {
+    expect(matchesKafkaResultSearch(row, 'order-42 AND CREATED')).toBe(true);
+    expect(matchesKafkaResultSearch(row, 'missing AND CREATED')).toBe(false);
+    expect(matchesKafkaResultSearch(row, 'missing OR CREATED')).toBe(true);
+    expect(matchesKafkaResultSearch(row, '(missing OR order-42) AND CREATED')).toBe(true);
+  });
+
+  it('searches header names and values', () => {
+    expect(matchesKafkaResultSearch({ ...row, headers: { event: 'OrderCreated' } }, 'OrderCreated')).toBe(true);
+  });
 });
 
 // ── validateAndFormatJson ──────────────────────────────────────────────────

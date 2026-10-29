@@ -357,6 +357,28 @@ describe('matchesKafkaConsumeFilter', () => {
     expect(matchesKafkaConsumeFilter(record(), { jsonPath: '$.missing', jsonEquals: 'anything' })).toBe(false);
   });
 
+  it('matches AND and OR body queries', () => {
+    const value = '{"orderId":"ORD-100","type":"SHIPPED","status":"open"}';
+    expect(matchesKafkaConsumeFilter(record({ value }), { bodyContains: 'status AND SHIPPED' })).toBe(true);
+    expect(matchesKafkaConsumeFilter(record({ value }), { bodyContains: 'status AND missing-word' })).toBe(false);
+    expect(matchesKafkaConsumeFilter(record({ value }), { bodyContains: 'missing-word OR SHIPPED' })).toBe(true);
+    expect(matchesKafkaConsumeFilter(record({ value }), { bodyContains: 'missing-word OR status AND SHIPPED' })).toBe(true);
+    expect(matchesKafkaConsumeFilter(record({ value }), { bodyContains: '(ORD-100 OR other-id) AND SHIPPED' })).toBe(true);
+    expect(matchesKafkaConsumeFilter(record({ value }), { bodyContains: '"SHIPPED" AND orderId' })).toBe(true);
+  });
+
+  it('treats a value with no AND or OR as one phrase', () => {
+    const value = 'status is ready';
+    expect(matchesKafkaConsumeFilter(record({ value }), { bodyContains: 'status is ready' })).toBe(true);
+    expect(matchesKafkaConsumeFilter(record({ value }), { bodyContains: 'is ready now' })).toBe(false);
+  });
+
+  it('uses quotes when the phrase itself contains AND', () => {
+    const value = 'status is AND ready';
+    expect(matchesKafkaConsumeFilter(record({ value }), { bodyContains: '"is AND ready"' })).toBe(true);
+    expect(matchesKafkaConsumeFilter(record({ value }), { bodyContains: 'missing AND ready' })).toBe(false);
+  });
+
   it('matches accountType inside an escaped event body string', () => {
     const value = '{"event":{"body":"{\\"accountType\\":\\"PN\\",\\"vin\\":\\"1\\"}"}}';
     expect(matchesKafkaConsumeFilter(record({ value }), { bodyContains: '"accountType":"PN"' })).toBe(true);
