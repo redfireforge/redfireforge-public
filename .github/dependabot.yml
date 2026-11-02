@@ -13,6 +13,16 @@ updates:
       # monaco-graphql ships a release that supports 0.53+.
       - dependency-name: monaco-editor
         versions: [">= 0.53"]
+      # Tauri JS packages must stay on the same minor as the crates in
+      # src-tauri/Cargo.toml. A newer JS minor makes `tauri build` refuse to start.
+      - dependency-name: "@tauri-apps/api"
+      - dependency-name: "@tauri-apps/cli"
+      - dependency-name: "@tauri-apps/plugin-dialog"
+      - dependency-name: "@tauri-apps/plugin-fs"
+      - dependency-name: "@tauri-apps/plugin-http"
+      - dependency-name: "@tauri-apps/plugin-process"
+      - dependency-name: "@tauri-apps/plugin-shell"
+      - dependency-name: "@tauri-apps/plugin-updater"
     groups:
       # Batch minor/patch updates into one PR per week instead of one per package
       minor-and-patch:
