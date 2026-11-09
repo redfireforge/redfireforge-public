@@ -328,7 +328,7 @@
     "monaco-editor": "^0.52.2",
     "playwright": "^1.59.1",
     "stylelint": "^17.16.0",
-    "stylelint-config-standard": "^40.0.0",
+    "stylelint-config-standard": "^41.0.0",
     "supertest": "^7.3.1",
     "tsx": "^4.23.15",
     "typescript": "~6.0.2",
