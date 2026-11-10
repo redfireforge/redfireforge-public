@@ -1,6 +1,6 @@
 {
   "name": "redfire-forge",
-  "version": "0.8.20-alpha.1",
+  "version": "0.8.21-alpha.1",
   "type": "module",
   "workspaces": [
     "packages/*"

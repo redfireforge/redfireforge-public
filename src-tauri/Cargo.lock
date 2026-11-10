@@ -5005,7 +5005,7 @@ dependencies = [
 
 [[package]]
 name = "redfireforge"
-version = "0.8.20-alpha.1"
+version = "0.8.21-alpha.1"
 dependencies = [
  "base64 0.22.1",
  "bytes",
