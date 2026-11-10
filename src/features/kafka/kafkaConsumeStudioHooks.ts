@@ -128,6 +128,7 @@ export function useKafkaConsumeStreamView({
     streamMode.streamMessages,
     streamSearch,
     streamSearchCaseSensitive,
+    consumeDraft.bodyContains,
   );
 
   return {

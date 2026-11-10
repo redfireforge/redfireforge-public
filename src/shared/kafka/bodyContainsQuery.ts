@@ -158,6 +158,25 @@ function evalQuery(node: QueryNode, raw: string, text: string): boolean {
   return node.items.some((item) => evalQuery(item, raw, text));
 }
 
+function collectTerms(node: QueryNode, out: string[]): void {
+  if (node.kind === 'term') {
+    if (node.value) out.push(node.value);
+    return;
+  }
+  for (const item of node.items) collectTerms(item, out);
+}
+
+/** Terms in an AND/OR query. A query with no operator is one term. */
+export function kafkaBodyQueryTerms(needle: string): string[] {
+  const normalized = normalizeQuotes(needle).trim();
+  if (!normalized) return [];
+  const query = parseQuery(normalized);
+  if (!query) return [normalized];
+  const terms: string[] = [];
+  collectTerms(query, terms);
+  return terms;
+}
+
 /** Case-insensitive body match, including AND/OR queries. */
 export function kafkaBodyHasText(value: string, needle: string): boolean {
   const normalized = normalizeQuotes(needle).trim();

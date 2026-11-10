@@ -9,9 +9,11 @@ import { KafkaTemplateControls } from './KafkaTemplateControls';
 import KafkaMessageDetailModal from './KafkaMessageDetailModal';
 import { renderKafkaTimestampCell } from './kafkaConsumeStudioHelpers';
 import {
+  describeResultFilter,
   filterIndexedStreamRows,
   formatStreamCountLabel,
   getStreamEmptyStateText,
+  resultListFilterActive,
 } from './kafkaConsumeStreamHelpers';
 import { KafkaResultSearchBar } from './KafkaResultSearchBar';
 import { useKafkaConsumeE2eBridge, useKafkaConsumeStreamView, useRelativeTimestampTick } from './kafkaConsumeStudioHooks';
@@ -96,10 +98,15 @@ export function KafkaConsumeStudio({
   });
   const [resultSearch, setResultSearch] = useState('');
   const [resultSearchCaseSensitive, setResultSearchCaseSensitive] = useState(false);
-  const resultSearchActive = resultSearch.trim().length > 0;
+  const consumeListFiltered = resultListFilterActive(resultSearch, consumeDraft.bodyContains);
   const filteredConsumeRows = useMemo(
-    () => filterIndexedStreamRows(consumeResult ?? [], resultSearch, resultSearchCaseSensitive),
-    [consumeResult, resultSearch, resultSearchCaseSensitive],
+    () => filterIndexedStreamRows(
+      consumeResult ?? [],
+      resultSearch,
+      resultSearchCaseSensitive,
+      consumeDraft.bodyContains,
+    ),
+    [consumeResult, resultSearch, resultSearchCaseSensitive, consumeDraft.bodyContains],
   );
   const handleConsume = useCallback(() => {
     void consumeOnce();
@@ -445,7 +452,7 @@ export function KafkaConsumeStudio({
               <div className="kafka-ms-results-zone" data-testid="con-results-zone">
                 <div className="kafka-ms-results-header">
                   <span className="kafka-ms-results-count">
-                    {formatStreamCountLabel(consumeMessageCount, filteredConsumeRows.length, resultSearchActive)}
+                    {formatStreamCountLabel(consumeMessageCount, filteredConsumeRows.length, consumeListFiltered)}
                     {consumeMessageCount > 0 &&
                       consumeMessageCount === parseInt(consumeDraft.maxMessages, 10) && (
                       <span className="kafka-ms-max-reached" data-testid="con-max-reached"> (max reached)</span>
@@ -471,7 +478,7 @@ export function KafkaConsumeStudio({
                   <p className="kafka-ms-empty-state">No messages received</p>
                 ) : filteredConsumeRows.length === 0 ? (
                   <p className="kafka-ms-empty-state" data-testid="con-result-search-empty">
-                    No messages match “{resultSearch.trim()}”
+                    No messages match “{describeResultFilter(resultSearch, consumeDraft.bodyContains)}”
                   </p>
                 ) : (
                   <div className="kafka-ms-results-table-wrap">
@@ -500,7 +507,7 @@ export function KafkaConsumeStudio({
                             <td>{row.partition}</td>
                             {renderKafkaTimestampCell(row.timestamp)}
                             <td>{row.key ?? '—'}</td>
-                            <td>{valuePreview(row.value)}</td>
+                            <td>{valuePreview(row.value, 60, consumeDraft.bodyContains)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -582,7 +589,7 @@ export function KafkaConsumeStudio({
                   {formatStreamCountLabel(
                     streamMode.streamMessages.length,
                     filteredStreamRows.length,
-                    streamSearchActive,
+                    resultListFilterActive(streamSearch, consumeDraft.bodyContains),
                   )}
                   {streamMode.streamMaxReached && (
                     <span className="kafka-ms-max-reached" data-testid="stream-max-reached"> (max reached)</span>
@@ -615,7 +622,7 @@ export function KafkaConsumeStudio({
                 </p>
               ) : filteredStreamRows.length === 0 ? (
                 <p className="kafka-ms-empty-state" data-testid="stream-search-empty">
-                  No messages match “{streamSearch.trim()}”
+                  No messages match “{describeResultFilter(streamSearch, consumeDraft.bodyContains)}”
                 </p>
               ) : (
                 <div className="kafka-ms-stream-table-shell">
@@ -650,7 +657,7 @@ export function KafkaConsumeStudio({
                             <td>{row.partition}</td>
                             {renderKafkaTimestampCell(row.timestamp)}
                             <td>{row.key ?? '—'}</td>
-                            <td>{valuePreview(row.value)}</td>
+                            <td>{valuePreview(row.value, 60, consumeDraft.bodyContains)}</td>
                           </tr>
                         ))}
                       </tbody>

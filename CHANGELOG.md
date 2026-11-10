@@ -10,6 +10,7 @@ Format follows Keep a Changelog and Semantic Versioning.
 
 ### Fixed
 - **Desktop release build** — The Tauri JavaScript packages stay on the same minor version as the Rust crates, so `tauri build` is not rejected for a version mismatch.
+- **Kafka body query on the current page** — Body Contains filters Consume, Stream, and Topics → Messages rows already loaded, after schema decode. A match past the short value preview is shown at the start of that cell.
 
 ### Added
 - **Kafka Publish headers** — Message Detail copies every header at once. Publish pastes that list instead of adding each row, and Shrink hides the rows so the message body and Send stay on screen. Shrink stays collapsed when you leave Publish and come back. Delete headers clears the list, and Restore headers puts those rows back. The body editor highlights search matches and moves to the next one. The Publish message body has the same search on its header, between the title and Expand, and typing in a highlighted match keeps the characters you enter. Topic, headers, and body are restored for the selected cluster after a refresh.
