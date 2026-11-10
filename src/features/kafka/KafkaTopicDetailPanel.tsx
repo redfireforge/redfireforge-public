@@ -4,7 +4,12 @@ import type { KafkaTopicDetail } from './useTopicExplorer';
 import type { UseTopicMessageBrowserReturn } from './useTopicMessageBrowser';
 import type { TimeWindow } from './useTopicMessageBrowser';
 import { valuePreview, exportResultSet } from './kafkaMessageStudioUtils';
-import { filterIndexedStreamRows, formatStreamCountLabel } from './kafkaConsumeStreamHelpers';
+import {
+  describeResultFilter,
+  filterIndexedStreamRows,
+  formatStreamCountLabel,
+  resultListFilterActive,
+} from './kafkaConsumeStreamHelpers';
 import { KafkaResultSearchBar } from './KafkaResultSearchBar';
 import type { KafkaUiSafeError } from '@shared/kafka/kafkaClient';
 import KafkaMessageDetailModal from './KafkaMessageDetailModal';
@@ -114,10 +119,15 @@ export function KafkaTopicDetailPanel({ detail, loading, error, browser }: Kafka
   const [filtersCollapsed, setFiltersCollapsed] = useState(false);
   const [resultSearch, setResultSearch] = useState('');
   const [resultSearchCaseSensitive, setResultSearchCaseSensitive] = useState(false);
-  const resultSearchActive = resultSearch.trim().length > 0;
+  const listFiltered = resultListFilterActive(resultSearch, browser.draft.bodyContains);
   const filteredRows = useMemo(
-    () => filterIndexedStreamRows(browser.result ?? [], resultSearch, resultSearchCaseSensitive),
-    [browser.result, resultSearch, resultSearchCaseSensitive],
+    () => filterIndexedStreamRows(
+      browser.result ?? [],
+      resultSearch,
+      resultSearchCaseSensitive,
+      browser.draft.bodyContains,
+    ),
+    [browser.result, resultSearch, resultSearchCaseSensitive, browser.draft.bodyContains],
   );
 
   const selectedTimeWindow = useMemo(
@@ -418,7 +428,7 @@ export function KafkaTopicDetailPanel({ detail, loading, error, browser }: Kafka
               <div className="kafka-ms-results-zone" data-testid="detail-results">
                 <div className="kafka-ms-results-header">
                   <span className="kafka-ms-results-count">
-                    {formatStreamCountLabel(browser.messageCount, filteredRows.length, resultSearchActive)}
+                    {formatStreamCountLabel(browser.messageCount, filteredRows.length, listFiltered)}
                   </span>
                   {browser.timedOut && <span className="kafka-ms-timed-out-badge">timed out</span>}
                   {browser.messageCount > 0 && (
@@ -436,7 +446,7 @@ export function KafkaTopicDetailPanel({ detail, loading, error, browser }: Kafka
                   <p className="kafka-ms-empty-state">No messages received</p>
                 ) : filteredRows.length === 0 ? (
                   <p className="kafka-ms-empty-state" data-testid="detail-result-search-empty">
-                    No messages match “{resultSearch.trim()}”
+                    No messages match “{describeResultFilter(resultSearch, browser.draft.bodyContains)}”
                   </p>
                 ) : (
                   <div className="kafka-ms-results-table-wrap">
@@ -458,7 +468,7 @@ export function KafkaTopicDetailPanel({ detail, loading, error, browser }: Kafka
                             <td>{row.partition}</td>
                             <td>{formatTimestamp(row.timestamp)}</td>
                             <td>{row.key ?? '—'}</td>
-                            <td>{valuePreview(row.value)}</td>
+                            <td>{valuePreview(row.value, 60, browser.draft.bodyContains)}</td>
                           </tr>
                         ))}
                       </tbody>
