@@ -3,7 +3,7 @@
  * No React imports — all functions are unit-testable in isolation.
  */
 
-import { kafkaBodyHasText } from '@shared/kafka/bodyContainsQuery';
+import { kafkaBodyHasText, kafkaBodyQueryTerms } from '@shared/kafka/bodyContainsQuery';
 import { saveJsonFile } from '@shared/utils/fileSaver';
 import type { KafkaConsumeCursor, KafkaConsumeDraft, KafkaConsumeResultRow, KafkaHeaderRow, KafkaPublishDraft } from './types';
 
@@ -277,8 +277,24 @@ export async function exportResultSet(rows: KafkaConsumeResultRow[], topic: stri
 // ── Preview helper ─────────────────────────────────────────────────────────
 
 /** Return a truncated preview of a message value for the results table. */
-export function valuePreview(value: string, maxLen = 60): string {
+export function valuePreview(value: string, maxLen = 60, focusQuery?: string): string {
   if (!value) return '(empty)';
   const oneLine = value.replace(/\s+/g, ' ').trim();
-  return oneLine.length > maxLen ? `${oneLine.slice(0, maxLen)}…` : oneLine;
+  const head = oneLine.length > maxLen ? `${oneLine.slice(0, maxLen)}…` : oneLine;
+  const hidden = hiddenBodyTerms(oneLine, head, focusQuery);
+  if (hidden.length === 0) return head;
+  const combined = `${hidden.join(' · ')} · ${head}`;
+  return combined.length > maxLen ? `${combined.slice(0, maxLen)}…` : combined;
+}
+
+/** AND/OR terms that match the full body but sit past the truncated preview. */
+function hiddenBodyTerms(body: string, head: string, focusQuery?: string): string[] {
+  const terms = focusQuery ? kafkaBodyQueryTerms(focusQuery) : [];
+  if (terms.length === 0) return [];
+  const lowerBody = body.toLowerCase();
+  const lowerHead = head.toLowerCase();
+  return terms.filter((term) => {
+    const needle = term.toLowerCase();
+    return needle.length > 0 && lowerBody.includes(needle) && !lowerHead.includes(needle);
+  });
 }

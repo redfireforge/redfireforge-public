@@ -560,6 +560,45 @@ describe('executeConsumeOnce — schema config', () => {
     expect(result.data?.messages[0]?.value).toBe('{"event":"test"}');
   });
 
+  it('applies Body Contains AND to the decoded JSON', async () => {
+    const rawRecord = {
+      topic: 'orders.created',
+      partition: 0,
+      offset: '8',
+      timestamp: '0',
+      key: null,
+      value: '{"messagingMode":"PRODUCTION"}',
+      headers: {},
+      rawValue: Buffer.from([0x00, 0x01]),
+    };
+    const { runtimeAdapter, admin } = createMockRuntimeAdapter({ consumeRecords: [rawRecord] });
+    vi.mocked(admin.fetchTopicOffsets).mockResolvedValue([partitionOffsets('0', '2')]);
+    const decodeValueMod = await import('./schema-registry-client.js');
+    const decodeSpy = vi.spyOn(decodeValueMod, 'decodeValue').mockResolvedValueOnce({
+      daMode: 'Y',
+      envelopeSchema: 'com.gm.cei.messaging.OnstarEnrollmentSubmitted',
+    });
+
+    const result = await executeConsumeOnce(
+      runtimeAdapter,
+      makeConnection(),
+      baseRequest({
+        maxMessages: 1,
+        filter: { bodyContains: 'daMode AND OnstarEnrollmentSubmitted' },
+        schemaConfig: {
+          registryUrl: 'http://localhost:8081',
+          subjectStrategy: 'topic-name',
+          valueFormat: 'avro',
+        },
+      }),
+    );
+
+    decodeSpy.mockRestore();
+    expect(result.ok).toBe(true);
+    expect(result.data?.messages).toHaveLength(1);
+    expect(result.data?.messages[0]?.value).toContain('"daMode":"Y"');
+  });
+
   it('returns schemaError envelope when schemaConfig present and decodeValue fails', async () => {
     // Provide a rawRecord WITH rawValue so decodeValue is invoked
     const rawRecord = {

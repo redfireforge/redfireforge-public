@@ -233,11 +233,8 @@ export async function executeConsumeOnce(
           return;
         }
 
-        if (!matchesKafkaConsumeFilter(record, request.filter)) {
-          return;
-        }
-
-        // Phase 10B — Schema decode when schemaConfig is present.
+        // Schema decode before the filter so JSONPath and Body Contains
+        // search the JSON shown in the table, not the raw Avro/protobuf bytes.
         const { rawValue: _rawValue, ...strippedRecord } = record;
         let consumeRecord: KafkaConsumeRecord = strippedRecord;
         if (request.schemaConfig && _rawValue) {
@@ -267,6 +264,10 @@ export async function executeConsumeOnce(
             }
             throw decodeError;
           }
+        }
+
+        if (!matchesKafkaConsumeFilter(consumeRecord, request.filter)) {
+          return;
         }
 
         messages.push(consumeRecord);

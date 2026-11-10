@@ -484,6 +484,18 @@ describe('valuePreview', () => {
   it('does not truncate short strings', () => {
     expect(valuePreview('short', 60)).toBe('short');
   });
+
+  it('leads with AND terms that the truncated preview would hide', () => {
+    const body = '{"messagingMode":"PRODUCTION","envelopeSchema":"com.gm.cei.messaging.OnstarEnrollmentSubmitted","daMode":"Y"}';
+    const preview = valuePreview(body, 60, 'daMode AND OnstarEnrollmentSubmitted');
+    expect(preview.startsWith('daMode · OnstarEnrollmentSubmitted')).toBe(true);
+    expect(preview.endsWith('…')).toBe(true);
+  });
+
+  it('leaves the preview alone when the terms are already visible', () => {
+    expect(valuePreview('daMode OnstarEnrollmentSubmitted', 60, 'daMode AND OnstarEnrollmentSubmitted'))
+      .toBe('daMode OnstarEnrollmentSubmitted');
+  });
 });
 
 // ── buildSubscribeRequest ──────────────────────────────────────────────────

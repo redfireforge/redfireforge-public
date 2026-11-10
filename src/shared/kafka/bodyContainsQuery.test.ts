@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { kafkaBodyHasText } from './bodyContainsQuery';
+import { kafkaBodyHasText, kafkaBodyQueryTerms } from './bodyContainsQuery';
 
 describe('kafkaBodyHasText', () => {
   const body = '{"orderId":"ORD-100","type":"SHIPPED","status":"open","note":"say \\"hi\\""}';
@@ -13,6 +13,20 @@ describe('kafkaBodyHasText', () => {
     expect(kafkaBodyHasText('status is ready', 'status is ready')).toBe(true);
     expect(kafkaBodyHasText('status is ready', 'is ready now')).toBe(false);
     expect(kafkaBodyHasText(body, 'ORD-100')).toBe(true);
+  });
+
+  it('requires every AND term, including terms past a truncated preview', () => {
+    const envelope = '{"messagingMode":"PRODUCTION","envelopeSchema":"com.gm.cei.messaging.OnstarEnrollmentSubmitted"}';
+    const withMode = `${envelope.slice(0, -1)},"daMode":"Y"}`;
+    expect(kafkaBodyHasText(envelope, 'daMode AND OnstarEnrollmentSubmitted')).toBe(false);
+    expect(kafkaBodyHasText(withMode, 'daMode AND OnstarEnrollmentSubmitted')).toBe(true);
+    expect(kafkaBodyHasText(envelope.replace('messagingMode', 'dataMode'), 'daMode AND OnstarEnrollmentSubmitted')).toBe(false);
+    expect(kafkaBodyQueryTerms('daMode AND OnstarEnrollmentSubmitted')).toEqual([
+      'daMode',
+      'OnstarEnrollmentSubmitted',
+    ]);
+    expect(kafkaBodyQueryTerms('  ')).toEqual([]);
+    expect(kafkaBodyQueryTerms('status AND')).toEqual(['status AND']);
   });
 
   it('matches AND and OR with parentheses', () => {

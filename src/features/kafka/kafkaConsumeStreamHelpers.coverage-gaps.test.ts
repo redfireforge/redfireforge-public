@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as utils from './kafkaMessageStudioUtils';
 import {
+  describeResultFilter,
   filterIndexedStreamRows,
   formatStreamCountLabel,
   getStreamEmptyStateText,
+  resultListFilterActive,
 } from './kafkaConsumeStreamHelpers';
 
 describe('kafkaConsumeStreamHelpers coverage gaps', () => {
@@ -24,6 +26,21 @@ describe('kafkaConsumeStreamHelpers coverage gaps', () => {
     ]);
     expect(spy).toHaveBeenCalledTimes(3);
     spy.mockRestore();
+  });
+
+  it('drops rows that miss an AND term in Body Contains', () => {
+    const rows = [
+      { topic: 't', partition: 0, offset: '1', value: '{"daMode":"Y","envelopeSchema":"OnstarEnrollmentSubmitted"}' },
+      { topic: 't', partition: 0, offset: '2', value: '{"messagingMode":"PRODUCTION","envelopeSchema":"OnstarEnrollmentSubmitted"}' },
+    ] as never;
+    const filtered = filterIndexedStreamRows(rows, '', false, 'daMode AND OnstarEnrollmentSubmitted');
+    expect(filtered.map((entry) => entry.index)).toEqual([0]);
+    expect(resultListFilterActive('', 'daMode AND OnstarEnrollmentSubmitted')).toBe(true);
+    expect(resultListFilterActive('  ', '  ')).toBe(false);
+    expect(describeResultFilter('id', 'daMode AND OnstarEnrollmentSubmitted')).toBe(
+      'id · daMode AND OnstarEnrollmentSubmitted',
+    );
+    expect(describeResultFilter('', '')).toBe('');
   });
 
   it('can match the value with case sensitivity on or off', () => {
